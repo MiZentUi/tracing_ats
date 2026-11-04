@@ -447,31 +447,54 @@ delta        = Score_final − Score_pre
 
 ### 7.4. Ограничение по критичному требованию
 
-Если у обязательного требования с `critical = true` покрытие `c_r < 0.2`, итог ограничивается: `Score = min(Score, 49)`, в отчёт добавляется флаг «критичное требование не закрыто». Ограничение применяется и к обеим границам вилки. Иначе десять мелких плюсов могли бы «закрыть» отсутствие главного навыка.
+Если у обязательного требования с `critical = true` покрытие `c_r < 0.2`, итог ограничивается: `Score_pre = min(Score_pre, 49)` и, после `refine`, `Score_final = min(Score_final, 49)`, в отчёт добавляется флаг «критичное требование не закрыто». Ограничение применяется и к обеим границам вилки. Иначе десять мелких плюсов могли бы «закрыть» отсутствие главного навыка.
 
-### 7.5. Вилка и неразличимость
+Если предварительный cap отсекает кандидата, но критичный навык явно заявлен в резюме и может быть подтверждён GitHub, кандидат попадает в `BORDERLINE` и может быть обогащён. Иначе высокий риск ложноотрицательного решения из-за отсутствия внешнего подтверждения.
 
+### 7.5. Предварительный и итоговый балл
+
+- `Score_pre` считается для **всех** кандидатов только по тексту резюме (`q_ext = 0`) и используется для шортлиста.
+- `Score_final` считается только после `refine` с фактами GitHub. Если GitHub недоступен, нет согласия или кандидат не прошёл отбор, итоговым считается `Score_pre` с флагом `external_skipped`.
+- `delta = Score_final − Score_pre` всегда `≥ 0`: внешние источники только повышают уверенность и не штрафуют за отсутствие публичного кода.
+- Нельзя смешивать два балла в одном рейтинге без пометки. До завершения волны уточнения сортируем по `Score_pre`; после — по `Score_final`, но показываем оба и дельту.
+- Решение о шортлисте принимает Java по политике вакансии, а не ML. ML не знает, кто прошёл отбор, и не хранит это состояние.
+
+### 7.6. Вилка и неразличимость
+
+- Вилка считается **отдельно** для `Score_pre` и `Score_final`; дельта тоже показывается интервалом.
 - `Score_low`: учитываются только сильные доказательства (`t ≥ 0.8`) или внешние; остальное обнуляется.
 - `Score_high`: все текстовые утверждения принимаются как `t = 1`, внешние — как есть.
 - UI показывает `Score (low–high)`, а не только точечную оценку.
-- Если вилки двух кандидатов пересекаются, они помечаются как **неразличимые по баллу**; рейтинг может сортировать по `Score`, но предупреждение остаётся.
+- `BORDERLINE` для шортлиста определяется по вилке: если `Score_low ≤ threshold ≤ Score_high`, кандидат может попасть в GitHub-уточнение даже при `Score_pre` чуть ниже порога.
+- Если вилки двух кандидатов пересекаются, они помечаются как **неразличимые по баллу**; рейтинг может сортировать по баллу, но предупреждение остаётся.
 - Уровни A/B/C (например, ≥75 / 50–74 / <50) — только навигация, не решение.
 
-### 7.6. Краевые случаи
+### 7.7. Краевые случаи
 
 - Нет желательных требований → веса перенормируются: `(0.70·M + 0.15·F) / 0.85`; это фиксируется в отчёте.
 - Нет компонента `F` → среднее по доступным компонентам + флаг `insufficient_profile`.
 - Нет `min_years` → `D = 1`.
-- `q_ext = 0` → `E = q_text`; кандидат не наказан за отсутствие внешних данных.
-- Ошибка LLM → запуск `FAILED`, а не молчаливый ноль. Для демо доступен деградированный режим с ручной проверкой.
+- `q_ext = 0` → `E = q_text`, `Score_final = Score_pre`; кандидат не наказан за отсутствие внешних данных.
+- Нет согласия на GitHub / нет публичной ссылки → `external_skipped`, итог = `Score_pre`, кандидат остаётся в рейтинге.
+- GitHub недоступен или лимит исчерпан → `external_unavailable`, итог = `Score_pre`, предварительный запуск не падает.
+- `refine` для кандидата вне шортлиста → `422 SHORTLIST_REQUIRED`; исключение — ручной override с причиной и аудитом.
+- `refine` без `base` или с чужим `base` → `422 INVALID_BASE`; ML не восстанавливает состояние из БД.
+- Внешние факты не добавляют новые навыки в балл: если навыка нет в резюме (`m = 0`), GitHub показывает его как дополнительный сигнал, но `c_r` не повышает.
+- Ошибка LLM в предварительном проходе → запуск `FAILED`, а не молчаливый ноль. Для демо доступен деградированный режим с ручной проверкой.
+- Ошибка `refine` → `FINAL` не создаётся, отчёт использует `Score_pre` с флагом `final_failed`; это видно рекрутеру.
 
-### 7.7. Контракт `match` (сокращённо)
+### 7.8. Контракты `match` и `refine` (сокращённо)
+
+#### Фаза 1 — `match` (все кандидаты, без GitHub)
 
 ```json
 {
+  "stage": "PRELIMINARY",
   "as_of": "2026-11-04",
-  "scoring_version": "1.0.0",
+  "scoring_version": "1.1.0",
   "vacancy": {
+    "id": "v1",
+    "version": 3,
     "text": "Ищем backend-разработчика на Python...",
     "level": "middle",
     "domain": "fintech",
@@ -489,8 +512,65 @@ delta        = Score_final − Score_pre
     ]
   },
   "resume": {
-    "text": "Иван, Python-разработчик. 2021–2024: ..."
-  },
+    "text": "Иван, Python-разработчик. 2021–2024: ...",
+    "parsed": {
+      "experiences": [
+        {"id": "e1", "start": "2021-01", "end": "2024-06", "description": "..."}
+      ],
+      "skills": [{"name": "python", "last_used": "2025-01"}],
+      "total_years": 4.5
+    }
+  }
+}
+```
+
+Ответ содержит `stage = PRELIMINARY`, `Score_pre`, вилку, флаги и разбор по требованиям. Поля `q_ext` равны `0`.
+
+```json
+{
+  "stage": "PRELIMINARY",
+  "score": 64.1,
+  "score_low": 58.0,
+  "score_high": 74.0,
+  "m": 0.66,
+  "n": 0.45,
+  "f": 0.87,
+  "cap": null,
+  "requirements": [
+    {
+      "requirement_id": "r1",
+      "status": "matched",
+      "m": 1.0,
+      "t": 0.8,
+      "rho": 0.9,
+      "q_text": 0.72,
+      "q_ext": 0,
+      "e": 0.72,
+      "y_eff": 3.2,
+      "y_req": 3,
+      "d": 1.0,
+      "c_r": 0.72,
+      "evidence": [
+        {"source": "resume", "quote": "...", "verified": true}
+      ],
+      "gap": null
+    }
+  ],
+  "flags": []
+}
+```
+
+В запросе **нет** полей `file`, `url`, `blob`, `external_sources` и бинарных данных. Схема запрещает лишние поля: GitHub до шортлиста технически невозможен.
+
+#### Фаза 2 — `refine` (только шортлист, без LLM)
+
+```json
+{
+  "stage": "FINAL",
+  "as_of": "2026-11-04",
+  "scoring_version": "1.1.0",
+  "vacancy": { "...": "тот же снимок вакансии" },
+  "base": { "...": "ответ PRELIMINARY этого кандидата" },
   "external_sources": [
     {
       "source": "github",
@@ -512,11 +592,14 @@ delta        = Score_final − Score_pre
 }
 ```
 
-В запросе **нет** полей `file`, `url`, `blob` и бинарных данных — только текст и нормализованные факты, которые подготовил Java. Это проверяется схемой в CI.
+Ответ:
 
 ```json
 {
+  "stage": "FINAL",
   "score": 69.2,
+  "score_pre": 64.1,
+  "delta": 5.1,
   "score_low": 62.0,
   "score_high": 82.0,
   "m": 0.706,
@@ -526,43 +609,39 @@ delta        = Score_final − Score_pre
   "requirements": [
     {
       "requirement_id": "r1",
-      "status": "matched",
-      "m": 1.0,
-      "t": 0.8,
-      "rho": 0.9,
-      "q_text": 0.72,
       "q_ext": 0.61,
       "e": 0.89,
-      "y_eff": 3.2,
-      "y_req": 3,
-      "d": 1.0,
       "c_r": 0.89,
-      "evidence": [
-        {"source": "resume", "quote": "...", "verified": true}
+      "external_evidence": [
+        {"source": "github", "quote": "1200 authored lines in Python", "verified": true}
       ],
       "gap": null
     }
   ],
-  "flags": []
+  "flags": ["github_used"]
 }
 ```
 
-Контракт валидируется в CI. Версия контракта — отдельная от версии скоринга: можно менять транспорт, не меняя формулу.
+`refine` требует `base.stage = PRELIMINARY`, непустой `external_sources` и **не вызывает LLM**. `delta` не может быть отрицательным. Если внешних фактов нет, `refine` возвращает `Score_final = Score_pre` и флаг `external_skipped`.
 
-### 7.8. Версионирование и воспроизводимость
+Оба контракта валидируются в CI. Версия контракта — отдельная от версии скоринга: можно менять транспорт, не меняя формулу. Проверка «в `match` нет `external_sources`, а в `refine` нет `file/url/blob`» — обязательный contract-тест.
+
+### 7.9. Версионирование и воспроизводимость
 
 В каждом `scoring_run` фиксируются:
 
+- `stage` — `PRELIMINARY` или `FINAL`;
+- `parent_run_id` — для `FINAL` ссылка на предварительный запуск;
 - `scoring_version` — версия формул и справочников;
 - `prompt_version` — версия промптов;
-- `model_id` — конкретная модель и провайдер;
+- `model_id` — конкретная модель и провайдер (только для `PRELIMINARY`);
 - `as_of` — дата расчёта (влияет на `ρ` и стаж);
 - `skill_graph_version` — версия карты смежных навыков;
 - `vacancy_snapshot` и `resume_hash` — снимок входных данных.
 
-Запуск **иммутабелен**: изменение требований или весов создаёт новую версию вакансии и новый запуск. Пересчёт — это новый `run`, а не перезапись старого. Это нужно для аудита и для калибровки.
+Запуск **иммутабелен**: изменение требований или весов создаёт новую версию вакансии и новый запуск. `FINAL` не перезаписывает `PRELIMINARY`, а ссылается на него. Пересчёт — это новый `run`, а не перезапись старого. Это нужно для аудита, сравнения `Score_pre`/`Score_final` и калибровки.
 
-### 7.9. Golden-тесты
+### 7.10. Golden-тесты
 
 Кейсы из PDF становятся фикстурами скорингового движка (допуск ±0.01):
 
@@ -570,37 +649,60 @@ delta        = Score_final − Score_pre
 |---|---|
 | Python 3 года + GitHub | `c_r ≈ 0.89` |
 | Python только в списке, 1 год | `c_r ≈ 0.09`, срабатывает cap |
-| Полный пример: Python, Kafka, Docker | `Score ≈ 69`, вилка 62–82 |
+| Полный пример: Python, Kafka, Docker | `Score_final ≈ 69`, вилка 62–82 |
 | Перекрывающиеся периоды работы | `Y_эфф` = 5 лет, не 6 |
 | Нет желательных требований | Перенормировка весов |
 | Критичное требование не закрыто | `Score ≤ 49` + флаг |
 | Попытка промпт-инъекции в резюме | Оценка не меняется, схема валидна |
+| `match` без GitHub | `q_ext = 0`, `Score_pre` стабилен |
+| Кандидат ниже порога | GitHub не вызывается, `NOT_SHORTLISTED` |
+| `refine` с GitHub-фактами | `Score_final ≥ Score_pre`, `delta ≥ 0`, LLM не вызывается |
+| `refine` без фактов | `Score_final = Score_pre`, `external_skipped` |
+| GitHub подтверждает навык, которого нет в резюме | `c_r` не растёт, навык показан как дополнительный |
+| GitHub недоступен | `external_unavailable`, отчёт использует `Score_pre` |
+| `refine` вне шортлиста | `422 SHORTLIST_REQUIRED` |
 
-Эти тесты — главный контракт между ML и продуктом. Они запускаются без сети и без реальной LLM.
+Эти тесты — главный контракт между ML и продуктом. Они запускаются без сети и без реальной LLM; для `refine` дополнительно проверяется, что LLM-клиент не был вызван.
+
+### 7.11. Профили весов и обратная связь
+
+- **Профиль `junior`:** выше вес проектов, стажировок и проверяемой практики (GitHub/портфолио), ниже требования к общему стажу. Это отражает реальность: у junior меньше лет опыта, но больше публичных артефактов.
+- **Профиль `senior`:** выше вес глубины опыта, домена и масштаба задач; GitHub — только подтверждение, а не основной сигнал.
+- **Профиль `custom`:** рекрутер настраивает веса вручную.
+- Профиль — это **шаблон требований и весов**, а не отдельная формула. `Score_pre`/`Score_final` считаются одинаково, поэтому результаты сопоставимы.
+- ML может предложить профиль по тексту вакансии и уровню, но применяет его только HR. Активная вакансия и сохранённые запуски не меняются задним числом.
+- **Обратная связь (P1):** после скрининга агрегированная классификация резюме (специализация, уровень) может предложить корректировку весов для будущих шаблонов. Никаких автоматических изменений и никаких защищённых признаков: только роль, стек, стаж и результаты отбора.
+- Каждое изменение профиля версионируется; в отчёте видно, какой профиль и веса использовались.
 
 ---
 
 ## 8. ML-контур
 
-### 8.1. Пайплайн и граница ответственности
+### 8.1. Двухфазный пайплайн и граница ответственности
+
+**Фаза A — предварительная, все кандидаты (без внешних источников):**
 
 | Шаг | Контур | Вход | Выход |
 |---|---|---|---|
-| 0. Сбор GitHub и внешних источников | **Java** | Ссылка кандидата + согласие | `external_text` + `facts` + флаги |
-| 1. Валидация и извлечение текста | **Java** | PDF/DOCX/TXT | `resume.text` |
+| 1. Ingestion | **Java** | PDF/DOCX/TXT/HH | `resume.text` |
 | 2. Нормализация и секции | Python | `resume.text` | Секции, даты, кандидаты в навыки |
 | 3. Локальная маскировка PII | Python | Сырой текст | `masked_text` + `pii_fields` |
-| 4. Структурирование резюме | Python | `masked_text` | JSON: опыт, даты, навыки, образование |
-| 5. Разбор вакансии | Python | Текст вакансии | Атомарные требования |
-| 6. Классификация доказательств | Python | Резюме + требования | `m`, `t`, цитаты, `experience_ref` |
-| 7. Проверка цитат | Python | Цитаты + источник | `verified` / отброшено |
-| 8. Внешние доказательства | Python | `external_sources.text/facts` | `q_ext`, флаги |
-| 9. Скоринг | Python | Категории + даты + внешние данные | `c_r`, `M/N/F`, score, вилка |
-| 10. Объяснение | Python | Результаты | Текст пробелов и рекомендаций |
+| 4. Структурирование резюме | Python + LLM | `masked_text` | JSON: опыт, даты, навыки, неявные навыки |
+| 5. Разбор вакансии | Python + LLM | Текст вакансии | Атомарные требования и профиль весов |
+| 6. `match`: классификация и `Score_pre` | Python + LLM | Резюме + требования | `m`, `t`, цитаты, `Score_pre`, вилка |
+| 7. Shortlist | **Java** | `Score_pre`, политика вакансии | `SHORTLISTED` / `BORDERLINE` / `NOT_SHORTLISTED` |
+
+**Фаза B — уточнение, только шортлист:**
+
+| Шаг | Контур | Вход | Выход |
+|---|---|---|---|
+| 8. GitHub | **Java** | Ссылка + согласие + шортлист | `external_text` + `facts` + флаги |
+| 9. `refine` | Python (без LLM) | `base` + `external_sources` | `q_ext`, `Score_final`, `delta` |
+| 10. Отчёт | Java + Python | Результаты | Матрица, пробелы, вопросы, PDF |
 
 **Ключевая граница:** Python не использует PDFBox, PyMuPDF, python-docx и не имеет клиентов MinIO/PostgreSQL/GitHub. На вход ML приходит только JSON с текстами и нормализованными фактами; на выход — JSON с результатом. Java — единственный, кто читает файлы, хранит оригиналы и ходит во внешние API.
 
-ML-сервис **не пишет в БД** и не хранит состояние между запросами. Модели эмбеддингов кешируются в контейнере/volume, промпты версионируются в репозитории.
+ML-сервис **не пишет в БД** и не хранит состояние между запросами. `match` не принимает внешние источники; `refine` не восстанавливает `base` из БД. Модели эмбеддингов кешируются в контейнере/volume, промпты версионируются в репозитории.
 
 ### 8.1.1. Извлечение PDF в Java (PDFBox)
 
@@ -676,14 +778,16 @@ Python получает сырой текст резюме, но до **любо
 
 Внешние источники **не дают общий балл GitHub**. Доказательство считается отдельно для каждого требуемого навыка `X`, потому что коммиты легко накрутить, а закрытая работа невидима.
 
+Внешние запросы выполняются **только после предварительного отбора**: для `SHORTLISTED` и `BORDERLINE`. Для `NOT_SHORTLISTED` GitHub не вызывается — это экономия лимитов, data minimization и меньше шума в аудите.
+
 ### 9.1. GitHub
 
-GitHub-коннектор — **Java-модуль `enrichment`**. Он вызывает API, выбирает репозитории, считает авторство и активность, проверяет тесты/CI/README и формирует два артефакта:
+GitHub-коннектор — **Java-модуль `enrichment`**. Он запускается screening-политикой только для шортлиста, вызывает API, выбирает репозитории, считает авторство и активность, проверяет тесты/CI/README и формирует два артефакта:
 
-- `external_text` — человекочитаемый текст для LLM-цитат и объяснений;
-- `facts` — нормализованные числа для детерминированного скоринга.
+- `external_text` — человекочитаемый текст для отчёта и цитат;
+- `facts` — нормализованные числа для детерминированного `refine`.
 
-Python не вызывает GitHub API, не хранит GitHub-токен и не скачивает репозитории. Он получает готовые `text + facts` в `external_sources`.
+Python не вызывает GitHub API, не хранит GitHub-токен и не скачивает репозитории. Он получает готовые `text + facts` в `external_sources` и использует `facts` для `q_ext`; `external_text` в LLM не уходит.
 
 ```text
 q_gh(X) = A · (0.5·V + 0.3·S + 0.2·K) · ρ + bonus
@@ -698,7 +802,7 @@ q_gh(X) = A · (0.5·V + 0.3·S + 0.2·K) · ρ + bonus
 | `ρ` | Свежесть | Python | По `last_commit` из `facts` |
 | `bonus` | Внешняя валидация | Java → Python | До +0.1 за принятые PR в чужие проекты |
 
-`q_gh` ограничивается сверху 1. Для каждого навыка берётся лучший репозиторий/набор, а не сумма всех. Ссылка и username не уходят в LLM: LLM видит только `external_text` без имени и username, а названия репозиториев при необходимости заменяются плейсхолдерами.
+`q_gh` ограничивается сверху 1. Для каждого навыка берётся лучший репозиторий/набор, а не сумма всех. `q_ext` учитывается только для навыков, которые уже заявлены в резюме (`m > 0`); навык, найденный только в GitHub, показывается как дополнительный сигнал, но не повышает `c_r` без подтверждения рекрутера. Ссылка и username не уходят в LLM: LLM видит только `external_text` без имени и username, а названия репозиториев при необходимости заменяются плейсхолдерами.
 
 ### 9.2. Антинакрутка
 
@@ -717,10 +821,12 @@ q_gh(X) = A · (0.5·V + 0.3·S + 0.2·K) · ρ + bonus
 ### 9.3. Ограничения и честность
 
 - GitHub API не всегда даёт авторство строк; Java-коннектор использует прокси и помечает уверенность `confidence = low/medium/high` в `facts`.
-- Нет токена/лимит API → `q_ext = 0`, без штрафа.
+- Нет токена/лимит API → `external_unavailable`, `q_ext = 0`, без штрафа; предварительный запуск не падает.
 - Кеш, rate limit и токен GitHub живут только в Java; Python не зависит от доступности GitHub.
+- GitHub не запрашивается для `NOT_SHORTLISTED`. Это защищает лимиты и данные, но может дать ложное отрицание; для этого есть `BORDERLINE` и ручной override с аудитом.
+- Внешние факты не добавляют новые навыки в балл и не понижают `Score_pre`: `Score_final ≥ Score_pre`.
 - Анализируются только публичные репозитории по ссылке, которую дал кандидат.
-- Кандидат может отозвать согласие; данные источника удаляются.
+- Кандидат может отозвать согласие; данные источника удаляются, а `Score_final` пересчитывается как `Score_pre` без внешних факторов.
 - Дубли одного и того же проекта в разных источниках дедуплицируются, чтобы не складывать «независимые» подтверждения.
 
 ### 9.4. Другие источники (roadmap)
@@ -734,6 +840,8 @@ q_gh(X) = A · (0.5·V + 0.3·S + 0.2·K) · ρ + bonus
 | Транскрипт интервью | Сверка заявлений с ответами | P2, только с согласием |
 
 Для каждого источника — Java-адаптер `EvidenceSource.fetch()`, возвращающий `EvidencePack { text, facts, flags }`. Python работает только с `text + facts` и не знает, как устроен источник; это позволяет добавлять Stack Overflow, Kaggle и другие сервисы без изменения ML-контура.
+
+HH — это **входной канал резюме**, а не внешнее доказательство: Java получает текст отклика и передаёт его в ML как обычное резюме. GitHub, Stack Overflow, Kaggle и другие evidence-адаптеры запускаются только для шортлиста и возвращают факты в `refine`.
 
 ---
 
@@ -754,6 +862,7 @@ erDiagram
     SCORING_RUNS ||--o{ REQUIREMENT_MATCHES : contains
     REQUIREMENTS ||--o{ REQUIREMENT_MATCHES : evaluated_in
     CANDIDATES ||--o{ EXTERNAL_EVIDENCE : has
+    SCORING_RUNS ||--o{ EXTERNAL_EVIDENCE : uses
 ```
 
 | Таблица | Ключевые поля | Назначение |
@@ -761,16 +870,18 @@ erDiagram
 | `users` | `id`, `email`, `password_hash`, `role`, `created_at` | Вход и RBAC |
 | `candidates` | `id`, `user_id`, `created_at` | Профиль кандидата без PII |
 | `candidate_pii` | `candidate_id`, `full_name_enc`, `email_enc`, `phone_enc`, `university_enc`, `photo_key` | Шифрованные PII; отдельный доступ |
-| `resumes` | `id`, `candidate_id`, `file_key`, `text_key`, `mime`, `sha256`, `status`, `parsed_json`, `masked_text`, `extraction_version`, `ml_version`, `created_at` | Оригинал, извлечённый текст (Java) и результат разбора (Python) |
-| `vacancies` | `id`, `recruiter_id`, `title`, `description`, `level`, `domain`, `min_total_years`, `status`, `version` | Вакансия |
+| `resumes` | `id`, `candidate_id`, `source`, `source_ref`, `file_key`, `text_key`, `mime`, `sha256`, `status`, `parsed_json`, `masked_text`, `extraction_version`, `ml_version`, `created_at` | Оригинал или HH-источник, извлечённый текст (Java), результат разбора (Python) |
+| `vacancies` | `id`, `recruiter_id`, `title`, `description`, `level`, `domain`, `min_total_years`, `weight_profile`, `shortlist_threshold`, `shortlist_top_n`, `borderline_band`, `status`, `version` | Вакансия и политика скрининга |
 | `requirements` | `id`, `vacancy_id`, `text`, `kind`, `weight`, `is_critical`, `min_years`, `skill_id`, `source` | Атомарные требования |
-| `applications` | `id`, `vacancy_id`, `candidate_id`, `resume_id`, `status`, `blind_review`, `created_at` | Отклик |
-| `scoring_runs` | `id`, `application_id`, `status`, `score`, `score_low`, `score_high`, `m`, `n`, `f`, `cap_applied`, `flags`, `vacancy_version`, `resume_hash`, `versions`, `vacancy_snapshot`, `created_at` | Иммутабельный запуск |
-| `requirement_matches` | `run_id`, `requirement_id`, `m`, `t`, `rho`, `q_text`, `q_ext`, `e`, `y_eff`, `y_req`, `d`, `c_r`, `evidence_json`, `gap_text` | Разбор по требованию |
-| `external_evidence` | `candidate_id`, `source`, `skill_id`, `q`, `url`, `observed_at`, `flags`, `text`, `facts_json` | Внешние подтверждения: текст для LLM, факты для скоринга |
-| `audit_events` | `actor_id`, `action`, `entity_type`, `entity_id`, `meta_json`, `created_at` | Раскрытие, экспорт, доступ |
+| `applications` | `id`, `vacancy_id`, `candidate_id`, `resume_id`, `status`, `shortlist_decision`, `enrichment_status`, `pre_score`, `final_score`, `blind_review`, `shortlisted_at`, `finalized_at`, `created_at` | Отклик и стадия отбора |
+| `scoring_runs` | `id`, `application_id`, `stage`, `parent_run_id`, `batch_id`, `status`, `score`, `score_pre`, `score_low`, `score_high`, `m`, `n`, `f`, `cap_applied`, `flags`, `external_used`, `vacancy_version`, `resume_hash`, `versions`, `vacancy_snapshot`, `created_at` | Иммутабельный запуск: `PRELIMINARY` или `FINAL` |
+| `requirement_matches` | `run_id`, `requirement_id`, `m`, `t`, `rho`, `q_text`, `q_ext`, `e`, `y_eff`, `y_req`, `d`, `c_r`, `evidence_json`, `gap_text` | Разбор по требованию; `evidence_json` хранит источник цитаты |
+| `external_evidence` | `run_id`, `candidate_id`, `source`, `skill_id`, `q`, `confidence`, `url`, `observed_at`, `flags`, `text`, `facts_json` | Внешние подтверждения только для шортлиста: текст для отчёта, факты для `refine` |
+| `audit_events` | `actor_id`, `action`, `entity_type`, `entity_id`, `meta_json`, `created_at` | Раскрытие, экспорт, доступ, enrichment |
 
 `kind`: `MUST` / `NICE`. `weight`: 1–3. `is_critical` — отдельный флаг, не автоматически из веса. UI показывает два разных поля: «обязательность» и «критичность».
+
+Статусы отклика: `NEW → PRE_SCORED → SHORTLISTED → ENRICHING → FINAL_SCORED`; из `PRE_SCORED` возможен `NOT_SHORTLISTED`, из любого рабочего — `FAILED`. `shortlist_decision`: `PENDING`, `SHORTLISTED`, `BORDERLINE`, `NOT_SHORTLISTED`. `enrichment_status`: `NOT_REQUESTED`, `QUEUED`, `RUNNING`, `DONE`, `SKIPPED_NO_CONSENT`, `SKIPPED_NOT_SHORTLISTED`, `FAILED`.
 
 ### 10.2. Хранилище файлов
 
@@ -778,7 +889,7 @@ erDiagram
 |---|---|---|
 | `resumes-original` | Оригиналы PDF/DOCX | Приватный, presigned TTL 5 мин |
 | `resumes-text` | Текст, извлечённый PDFBox/POI (может содержать PII) | Приватный, шифрование, доступ только Java |
-| `external-evidence` | Нормализованный текст и факты GitHub/внешних источников | Приватный, TTL 7–30 дней |
+| `external-evidence` | Нормализованный текст и факты GitHub **только для шортлиста** | Приватный, TTL 7–30 дней, доступ только Java |
 | `reports` | PDF-отчёты | Приватный, presigned TTL 5 мин |
 | `llm-artifacts` | Обезличенные запросы/ответы для аудита | Приватный, TTL 7–30 дней |
 
@@ -787,10 +898,14 @@ erDiagram
 ### 10.3. Индексы и ограничения
 
 - `applications(vacancy_id, status, created_at)` — очередь.
-- `scoring_runs(application_id, created_at desc)` — последний запуск.
+- `applications(vacancy_id, shortlist_decision, pre_score desc)` — шортлист и рейтинг.
+- `scoring_runs(application_id, stage, created_at desc)` — последний запуск стадии.
+- `scoring_runs(batch_id)` — пакетный скрининг.
 - `requirement_matches(run_id)`.
+- `external_evidence(run_id, source, skill_id)` — факты для `refine`.
 - `audit_events(entity_type, entity_id, created_at)`.
-- Уникальность: `(application_id, resume_id, vacancy_version, scoring_version)` для идемпотентности.
+- Уникальность: `(application_id, resume_id, vacancy_version, scoring_version, stage)` для идемпотентности.
+- `FINAL` уникален для пары `(parent_run_id)`; повторный `refine` создаёт новый запуск только при смене версии/фактов.
 - `vacancies.version` и `resumes.sha256` защищают от случайного пересчёта по изменённым данным.
 
 ### 10.4. Retention и удаление
@@ -798,8 +913,9 @@ erDiagram
 - Демо-данные — синтетические; после хакатона удаляются.
 - Оригиналы резюме — 30 дней по умолчанию (настраивается).
 - LLM-артефакты — 7–30 дней, только masked.
-- `DELETE /candidates/me` удаляет PII, файлы и связанные отчёты; аудит хранит только факт удаления без содержимого.
-- Аудит раскрытий и экспортов хранится дольше — это безопасность, а не маркетинг.
+- Внешние факты GitHub — 7–30 дней; при отзыве согласия удаляются, `Score_final` пересчитывается как `Score_pre`.
+- `DELETE /candidates/me` удаляет PII, файлы, внешние факты и связанные отчёты; аудит хранит только факт удаления без содержимого.
+- Аудит раскрытий, экспортов и enrichment хранится дольше — это безопасность, а не маркетинг.
 
 ---
 
@@ -813,6 +929,7 @@ erDiagram
 | `POST /api/v1/auth/refresh` | Обновление токена | Все |
 | `GET /api/v1/me` | Текущий пользователь и роль | Авторизованные |
 | `POST /api/v1/resumes` | Загрузка резюме (multipart) | Кандидат, рекрутер |
+| `POST /api/v1/integrations/hh/import` | Импорт отклика с HH (P1), Java забирает текст | Рекрутер |
 | `GET /api/v1/resumes/{id}` | Метаданные и статус разбора | Владелец |
 | `DELETE /api/v1/resumes/{id}` | Удаление резюме и файлов | Владелец |
 | `GET /api/v1/vacancies` | Список вакансий | Рекрутер |
@@ -821,10 +938,12 @@ erDiagram
 | `PUT /api/v1/vacancies/{id}` | Обновить, создать новую версию | Рекрутер |
 | `POST /api/v1/vacancies/{id}/requirements:suggest` | Черновик требований из текста | Рекрутер |
 | `PUT /api/v1/vacancies/{id}/requirements` | Заменить требования (optimistic lock) | Рекрутер |
-| `GET /api/v1/vacancies/{id}/ranking` | Рейтинг кандидатов | Рекрутер |
+| `GET /api/v1/vacancies/{id}/ranking?stage=preliminary|final` | Рейтинг с `Score_pre`, `Score_final`, дельтой и статусом | Рекрутер |
+| `POST /api/v1/vacancies/{id}/screen` | Пакетный предварительный скрининг + шортлист, `202` + `batch_id` | Рекрутер |
 | `POST /api/v1/applications` | Отклик на вакансию | Кандидат |
-| `POST /api/v1/applications/{id}/scoring-runs` | Запустить оценку, `202` + `run_id` | Рекрутер |
-| `GET /api/v1/scoring-runs/{id}` | Статус и результат | Владелец вакансии |
+| `POST /api/v1/applications/{id}/scoring-runs` | Предварительная оценка одного отклика, `202` + `run_id` | Рекрутер |
+| `POST /api/v1/scoring-runs/{id}/enrich` | GitHub-уточнение для шортлиста, `202` + `final_run_id`; принимает причину для override | Рекрутер |
+| `GET /api/v1/scoring-runs/{id}` | Статус и результат стадии (`PRELIMINARY`/`FINAL`) | Владелец вакансии |
 | `GET /api/v1/scoring-runs/{id}/report.pdf` | PDF-отчёт | Владелец вакансии |
 | `POST /api/v1/applications/{id}/reveal` | Раскрыть слепой профиль | Рекрутер + причина |
 | `GET /api/v1/applications/{id}/feedback` | Обратная связь кандидату (P1) | Кандидат |
@@ -838,23 +957,28 @@ erDiagram
 | Метод и путь | Вход | Назначение |
 |---|---|---|
 | `POST /internal/v1/resumes/analyze` | `{ "text": "..." }` | Структурирование текста резюме + маскировка |
-| `POST /internal/v1/vacancies/analyze` | `{ "text": "..." }` | Требования из текста вакансии |
-| `POST /internal/v1/match` | `resume.text`, `vacancy`, `external_sources` | Классификация доказательств + скоринг |
+| `POST /internal/v1/vacancies/analyze` | `{ "text": "..." }` | Требования из текста вакансии + профиль весов |
+| `POST /internal/v1/match` | `resume`, `vacancy` | Предварительная классификация + `Score_pre`; **без** `external_sources` |
+| `POST /internal/v1/refine` | `base`, `vacancy`, `external_sources` | `q_ext`, `Score_final`, `delta`; **без LLM**; только для шортлиста |
 | `POST /internal/v1/letters/rejection` | факты отчёта | Черновик письма (P2) |
 | `POST /internal/v1/interviews/analyze` | транскрипт текстом | Анализ транскрипта (P2) |
 | `GET /healthz`, `/readyz`, `/metrics` | — | Живость и метрики |
 
 Все внутренние ML-эндпоинты принимают **только JSON с текстом/фактами**. `multipart/form-data`, файлы, presigned URL и поля `blob` запрещены схемой; это проверяется contract-тестом. GitHub-эндпоинта у ML нет — его заменяет Java-модуль `enrichment`.
 
-`resumes/analyze` — предпросмотр для UI. `match` умеет работать сразу с `resume.text`; Java кеширует `parsed_json` и `masked_text` по `hash(text)`, поэтому повторный запуск не дублирует LLM-вызовы и ML остаётся stateless.
+`match` не принимает `external_sources` (схема `additionalProperties: false`), поэтому GitHub до шортлиста технически невозможен. `refine` требует `base.stage = PRELIMINARY`, не вызывает LLM и не восстанавливает `base` из БД. Java кеширует `parsed_json` и `masked_text` по `hash(text)`, поэтому повторный `match` не дублирует LLM-вызовы и ML остаётся stateless.
 
 ### 11.3. Формат ошибок и асинхронность
 
 - Ошибки — RFC 7807 `ProblemDetail`: `type`, `title`, `status`, `detail`, `code`, `trace_id`.
-- `POST /scoring-runs` идемпотентен по `Idempotency-Key`; повтор возвращает существующий `run`.
-- `202 Accepted` + `Location: /api/v1/scoring-runs/{id}`.
-- Статусы run: `QUEUED → RUNNING → SUCCEEDED | FAILED | CANCELLED`.
-- Таймаут ML-вызова — 60 с; таймаут LLM — 20 с на вызов; при сбое — `FAILED` с кодом, без «нулевого» результата.
+- `POST /screen`, `POST /scoring-runs` и `POST /enrich` идемпотентны по `Idempotency-Key`; повтор возвращает существующий `batch_id`/`run`.
+- `202 Accepted` + `Location: /api/v1/vacancies/{id}/ranking` для batch, `Location: /api/v1/scoring-runs/{id}` для run.
+- Статусы run: `QUEUED → RUNNING → SUCCEEDED | FAILED | CANCELLED`; стадия — `PRELIMINARY` или `FINAL`.
+- Статусы отклика: `NEW → PRE_SCORED → SHORTLISTED → ENRICHING → FINAL_SCORED`; альтернативы — `NOT_SHORTLISTED`, `FAILED`.
+- Таймаут ML-вызова — 60 с; LLM — 20 с на вызов; GitHub — 10 с на запрос + circuit breaker. Ошибка GitHub не валит `PRELIMINARY`: используется `Score_pre` и флаг `external_unavailable`.
+- `refine` не вызывает LLM и укладывается в 5 с на пачку фактов; при ошибке `FINAL` не создаётся, отчёт использует `Score_pre` с флагом `final_failed`.
+- При сбое LLM в `match` — `FAILED` с кодом, без «нулевого» результата.
+- UI опрашивает `GET /vacancies/{id}/ranking` и `GET /scoring-runs/{id}` каждые 1–2 секунды; SSE — опционально.
 - Пагинация — cursor-based; лимит 50.
 
 ### 11.4. OpenAPI
@@ -876,32 +1000,36 @@ erDiagram
 |---|---|
 | `/login` | Вход, выбор демо-роли |
 | `/vacancies` | Список вакансий, статусы, быстрый поиск |
-| `/vacancies/new` | Вставка текста, черновик требований, веса |
-| `/vacancies/:id` | Редактор вакансии и требований |
-| `/vacancies/:id/ranking` | Рейтинг, вилки, «неразличимы» |
-| `/applications/:id/report` | Главный отчёт |
-| `/candidate/resumes` | Загрузка и проверка резюме |
+| `/vacancies/new` | Вставка текста, черновик требований, профиль весов junior/senior |
+| `/vacancies/:id` | Редактор вакансии, требований и политики шортлиста |
+| `/vacancies/:id/ranking` | Рейтинг: `Score_pre`, `Score_final`, дельта, статус отбора и GitHub; фильтры |
+| `/applications/:id/report` | Главный отчёт с пометкой стадии |
+| `/candidate/resumes` | Загрузка, импорт HH (P1) и проверка резюме |
 | `/candidate/applications` | Отклики и обратная связь |
-| `/admin/audit` | Аудит раскрытий и экспортов |
+| `/admin/audit` | Аудит раскрытий, экспортов и enrichment |
 
 ### 12.2. Отчёт
 
 Сверху вниз:
 
-1. **Шапка:** балл, вилка, уровень A/B/C, предупреждение о cap, ключевые флаги.
-2. **Матрица требований:** `must` / `nice`, вес, покрытие `c_r`, статус, пробел.
-3. **Доказательства:** цитата, источник, свежесть, бейдж «подтверждено GitHub» или «только резюме».
-4. **Что уточнить:** флаги расплывчатости и предлагаемые вопросы для интервью.
-5. **Слепой профиль:** плейсхолдеры; кнопка «Раскрыть» с обязательной причиной.
-6. **Действия:** скачать PDF, пригласить, отклонить (с записью решения), сгенерировать черновик письма (P2).
+1. **Шапка:** `Score_pre` и `Score_final` с вилками, `delta`, уровень A/B/C, предупреждение о cap, ключевые флаги.
+2. **Стадия:** бейдж «предварительный» / «итоговый»; если GitHub не запрашивался — явная причина (`NOT_SHORTLISTED`, `external_skipped`, `no_consent`).
+3. **Матрица требований:** `must` / `nice`, вес, покрытие `c_r`, `q_text`/`q_ext`, статус, пробел.
+4. **Доказательства:** цитата, источник, свежесть, бейдж «подтверждено GitHub», «только резюме» или «GitHub не запрашивался».
+5. **Что уточнить:** флаги расплывчатости и предлагаемые вопросы для интервью; вопросы по проектам — P2.
+6. **Слепой профиль:** плейсхолдеры; кнопка «Раскрыть» с обязательной причиной.
+7. **Действия:** скачать PDF, пригласить, отклонить (с записью решения), сгенерировать черновик письма (P2).
 
-Запрещено показывать балл без вилки и без разложения по требованиям. Цвет — не единственный носитель статуса: иконка + текст.
+Запрещено показывать балл без вилки и без разложения по требованиям. Нельзя смешивать `Score_pre` и `Score_final` в одной колонке без подписи. Цвет — не единственный носитель статуса: иконка + текст.
 
 ### 12.3. Состояния
 
 - Загрузка: прогресс извлечения текста (Java/PDFBox), затем анализа; таймаут, «повторить», ручной ввод. Для скана без текстового слоя — `TEXT_EMPTY` и предложение вставить текст.
-- Скоринг: `QUEUED/RUNNING`, прогресс по этапам, отмена.
+- Пакетный скрининг: `PRE_SCORED` для всех, затем «шортлист сформирован: N из M», прогресс enrichment только по отобранным.
+- Скоринг: `PRELIMINARY → SHORTLISTED/BORDERLINE → ENRICHING → FINAL_SCORED`; прогресс по этапам, отмена.
+- GitHub пропущен: показать причину (`NOT_SHORTLISTED`, `NO_CONSENT`, `NO_PUBLIC_LINK`, `RATE_LIMIT`) и кнопку «Запросить вручную» с причиной.
 - Ошибка LLM: понятное сообщение, код, кнопка повтора; не показывать «0».
+- Ошибка `refine`: отчёт остаётся на `Score_pre`, бейдж «итог без GitHub», рекрутер может повторить.
 - Пустой результат: что проверить (нет опыта, не распознан файл).
 - Слепой режим: бейдж «PII скрыты», причина раскрытия, подтверждение.
 
@@ -921,8 +1049,8 @@ erDiagram
 .
 ├── apps/
 │   ├── web/                      # Vue 3 + TypeScript
-│   ├── api/                      # Spring Boot + PDFBox/POI + GitHub-коннектор
-│   └── ml/                       # FastAPI: text-only, LLM + scoring
+│   ├── api/                      # Spring Boot + PDFBox/POI + HH + screening
+│   └── ml/                       # FastAPI: text-only, match + refine
 ├── packages/
 │   ├── api-contract/             # OpenAPI, mock, generated TS client
 │   └── scoring-spec/             # JSON Schema + golden-фикстуры
@@ -934,7 +1062,8 @@ erDiagram
 │   ├── pdfs/                     # PDF-фикстуры для Java/PDFBox
 │   ├── resumes/                  # текстовые резюме для ML
 │   ├── vacancies/                # синтетические вакансии
-│   └── expected/                 # эталонный порядок и метрики
+│   ├── screening/                # сценарии шортлиста и GitHub-уточнения
+│   └── expected/                 # pre/final баллы, порядок и метрики
 ├── docs/
 │   ├── scoring.md                # детали модели и калибровки
 │   └── adr/                      # архитектурные решения
@@ -950,13 +1079,15 @@ com.tracingats
 ├── auth          # JWT, RBAC, демо-аккаунты
 ├── candidate     # профиль, PII, согласия
 ├── resume        # загрузка, PDFBox/POI, статусы
-├── vacancy       # вакансии и требования
+├── vacancy       # вакансии, требования, профиль весов
 ├── application   # отклики, слепой режим
-├── scoring       # запуски, результаты, аудит
-├── enrichment    # GitHub и внешние источники (Java)
+├── screening     # пакетный pre-score, порог/топ-N/borderline
+├── scoring       # PRELIMINARY/FINAL runs, результаты, аудит
+├── enrichment    # GitHub и внешние источники только для шортлиста
 ├── report        # HTML → PDF
-├── audit         # события безопасности
-└── integration.ml # HTTP-клиент ML (только JSON с текстом)
+├── audit         # события безопасности и enrichment
+├── integration.ml  # HTTP-клиент ML (JSON text-only)
+└── integration.hh  # импорт откликов HH (P1, только Java)
 ```
 
 Пакеты — по фичам, а не по слоям. Внутри: `api` (контроллеры/DTO), `domain`, `repo`, `service`.
@@ -970,13 +1101,14 @@ app/
 ├── text/             # нормализация, секции, даты
 ├── anonymization/    # PII-детекция и маскировка
 ├── llm/              # gateway, schemas, prompts
-├── matching/         # доказательства, цитаты, смежность
-├── scoring/          # чистые функции, без I/O
+├── matching/         # доказательства, цитаты, смежность; match
+├── scoring/          # Score_pre, чистые функции, без I/O
+├── refinement/       # q_ext → Score_final, без LLM
 ├── prompts/          # версионируемые промпты
 └── eval/             # офлайн-оценка
 ```
 
-`scoring/` не импортирует FastAPI, БД, LLM и не знает про GitHub/PDF — только входные структуры и математику. Это позволяет тестировать его без сети. В Python-контейнере нет зависимостей `pymupdf`, `python-docx`, MinIO SDK и GitHub-клиента.
+`scoring/` и `refinement/` не импортируют FastAPI, БД, LLM и не знают про GitHub/PDF — только входные структуры и математику. `refine` не имеет LLM-клиента: это гарантирует, что второй проход не тратит токены. В Python-контейнере нет зависимостей `pymupdf`, `python-docx`, MinIO SDK, HH SDK и GitHub-клиента.
 
 ---
 
@@ -995,8 +1127,8 @@ app/
 | `mock-llm` | внутренний | Профиль `ci`/`demo-offline`, детерминированные ответы |
 
 - Наружу публикуется только `web`; ML и БД — во внутренних сетях.
-- Сети: `edge` (web/API), `data` (API/PostgreSQL/MinIO, `internal: true`), `ml` (API/ML, `internal: true`), `egress` (API → GitHub, ML → LLM через allowlist/прокси).
-- ML не подключён к сети `data`: у него нет маршрута к PostgreSQL и MinIO, нет их креденшелов. GitHub-токен есть только у API.
+- Сети: `edge` (web/API), `data` (API/PostgreSQL/MinIO, `internal: true`), `ml` (API/ML, `internal: true`), `egress` (API → GitHub/HH, ML → LLM через allowlist/прокси).
+- ML не подключён к сети `data`: у него нет маршрута к PostgreSQL и MinIO, нет их креденшелов. GitHub-токен есть только у API; GitHub-запросы идут только после шортлиста.
 - Healthchecks у всех сервисов; `depends_on: condition: service_healthy`.
 - Профили Compose: `dev` (hot reload), `demo` (seed + реальная LLM), `demo-offline` (seed + mock-LLM), `ci` (без внешней сети).
 - Ресурсы: ML — 2 CPU / 4 ГБ (эмбеддинги), PostgreSQL — 1 ГБ, API — 1 ГБ.
@@ -1023,26 +1155,29 @@ MINIO_ENDPOINT, MINIO_ACCESS_KEY, MINIO_SECRET_KEY
 JWT_SECRET, PII_ENCRYPTION_KEY
 LLM_BASE_URL, LLM_API_KEY, LLM_MODEL, LLM_TIMEOUT
 HF_TOKEN, GITHUB_TOKEN
+HH_CLIENT_ID, HH_CLIENT_SECRET, HH_API_BASE
 SCORING_VERSION, PROMPT_VERSION
+SHORTLIST_THRESHOLD, SHORTLIST_TOP_N, BORDERLINE_BAND
+GITHUB_ENRICH_CONCURRENCY, GITHUB_CACHE_TTL
 INTERNAL_ML_TOKEN
 ```
 
-Разделение секретов: `GITHUB_TOKEN` и `PII_ENCRYPTION_KEY` — только Java-контур; `LLM_*` и `HF_TOKEN` — только ML-контур; `INTERNAL_ML_TOKEN` — общий для API и ML. `.env.example` содержит только имена и безопасные заглушки. В GitHub Actions — secrets; на демо-сервере — env-файл с правами `600`.
+Разделение секретов: `GITHUB_TOKEN`, `HH_CLIENT_*` и `PII_ENCRYPTION_KEY` — только Java-контур; `LLM_*` и `HF_TOKEN` — только ML-контур; `INTERNAL_ML_TOKEN` — общий для API и ML. `.env.example` содержит только имена и безопасные заглушки. В GitHub Actions — secrets; на демо-сервере — env-файл с правами `600`.
 
 ### 14.3. CI/CD (GitHub Actions)
 
 | Pipeline | Когда | Что делает |
 |---|---|---|
-| `ci-api` | PR, main | JDK 21, Maven cache, `./mvnw verify`, Testcontainers, PDFBox-фикстуры, springdoc |
-| `ci-ml` | PR, main | Python 3.12, uv, ruff, pytest, text-only golden-тесты (без PDF-библиотек) |
+| `ci-api` | PR, main | JDK 21, Maven cache, `./mvnw verify`, Testcontainers, PDFBox-фикстуры, тесты shortlist-политики, springdoc |
+| `ci-ml` | PR, main | Python 3.12, uv, ruff, pytest, text-only golden-тесты `match`/`refine` (без PDF-библиотек) |
 | `ci-web` | PR, main | Node 22, pnpm, lint, typecheck, Vitest, build |
-| `contract` | PR, main | Генерация OpenAPI, `oasdiff`, TS-клиент, проверка «в ML-запросе нет file/url/blob» |
-| `compose-smoke` | PR, main | Поднять compose с mock-LLM, seed, загрузить PDF через API, проверить, что ML получил текст, погасить |
-| `e2e` | main, nightly | Playwright: загрузка PDF → скоринг → отчёт → PDF |
+| `contract` | PR, main | Генерация OpenAPI, `oasdiff`, TS-клиент, проверка «в `match` нет `external_sources`, в `refine` нет `file/url/blob`, `refine` без LLM» |
+| `compose-smoke` | PR, main | Поднять compose с mock-LLM, seed, batch screen, проверить, что GitHub не вызывался для `NOT_SHORTLISTED`, обогатить одного, получить `delta`, погасить |
+| `e2e` | main, nightly | Playwright: загрузка PDF → batch screen → шортлист → GitHub-уточнение → отчёт → PDF |
 | `security` | PR, main | Trivy, `pip-audit`, `npm audit` (high — блокер) |
 | `deploy` | тег `v*`, manual | Образы в GHCR, `compose pull && up -d` на демо-VM, smoke, rollback |
 
-Smoke-сценарий: логин → создать вакансию → загрузить PDF-фикстуру (Java извлекает текст PDFBox) → запустить скоринг → дождаться `SUCCEEDED` → проверить score в ожидаемом диапазоне → скачать PDF.
+Smoke-сценарий: логин → создать вакансию → загрузить 3 PDF-фикстуры (Java извлекает текст PDFBox) → batch screen → проверить `Score_pre` и `NOT_SHORTLISTED` без GitHub → запустить enrich для одного → дождаться `FINAL_SCORED` и `delta ≥ 0` → скачать PDF.
 
 ### 14.4. Ветки и качество
 
@@ -1075,18 +1210,22 @@ Smoke-сценарий: логин → создать вакансию → за�
 | Вредоносный файл | PDF/DOCX с эксплойтом или PDF-бомбой | Лимит 10 МБ/страниц, проверка MIME/сигнатуры, PDFBox в Java-контейнере с таймаутом и memory limit; Python файл не получает |
 | Избыточные привилегии ML | ML читает БД/MinIO/скачивает URL | Text-only контракт, отдельная сеть, нет креденшелов; contract-тест на отсутствие `file/url/blob` |
 | SSRF | Ссылка на «портфолио» в Java-коннекторе | Запрет private IP, редиректов внутрь, таймаут, allowlist схем |
-| Кража токена GitHub | Логи/ошибки | Только read-only токен, секреты в env, редактирование логов |
-| Злоупотребление LLM | Массовые запуски | Квоты, rate limit, кеш, бюджет на запуск |
+| Кража токена GitHub/HH | Логи/ошибки | Только read-only токены, секреты в env, редактирование логов |
+| Чрезмерный сбор GitHub | Парсинг всех откликов | Enrichment только для `SHORTLISTED`/`BORDERLINE`, consent, бюджет, аудит |
+| Ложное отрицание из-за шортлиста | Кандидат не попал в top-N | Borderline по вилке, ручной override с причиной, аудит, калибровка порога |
+| Смешение баллов | `Score_pre` выдан за итог | Отдельные поля/стадии, бейджи, запрет смешивать в одной колонке |
+| Злоупотребление LLM | Массовые запуски | Квоты, rate limit, кеш, бюджет на запуск, refine без LLM |
 | Навязывание решения | Автоматический отказ | Только human-in-the-loop, аудит решений |
 | Дискриминация | Прокси-признаки (возраст, вуз) | Исключены из скоринга, слепой режим, аудит, калибровка |
 | Нарушение ToS | Скрапинг закрытых источников | Только публичные API и ссылки кандидата |
 
 ### 15.2. Приватность
 
-- **Data minimization:** в LLM уходит только необходимое для матчинга; фото и контакты не уходят никогда. Python получает текст, но не получает файл, БД и внешние профили напрямую.
-- **Согласие:** отдельно на обработку резюме и отдельно на внешние источники; отзыв согласия удаляет данные источника.
-- **Право на удаление:** удаление PII, файлов, отчётов; аудит хранит только факт.
-- **Сроки:** оригиналы — 30 дней, LLM-артефакты — 7–30 дней, демо-данные — до конца хакатона.
+- **Data minimization:** в LLM уходит только необходимое для матчинга; фото и контакты не уходят никогда. Python получает текст, но не получает файл, БД и внешние профили напрямую. GitHub собирается только для шортлиста.
+- **Согласие:** отдельно на обработку резюме и отдельно на внешние источники; отзыв согласия удаляет данные источника и возвращает `Score_final = Score_pre`.
+- **Право на удаление:** удаление PII, файлов, внешних фактов и отчётов; аудит хранит только факт.
+- **Сроки:** оригиналы — 30 дней, LLM-артефакты — 7–30 дней, GitHub-факты — 7–30 дней, демо-данные — до конца хакатона.
+- **Прозрачность:** в отчёте видно, запрашивался ли GitHub и почему нет; кандидат может оспорить предварительный отбор.
 - **Провайдер LLM:** предпочтителен zero-retention; иначе — локальная модель. В документации фиксируем, где обрабатываются данные.
 - **Шифрование:** TLS, SSE в MinIO, AES-GCM для PII-колонок и извлечённого текста, секреты вне git. ML не пишет текст резюме на диск и не логирует его.
 
@@ -1095,6 +1234,8 @@ Smoke-сценарий: логин → создать вакансию → за�
 - Модель — **помощник рекрутера**, не автономный судья.
 - Пол, возраст, национальность, семейное положение, фото и вуз не участвуют в балле.
 - Слепой режим снижает предвзятость, но не устраняет её полностью; решения и раскрытия аудируются.
+- Предварительный отбор — не отказ. Кандидат ниже порога может быть пересмотрен вручную; причина override фиксируется.
+- Отсутствие GitHub не штрафует: закрытая работа и приватные репозитории — норма, а не пробел.
 - Флаги «накрутки» и «расплывчатости» — повод для проверки, не обвинение.
 - Кандидат имеет право знать, какие требования не закрыты, и получить рекомендации.
 - Для реального пилота нужны юридическая проверка, DPIA и политика хранения; для хакатона используем синтетические данные.
@@ -1107,14 +1248,14 @@ Smoke-сценарий: логин → создать вакансию → за�
 
 | Уровень | Что проверяем | Инструменты |
 |---|---|---|
-| Unit | Формулы, даты, `ρ`, `Y_эфф`, cap, вилка, смежность | pytest / JUnit, golden-фикстуры |
+| Unit | Формулы, даты, `ρ`, `Y_эфф`, cap, вилка, смежность, shortlist-политика, `refine` | pytest / JUnit, golden-фикстуры |
 | Извлечение | PDFBox: текстовый PDF, многоколоночный, битый, зашифрованный, скан без текста | JUnit, PDF-фикстуры |
-| Contract | Схемы API, обязательные поля, ошибки, отсутствие `file/url/blob` в ML-запросе | OpenAPI, Prism, oasdiff |
-| Integration | API + PostgreSQL + MinIO + mock-LLM | Testcontainers, WireMock |
-| E2E | Загрузка PDF → Java extraction → ML text-only → отчёт → PDF → reveal | Playwright |
-| ML eval | Категории, цитаты, порядок кандидатов | Офлайн-датасет, mock LLM |
-| Security | PII, промпт-инъекции, IDOR, загрузка файлов | pytest, OWASP-чеклист |
-| Load | 20 параллельных скорингов | k6, mock-LLM |
+| Contract | Схемы API, обязательные поля, ошибки, отсутствие `external_sources` в `match` и `file/url/blob` в `refine` | OpenAPI, Prism, oasdiff |
+| Integration | API + PostgreSQL + MinIO + mock-LLM + WireMock GitHub; проверка, что `NOT_SHORTLISTED` не вызывает GitHub | Testcontainers, WireMock |
+| E2E | Загрузка PDF → batch screen → `Score_pre` → шортлист → GitHub-refine → `Score_final` → отчёт → PDF → reveal | Playwright |
+| ML eval | Категории, цитаты, порядок кандидатов, стабильность `Score_pre`/`Score_final` | Офлайн-датасет, mock LLM |
+| Security | PII, промпт-инъекции, IDOR, загрузка файлов, утечка GitHub/HH-токена | pytest, OWASP-чеклист |
+| Load | 50 предварительных скорингов и 10 enrich одновременно | k6, mock-LLM, mock GitHub |
 
 ### 16.2. Метрики качества
 
@@ -1122,18 +1263,24 @@ Smoke-сценарий: логин → создать вакансию → за�
 - Валидность JSON от LLM: > 99% с учётом retry.
 - Доля проверенных цитат: > 95%; непроверенные не влияют на балл.
 - Согласие с экспертом: Spearman > 0.7 на 15 синтетических парах (цель хакатона).
-- NDCG@10 для ранжирования.
+- NDCG@10 для ранжирования; отдельно для `Score_pre` и `Score_final`.
 - Устойчивость: top-5 не меняется при весах ±20%.
-- p95 полного скоринга: < 30 с с реальной LLM, < 10 с с mock.
+- p95 предварительного скоринга: < 30 с с реальной LLM, < 10 с с mock.
+- p95 `refine`: < 5 с, без LLM-вызовов.
+- Доля кандидатов, обогащённых GitHub: не больше `shortlist_top_n` (в демо — 3–5 из 10).
+- Ноль GitHub-запросов для `NOT_SHORTLISTED` (тест).
+- `Score_final ≥ Score_pre` во всех фикстурах.
 - Ноль PII в outbound-запросах (тест).
 - Ноль автоматических отказов.
 
 ### 16.3. Датасет для демо и eval
 
 - 10–15 синтетических резюме: сильный, пограничный, слабый, «хайп-стек», «расплывчатый», «накрученный GitHub».
+- Сценарий пачки: 10 откликов → 3–5 в шортлисте → 1 borderline → 1 без согласия на GitHub → 1 без GitHub → 1 с фейковой активностью.
 - PDF-версии с текстовым слоем для Java/PDFBox и отдельные `.txt` для ML; скан без слоя — negative-кейс.
-- 3 вакансии: backend Python, frontend Vue, product manager.
-- Эталонный порядок от «эксперта»; таблица «наш рейтинг vs эталон».
+- Фикстуры GitHub-фактов: подтверждение, отсутствие данных, накрутка, лимит API.
+- 3 вакансии: backend Python, frontend Vue, product manager; для каждой — свой shortlist-порог.
+- Эталонный порядок от «эксперта»; таблица «`Score_pre` → `Score_final` vs эталон».
 - Отдельные фикстуры PII и промпт-инъекций.
 - Все данные синтетические; совпадения случайны.
 
@@ -1145,12 +1292,12 @@ Smoke-сценарий: логин → создать вакансию → за�
 
 | Роль | Зона |
 |---|---|
-| **Java #1** | API, домен, auth/RBAC, аудит, отчёты; P0-экраны Vue |
-| **Java #2** | PDFBox/POI, MinIO, GitHub/внешние источники, Compose, CI/CD, PDF-отчёт |
-| **Python** | Нормализация текста, маскировка, промпты, LLM, скоринг, golden-тесты |
+| **Java #1** | API, домен, auth/RBAC, screening-политика, аудит, отчёты; P0-экраны Vue |
+| **Java #2** | PDFBox/POI, HH, MinIO, GitHub-уточнение для шортлиста, Compose, CI/CD, PDF-отчёт |
+| **Python** | Нормализация текста, маскировка, промпты, LLM, `match`, `refine`, golden-тесты |
 | **Frontend/design/QA** | Если есть отдельный человек — забирает экраны и демо-данные; иначе распределяется между Java #1 и Python |
 
-Фронтенд — главный риск при такой команде: P0-экраны должны быть простыми, без кастомной дизайн-системы. GitHub и смежные навыки включаем только после стабильного P0.
+Фронтенд — главный риск при такой команде: P0-экраны должны быть простыми, без кастомной дизайн-системы. GitHub и HH включаем только после стабильного P0: предварительный скоринг и шортлист важнее внешних источников.
 
 ### 17.2. 48-часовой план
 
@@ -1158,11 +1305,11 @@ Smoke-сценарий: логин → создать вакансию → за�
 |---|---|---|
 | До старта | Подготовка | Репозиторий, Compose, контракты, mock-LLM, макеты, синтетические данные, прототип промпта |
 | 0–4 | Фундамент | Skeleton трёх сервисов, auth, вакансии CRUD, healthchecks, CI |
-| 4–10 | Вход | Java: MinIO + PDFBox/POI + text-only контракт; Python: маскировка и структура текста |
-| 10–16 | Ядро | Требования, скоринг на фикстурах, golden-тесты, mock `match` |
-| 16–22 | E2E | Реальный LLM, запуск скоринга, polling, отчёт, матрица, доказательства |
-| 22–28 | Дифференциаторы | Слепой режим, PDF, рейтинг, GitHub, смежные навыки |
-| 28–34 | Полировка | Флаги, генерация требований, ошибки, UX, seed |
+| 4–10 | Вход | Java: MinIO + PDFBox/POI + text-only контракт; Python: маскировка, структура текста, `match` на фикстурах |
+| 10–16 | Ядро | Требования, `Score_pre`, shortlist-политика, golden-тесты, mock `refine` |
+| 16–22 | E2E | Реальный LLM, batch screen, polling, отчёт по `Score_pre`, матрица, доказательства |
+| 22–28 | Дифференциаторы | GitHub только для шортлиста, `refine`, `Score_final` + delta, слепой режим, PDF |
+| 28–34 | Полировка | HH (если успеваем), профили весов, флаги, ошибки, UX, seed |
 | 34–40 | Надёжность | E2E, security-тесты, нагрузка, логи, резервный mock-режим |
 | 40–46 | Демо | Сценарий, репетиция, backup-видео, питч |
 | 46–48 | Заморозка | Только критичные баги; тег, сабмит |
@@ -1171,21 +1318,23 @@ Smoke-сценарий: логин → создать вакансию → за�
 
 ### 17.3. Что делать параллельно
 
-- Контракты и mock-LLM — в первый час, чтобы фронтенд не ждал ML.
-- Golden-фикстуры — до реальной LLM, чтобы скоринг не зависел от сети.
-- Дизайн отчёта — до готовности API, на мок-данных.
-- GitHub-коннектор — за фича-флагом, чтобы не сломать основной сценарий.
-- Java #2 начинает PDFBox и text-only контракт в первые часы; Python тестирует скоринг на текстовых фикстурах, не дожидаясь готовности PDFBox.
+- Контракты `match`/`refine` и mock-LLM — в первый час, чтобы фронтенд не ждал ML.
+- Golden-фикстуры `Score_pre`/`Score_final` — до реальной LLM, чтобы скоринг не зависел от сети.
+- Дизайн отчёта — до готовности API, на мок-данных; сразу с двумя баллами и дельтой.
+- GitHub-коннектор — за фича-флагом и только после шортлиста, чтобы не сломать основной сценарий.
+- Java #2 начинает PDFBox и text-only контракт в первые часы; Python тестирует `match`/`refine` на текстовых фикстурах, не дожидаясь готовности PDFBox.
 
 ### 17.4. Критерии готовности демо
 
 - Чистый `docker compose up` на ноутбуке судьи/на VM.
-- Seed создаёт 3 вакансии и 8–10 резюме.
+- Seed создаёт 3 вакансии и 10 резюме; 3–5 проходят шортлист.
 - Полный путь рекрутера проходит без ручных правок БД.
 - PDFBox извлекает текст из demo-PDF; скан без слоя даёт `TEXT_EMPTY`, а не пустой отчёт.
+- Batch screen считает `Score_pre` для всех; GitHub вызывается только для шортлиста (видно в логах/аудите).
+- `Score_final` и `delta` появляются после enrich; для кандидата без согласия итог = `Score_pre`.
 - Отчёт открывается за < 30 с, PDF скачивается.
 - Слепой режим скрывает PII, reveal пишет аудит.
-- Есть backup-видео и mock-LLM на случай падения сети.
+- Есть backup-видео и mock-LLM/mock-GitHub на случай падения сети.
 
 ---
 
@@ -1193,15 +1342,18 @@ Smoke-сценарий: логин → создать вакансию → за�
 
 ### 18.1. Сценарий демо (7–8 минут)
 
-1. **Вакансия:** вставляем текст «Senior Python Backend»; система предлагает требования; рекрутер делает Python критичным, Kafka — обязательным, Docker — желательным.
-2. **Резюме:** загружаем три синтетических PDF с текстовым слоем; Java/PDFBox извлекает текст, Python показывает структуру и маскировку.
-3. **Сильный кандидат:** балл 87 (81–92), матрица зелёная, цитаты с метриками; если GitHub (P1) включён — бейдж «подтверждено», иначе «только резюме».
-4. **Пробел:** у второго кандидата нет Kafka, но есть RabbitMQ — показываем частичное покрытие и рекомендацию уточнить опыт.
-5. **Флаги:** у третьего — «слишком много технологий за 6 месяцев», нет метрик; это не отказ, а вопросы для интервью.
-6. **Слепой режим:** скрываем имя/вуз/контакты; показываем балл и доказательства; раскрываем с причиной «приглашение на интервью»; в аудите появляется запись.
-7. **Рейтинг:** вилки двух кандидатов пересекаются — система честно говорит «неразличимы по баллу».
-8. **PDF:** скачиваем отчёт для нанимающего менеджера.
-9. **P2 (если готово):** черновик письма-отказа с конкретными причинами и рекомендациями.
+1. **Вакансия:** вставляем текст «Senior Python Backend»; система предлагает требования и профиль `senior`; рекрутер делает Python критичным, Kafka — обязательным, Docker — желательным, задаёт порог шортлиста.
+2. **Резюме:** загружаем 10 синтетических PDF с текстовым слоем; Java/PDFBox извлекает текст, Python показывает структуру и маскировку.
+3. **Предварительный скор:** запускаем batch screen; все 10 получают `Score_pre` и вилку, GitHub ещё не вызывался — показываем это явно.
+4. **Шортлист:** 3–5 кандидатов проходят порог/топ-N; один попадает в `BORDERLINE` по вилке; остальные — `NOT_SHORTLISTED` без GitHub.
+5. **GitHub-уточнение:** запускаем enrich для 2–3 отобранных; один кандидат без согласия — `external_skipped`; у остальных появляется `Score_final` и `delta`.
+6. **Сильный кандидат:** `Score_pre` 64 → `Score_final` 69 (62–82), матрица зелёная, цитаты с метриками, бейдж «подтверждено GitHub».
+7. **Пробел:** у второго кандидата нет Kafka, но есть RabbitMQ — показываем частичное покрытие и рекомендацию уточнить опыт.
+8. **Флаги:** у третьего — «слишком много технологий за 6 месяцев», нет метрик; это не отказ, а вопросы для интервью.
+9. **Слепой режим:** скрываем имя/вуз/контакты; показываем балл и доказательства; раскрываем с причиной «приглашение на интервью»; в аудите появляется запись.
+10. **Рейтинг:** вилки двух кандидатов пересекаются — система честно говорит «неразличимы по баллу»; фильтр показывает, кому GitHub не запрашивался.
+11. **PDF:** скачиваем отчёт для нанимающего менеджера.
+12. **P2 (если готово):** черновик письма-отказа с конкретными причинами и рекомендациями.
 
 ### 18.2. Риски
 
@@ -1213,7 +1365,12 @@ Smoke-сценарий: логин → создать вакансию → за�
 | Python обрастает I/O | Ломается граница и безопасность | Text-only контракт, отдельная сеть, contract-тест, ревью Java #2 |
 | Утечка PII | Юридический/репутационный риск | Локальная маскировка, тест outbound, синтетика |
 | Промпт-инъекция | Манипуляция оценкой | Данные ≠ инструкции, запрет чисел, валидация |
-| Лимиты GitHub | Медленно/пусто | Кеш, токен, таймаут, отсутствие данных не штрафует |
+| Лимиты GitHub | Медленно/пусто | Enrichment только для шортлиста, кеш, токен, таймаут; отсутствие данных не штрафует |
+| Порог шортлиста отсекает сильного кандидата | Ложное отрицание | Borderline по вилке, ручной override с причиной, аудит, калибровка на фикстурах |
+| Смешение `Score_pre` и `Score_final` | Некорректный рейтинг | Раздельные поля/стадии, бейджи, запрет одной колонки без подписи |
+| GitHub-демо зависит от сети | Нечего показать | Mock-GitHub, заранее записанные факты, `external_skipped` как честный сценарий |
+| HH API недоступен/изменился | Нет импорта | P1 за фича-флагом, fallback на загрузку PDF; токен и коннектор только в Java |
+| Пакетный скрининг перегружает ML | Долгая очередь | Ограниченный executor, батчи, кеш `parsed`, mock-LLM для CI |
 | Расползание скоупа | Не успеваем | P0/P1/P2, freeze, фича-флаги |
 | Слепой режим неполный | Утечка через цитаты | Плейсхолдеры, ручная проверка, тест |
 | Судьи не понимают формулу | Низкая оценка | Один экран «как считается», пример с цифрами |
@@ -1227,7 +1384,7 @@ Smoke-сценарий: логин → создать вакансию → за�
 
 | Этап | Что делаем |
 |---|---|
-| **Пилот (1–2 мес.)** | 100–300 пар «резюме–вакансия» с оценками рекрутеров; калибровка весов; SSO; очередь; больше источников; i18n |
+| **Пилот (1–2 мес.)** | 100–300 пар «резюме–вакансия» с оценками рекрутеров; калибровка порога шортлиста и `delta`; GitHub-бюджет; SSO; очередь; HH; i18n |
 | **Продукт (3–6 мес.)** | Калибровка и мониторинг дрейфа; A/B слепого режима; интеграции с ATS; приватный контур LLM; DPIA |
 | **Масштаб** | Мультитенантность, роли организаций, SLA, on-prem, аудит-экспорт, биас-аудит |
 
@@ -1240,12 +1397,15 @@ Smoke-сценарий: логин → создать вакансию → за�
 3. Кто основной пользователь демо: рекрутер или кандидат? От этого зависит главный экран.
 4. Нужен ли русский и английский интерфейс и парсинг?
 5. Какой формат хакатона (24/48 ч) и есть ли отдельный frontend/design-человек?
-6. Нужен ли GitHub-анализ в P0 или достаточно P1?
-7. Есть ли домен и TLS для демо-стенда?
-8. Нужна ли мультитенантность (несколько компаний) уже в MVP?
-9. Какие критерии судей: работающее демо, качество кода, инновация, бизнес-эффект?
-10. Готовы ли мы подписать политику обработки данных и consent-текст?
-11. Нужен ли OCR для сканированных PDF или достаточно ручного ввода текста?
+6. Какой порог шортлиста и top-N считаем демо-дефолтом: 50 баллов / top-10 или иначе?
+7. Сколько GitHub-запросов на вакансию готовы оплачивать/терпеть по rate limit?
+8. Есть ли доступ к HH open API и токены для демо, или оставляем только загрузку файлов?
+9. Есть ли домен и TLS для демо-стенда?
+10. Нужна ли мультитенантность (несколько компаний) уже в MVP?
+11. Какие критерии судей: работающее демо, качество кода, инновация, бизнес-эффект?
+12. Готовы ли мы подписать политику обработки данных и consent-текст?
+13. Нужен ли OCR для сканированных PDF или достаточно ручного ввода текста?
+14. Нужны ли профили весов junior/senior в демо или достаточно ручных весов?
 
 ---
 
@@ -1269,6 +1429,10 @@ Smoke-сценарий: логин → создать вакансию → за�
 | ADR-012 | Иммутабельные запуски и версии | Аудит и калибровка |
 | ADR-013 | PDFBox/POI в Java, Python получает только текст | Единая точка I/O, проще права и тестирование |
 | ADR-014 | OCR не входит в MVP | PDFBox не распознаёт сканы; ручной ввод дешевле и честнее |
+| ADR-015 | Двухфазный скоринг: `match` → шортлист → GitHub → `refine` | Не тратить GitHub-лимиты и данные на всех; быстрый первый проход |
+| ADR-016 | Shortlist-политика в Java, ML не решает, кого обогащать | Бизнес-правило, аудит и лимиты — в доменном контуре |
+| ADR-017 | `refine` без LLM, только детерминированные факты | Дешевле, воспроизводимо и без повторной отправки текста в модель |
+| ADR-018 | Профили весов junior/senior подтверждает HR | Веса — управленческое решение, а не автоматический вывод модели |
 
 ### 20.2. Глоссарий
 
@@ -1283,6 +1447,13 @@ Smoke-сценарий: логин → создать вакансию → за�
 | **`D`** | Глубина: опыт против требуемого |
 | **`c_r`** | Покрытие требования |
 | **`M`, `N`, `F`** | Покрытие must, nice и fit (уровень/домен/стаж) |
+| **`Score_pre`** | Предварительный балл только по тексту резюме, `q_ext = 0` |
+| **`Score_final`** | Итоговый балл после `refine` с фактами GitHub |
+| **`delta`** | `Score_final − Score_pre`, прирост от внешних доказательств |
+| **Шортлист** | Кандидаты, прошедшие порог/топ-N и допущенные к GitHub-уточнению |
+| **`BORDERLINE`** | Кандидат у порога, для которого GitHub может изменить решение |
+| **`external_skipped`** | GitHub не запрашивался: нет согласия, ссылки или кандидат не прошёл отбор |
+| **`match` / `refine`** | Первый text-only проход и второй детерминированный пересчёт с фактами |
 | **Вилка** | `Score_low–Score_high`, честный интервал |
 | **Cap** | Ограничение балла при незакрытом критичном требовании |
 | **Слепой режим** | Просмотр без PII до аудируемого раскрытия |
@@ -1290,6 +1461,7 @@ Smoke-сценарий: логин → создать вакансию → за�
 | **Пробел** | Требование, которое не закрыто или закрыто частично |
 | **Text-only контракт** | ML получает только текст и факты, без файлов, MinIO, БД и GitHub |
 | **PDFBox** | Java-библиотека извлечения текста из PDF; OCR не делает |
+| **HH** | Внешний источник откликов; Java импортирует текст, ML получает только текст (P1) |
 
 ---
 
@@ -1301,6 +1473,6 @@ Smoke-сценарий: логин → создать вакансию → за�
 2. **Честность:** вилка, отсутствие штрафа за закрытый GitHub, human-in-the-loop и слепой режим.
 3. **Скорость разработки:** три независимых контура с OpenAPI и mock-LLM, которые можно вести параллельно.
 
-Минимальный путь к сильному демо: **вакансия → резюме → доказательства → балл с вилкой → пробелы → слепой режим → PDF**. Всё остальное — усиление, а не замена ядра.
+Минимальный путь к сильному демо: **вакансия → резюме → `Score_pre` для всех → шортлист → GitHub только для отобранных → `Score_final` и delta → пробелы → слепой режим → PDF**. Всё остальное — усиление, а не замена ядра.
 
 
