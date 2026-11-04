@@ -159,7 +159,7 @@ flowchart TB
 
 ## 4. Архитектура и сервисы
 
-Два контура. Java — все I/O, LLM и оркестрация. Python — математическая модель скоринга (онлайн) и обучение весов (офлайн, отдельный сервис).
+Два контура. Java — I/O, маскировка, оркестрация и LLM для вакансии. Python — онлайн-ML: принимает обезличенный текст, сам ходит в LLM и считает математическую модель. Обучение весов — отдельный офлайн-сервис.
 
 ```mermaid
 flowchart LR
@@ -173,21 +173,22 @@ flowchart LR
     GH["GitHub API"]
     LLM["LLM<br/>внешний API или локальная модель"]
 
-    subgraph JAVA["Java · Spring Boot · I/O и оркестрация"]
+    subgraph JAVA["Java · Spring Boot · I/O, маскировка, оркестрация"]
         API["api<br/>BFF · домен · RBAC · оркестрация · аудит"]
-        ING["ingestion<br/>PDFBox · POI · hh-коннектор"]
+        ING["ingestion<br/>PDF/DOCX · hh-коннектор"]
+        MASK["masking<br/>PII до любого LLM"]
         TPL["template<br/>требования · плейсхолдеры весов · советы"]
-        PARSE["analyze<br/>маскировка · JSON · неявные навыки"]
-        MATCH["match<br/>категории m/t · вызов score"]
-        LLMC["llm client<br/>промпты · схемы ответа"]
+        LLMC["llm client<br/>Spring AI · промпты вакансии и писем"]
         GEN["generation<br/>вопросы по проекту · письмо отказа"]
+        ML["ml client<br/>gRPC"]
         WM["weight memory<br/>история расстановки HR"]
         POL["screening policy<br/>порог · top-N · borderline"]
         GHE["github-enrichment<br/>только шорт-лист"]
         REP["report<br/>HTML в PDF"]
     end
 
-    subgraph PY["Python · онлайн-скоринг"]
+    subgraph PY["Python · онлайн-ML"]
+        ANALYZE["analyze<br/>LLM: резюме, неявные навыки, m/t"]
         SCORE["score<br/>q · E · D · c_r · M/N/F<br/>Score_pre · cap · вилка"]
         REFINE["refine<br/>Score_final · delta"]
     end
@@ -204,9 +205,8 @@ flowchart LR
     WEB --> API
     HH --> ING
     API --> ING
+    API --> MASK
     API --> TPL
-    API --> PARSE
-    API --> MATCH
     API --> GEN
     API --> WM
     API --> POL
@@ -218,15 +218,17 @@ flowchart LR
     ING --> S3
 
     TPL --> LLMC
-    PARSE --> LLMC
-    MATCH --> LLMC
     GEN --> LLMC
-    LLMC -->|"только обезличенный текст"| LLM
+    LLMC -->|"текст вакансии и письма"| LLM
 
-    MATCH -->|"parsed + шаблон + m/t"| SCORE
-    SCORE -->|"Score_pre · вилка · матрица"| MATCH
-    API -->|"база + факты GitHub"| REFINE
-    REFINE -->|"Score_final · delta"| API
+    MASK -->|"обезличенный текст + шаблон"| ML
+    API -->|"база + факты GitHub"| ML
+    ML -->|"gRPC"| ANALYZE
+    ML -->|"gRPC"| REFINE
+    ANALYZE -->|"обезличенный текст"| LLM
+    ANALYZE --> SCORE
+    SCORE -->|"parsed + Score_pre"| ML
+    REFINE -->|"Score_final · delta"| ML
 
     API -->|"обезличенный датасет"| S3
     S3 -->|"датасет"| TR
@@ -234,8 +236,8 @@ flowchart LR
     S3 -->|"импорт версии профиля"| API
 
     class WEB,HH,GH,LLM ext
-    class API,ING,TPL,PARSE,MATCH,LLMC,GEN,WM,POL,GHE,REP java
-    class SCORE,REFINE,TR py
+    class API,ING,MASK,TPL,LLMC,GEN,ML,WM,POL,GHE,REP java
+    class ANALYZE,SCORE,REFINE,TR py
     class PG,S3 data
 ```
 
@@ -244,18 +246,18 @@ flowchart LR
 | Сервис | Технологии | Ответственность |
 |---|---|---|
 | **web** | Vue 3, TypeScript, Vite | Вакансии, редактор шаблона и весов, загрузка резюме, рейтинг, отчёт, слепой режим |
-| **api** | Java 21, Spring Boot, Spring Security, JPA, Flyway, springdoc | Домен, роли, оркестрация, хранение результатов, аудит раскрытий |
-| **ingestion** | Apache PDFBox, Apache POI, hh open API | Извлечение текста из PDF, DOCX, TXT; импорт откликов hh. Файлы и токены не покидают Java |
-| **template** | модуль Java | Требования из текста вакансии, плейсхолдеры весов из истории HR, советы по формулировкам |
-| **analyze** | модуль Java | Маскировка, JSON резюме, неявные навыки, специализация и уровень |
-| **match** | модуль Java | Оркестрация: категории `m`/`t` от LLM, затем вызов Python-скоринга |
+| **api** | Java 21, Spring Boot 4, Gradle, Spring Security, JPA, PostgreSQL | Домен, роли, оркестрация, хранение результатов, аудит раскрытий. Публичный REST генерируется из `backend/openapi.yaml` |
+| **ingestion** | PDFBox, Spring AI PDF, hh open API | Извлечение текста из PDF, DOCX, TXT; импорт откликов hh. Файлы и токены не покидают Java |
+| **masking** | модуль Java | Замена PII плейсхолдерами до отправки текста в Python и до любого вызова LLM |
+| **template** | модуль Java + Spring AI | Требования из текста вакансии, плейсхолдеры весов из истории HR, советы по формулировкам |
+| **llm client** | модуль Java, Spring AI | Вызовы LLM для вакансии, вопросов и письма. Промпты с версиями, таймауты, валидация ответа |
 | **generation** | модуль Java | Вопросы по проекту, черновик письма отказа |
-| **llm client** | модуль Java | Единственная точка вызова LLM: промпты, таймауты, валидация ответа по схеме |
+| **ml client** | модуль Java, Spring gRPC | Единственная точка вызова Python-ML: `analyze+score`, `refine` |
 | **weight memory** | модуль Java | История расстановки HR по специализации × уровню × навыку |
 | **screening policy** | модуль Java | Порог, top-N, пограничная зона, ручной override с причиной |
 | **github-enrichment** | модуль Java, GitHub REST или GraphQL | Сбор фактов только для шорт-листа, нормализация в `facts` |
 | **report** | модуль Java, HTML в PDF | Отчёт для нанимающего менеджера |
-| **ml-service** | Python 3.12, FastAPI | Онлайн-скоринг: `q`, `E`, `D`, `c_r`, `M/N/F`, `Score_pre`, cap, вилка, `refine`/`Score_final`. Stateless, только JSON |
+| **ml-service** | Python 3.12, gRPC, Pydantic | Онлайн-ML: принимает обезличенный текст и шаблон, сам вызывает LLM для разбора резюме и категорий `m`/`t`, затем считает `q`, `E`, `D`, `c_r`, `M/N/F`, `Score_pre`, cap, вилку и `refine`. Stateless |
 | **ml-trainer** | Python 3.12, отдельный офлайн-сервис | Обучение `λ`, `wM`, `wN`, `wF`. Читает обезличенный датасет, пишет артефакт. В рантайме не участвует |
 | **PostgreSQL** | PostgreSQL 16 | Система записи: вакансии, резюме, запуски скоринга, профили весов, рейтинг, аудит |
 | **MinIO** | S3-совместимое | Оригиналы резюме, извлечённый текст, PDF-отчёты, датасеты и артефакты обучения |
@@ -263,14 +265,15 @@ flowchart LR
 
 ### Правила границ
 
-- **Java — I/O, LLM и оркестрация.** Только он читает файлы, ходит в hh, GitHub, MinIO и PostgreSQL, вызывает LLM, маскирует и парсит резюме, строит шаблон и генерирует тексты.
-- **Python-скоринг — только математика.** `ml-service` stateless: на вход JSON с `parsed`, шаблоном и категориями `m`/`t`, на выход — балл, вилка и матрица. Ни файлов, ни БД, ни MinIO, ни сети, ни LLM, ни PII.
+- **Java — I/O, маскировка и оркестрация.** Только он читает файлы, ходит в hh, GitHub, MinIO и PostgreSQL, маскирует PII, строит шаблон вакансии и генерирует тексты.
+- **Java вызывает LLM для вакансии и генерации.** Требования, советы HR, вопросы по проекту и письмо отказа — зона Java.
+- **Python-сервис вызывает LLM для резюме.** `ml-service` получает только обезличенный текст и шаблон, сам разбирает резюме, классифицирует доказательства и считает математическую модель. Ни файлов, ни БД, ни MinIO, ни hh, ни GitHub, ни PII.
 - **Python-обучение — отдельный офлайн-сервис.** `ml-trainer` получает обезличенный датасет и возвращает артефакт весов. Доступа к PostgreSQL, PII, hh, GitHub и LLM у него нет; из MinIO — только тренировочный бакет.
-- **LLM не считает.** Java получает от модели категории и цитаты, а всю арифметику выполняет Python-скоринг.
+- **LLM не считает.** Обе стороны получают от модели только категории и цитаты; арифметика остаётся в `ml-service`.
 - **Обучение не активируется само.** Java импортирует артефакт как версию `WEIGHT_PROFILE` со статусом `candidate`; активирует человек. Активные вакансии и сохранённые запуски не пересчитываются.
-- **Маскировка до LLM.** Внешняя модель не видит сырые резюме.
+- **Маскировка до любого LLM.** Java маскирует PII до передачи текста в Python, поэтому и Java, и Python отправляют модели только обезличенный текст.
 - **Кого обогащать GitHub, решает Java**, а не обученная модель.
-- **Контракты.** OpenAPI — для рантайма (публичный и внутренний ML), JSON Schema — для датасета и артефакта обучения.
+- **Контракты.** Публичный REST — OpenAPI (`backend/openapi.yaml`), внутренний ML — gRPC (`contracts/ml-internal.proto`), обучение — JSON Schema (`contracts/training-artifact.schema.json`).
 
 ---
 
@@ -284,7 +287,7 @@ sequenceDiagram
     actor HR as Рекрутёр
     participant W as Web
     participant A as API (Spring)
-    participant P as Python scoring
+    participant P as Python ML (gRPC)
     participant L as LLM
     participant G as GitHub
     participant D as PostgreSQL
@@ -293,10 +296,12 @@ sequenceDiagram
     W->>A: POST /vacancies/{id}/screen
     A-->>W: 202 batch_id
     loop каждый отклик
-        A->>L: классификация доказательств по обезличенному тексту
-        L-->>A: m, t и цитаты
-        A->>P: score (parsed + шаблон + m/t)
-        P-->>A: Score_pre, вилка, матрица требований
+        A->>A: извлечь текст и замаскировать PII
+        A->>P: analyze+score (обезличенный текст + шаблон)
+        P->>L: разбор резюме и классификация доказательств
+        L-->>P: parsed, m, t и цитаты
+        P->>P: проверка цитат, q, E, D, c_r, M, N, F
+        P-->>A: parsed, Score_pre, вилка, матрица требований
         A->>D: сохранить PRELIMINARY
     end
     A->>A: политика шорт-листа (порог, top-N, borderline)
@@ -412,7 +417,7 @@ Score = 100 · (0.70·0.706 + 0.15·0.45 + 0.15·0.867) ≈ 69
 
 Цитата, которой нет в исходном тексте, отбрасывается, а требование остаётся без покрытия. Это защита от галлюцинаций.
 
-Вся арифметика живёт в `ml-service/app/scoring/`: Java передаёт туда `parsed`, шаблон и категории `m`/`t`, а обратно получает балл, вилку и матрицу требований.
+Вся арифметика живёт в `ml-service/app/scoring/`: Java передаёт туда обезличенный текст резюме и шаблон, Python сам вызывает LLM для разбора и категорий `m`/`t`, а затем возвращает балл, вилку и матрицу требований.
 
 ---
 
@@ -616,9 +621,11 @@ erDiagram
 
 ## 10. Контракты API и JSON
 
-Источник истины — OpenAPI-спецификации для рантайма и JSON Schema для датасета и артефакта обучения. Ниже черновик для ориентира.
+Источник истины — OpenAPI для публичного REST, gRPC-прото для внутреннего ML и JSON Schema для датасета и артефакта обучения. Ниже черновик для ориентира.
 
 ### Публичный API (Java)
+
+Контракт — `backend/openapi.yaml`. Из него генерируются Spring-интерфейсы (`ats.api`) и DTO (`ats.gateway.model`).
 
 | Метод и путь                                     | Назначение                                                                                        |
 |--------------------------------------------------|---------------------------------------------------------------------------------------------------|
@@ -633,16 +640,20 @@ erDiagram
 | `POST /api/v1/applications/{id}/reveal`          | Раскрыть PII, тело содержит `reason`                                                              |
 | `GET /api/v1/applications/{id}/rejection-letter` | Черновик письма для проверки HR                                                                   |
 
-### Внутренний API ML (только из сети Java)
+### Внутренний API ML (gRPC, только из сети Java)
 
-| Метод и путь | Вход | Выход |
+Контракт — `contracts/ml-internal.proto`. Java вызывает Python через Spring gRPC client.
+
+| RPC | Вход | Выход |
 |---|---|---|
-| `POST /internal/v1/score` | `parsed` + шаблон + категории `m`/`t` | `Score_pre`, вилка, матрица требований |
-| `POST /internal/v1/refine` | результат `score` + факты GitHub | `Score_final`, `delta`, подсветка навыков |
+| `AnalyzeAndScore` | обезличенный текст резюме + шаблон вакансии | `parsed`, `Score_pre`, вилка, матрица требований |
+| `Refine` | результат `AnalyzeAndScore` + факты GitHub | `Score_final`, `delta`, подсветка навыков |
+
+`AnalyzeAndScore` сам вызывает LLM для разбора резюме, неявных навыков и категорий `m`/`t`. `Refine` LLM не вызывает.
 
 ### Контракт обучения весов (Python, офлайн)
 
-Кроме онлайн-скоринга, у Python есть офлайн-обучение. Его контракт — два артефакта в MinIO, описанные `contracts/training-artifact.schema.json`:
+Кроме онлайн-ML, у Python есть офлайн-обучение. Его контракт — два артефакта в MinIO, описанные `contracts/training-artifact.schema.json`:
 
 | Артефакт | Кто пишет | Кто читает | Содержимое |
 |---|---|---|---|
@@ -790,6 +801,89 @@ erDiagram
 
 ---
 
+## 13. Границы MVP
+
+Предложение по приоритетам. Подтвердите или поправьте.
+
+| Приоритет | Что входит |
+|---|---|
+| **P0** | Java-скелет: auth, вакансии, загрузка PDF/DOCX, извлечение текста, маскировка · Шаблон вакансии через LLM из Java · Python `ml-service`: gRPC, вызов LLM для разбора резюме и `m/t`, `Score_pre`, cap, вилка · Шорт-лист по порогу · Отчёт «требование → доказательство → пробел» · Рейтинг · Слепой режим · PDF-отчёт · Docker Compose и демо-данные |
+| **P1** | Импорт откликов с hh · Скрапинг GitHub, `refine`/`Score_final`, подсветка по уровню подтверждения, проверка накрутки · Профили весов junior и senior · Память весов HR по специализациям и уровням (плейсхолдеры `kind`/`weight`/`critical`) · Карта смежных навыков · Советы по расплывчатым формулировкам · Вопросы по проекту · Письмо отказа |
+| **P2** | Классификация резюме · Офлайн-обучение `λ`/`wM`/`wN`/`wF` в `ml-trainer` и импорт артефакта · Другие внешние источники · Анализ интервью · Рекомендации по улучшению вакансий · Калибровка по оценкам рекрутёров · OCR |
+
+**Минимальный сквозной путь для демо:** вакансия → шаблон и правка HR → резюме → `Score_pre` для всех → шорт-лист → отчёт с пробелами → слепой режим → PDF. GitHub и письмо отказа добавляют вес демо, но ядро держится и без них.
+
+---
+
+## 14. Структура репозитория
+
+```text
+tracing-ats/
+├── README.md
+├── AGENTS.md                    # инструкция для AI-агента
+├── backend/                     # Java 21, Spring Boot 4, Gradle
+│   ├── openapi.yaml             # публичный REST-контракт
+│   ├── build.gradle             # Spring Boot, gRPC, Spring AI, OpenAPI generator
+│   ├── settings.gradle
+│   └── src/
+│       ├── main/java/ats/
+│       │   ├── AtsApplication.java
+│       │   ├── api/             # REST-контроллеры (генерация из OpenAPI)
+│       │   ├── gateway/         # сгенерированные DTO и конфиг
+│       │   ├── domain/          # сущности, сервисы, репозитории
+│       │   ├── ingestion/       # PDFBox, Spring AI PDF, hh-коннектор
+│       │   ├── masking/         # маскировка PII до LLM
+│       │   ├── template/        # шаблон вакансии через LLM
+│       │   ├── ml/              # gRPC-клиент к ml-service
+│       │   ├── screening/       # политика шорт-листа
+│       │   ├── enrichment/      # GitHub и другие адаптеры
+│       │   ├── report/          # HTML в PDF
+│       │   └── security/        # JWT, роли
+│       ├── main/resources/
+│       │   ├── application.yaml
+│       │   └── prompts/         # промпты вакансии, вопросов и письма
+│       └── test/java/ats/       # Testcontainers, contract-тесты
+├── ml-service/                  # Python 3.12, gRPC
+│   ├── app/
+│   │   ├── api/                 # gRPC-сервер
+│   │   ├── llm/                 # клиент LLM и промпты резюме
+│   │   ├── analyze/             # разбор резюме, неявные навыки, m/t
+│   │   ├── scoring/             # q, E, D, c_r, M/N/F, Score, cap, вилка, refine
+│   │   └── models/              # Pydantic-схемы
+│   └── tests/golden/            # эталонные резюме и ожидаемый порядок
+├── ml-trainer/                  # Python 3.12, только офлайн-обучение
+│   ├── train/                   # обучение λ, wM, wN, wF
+│   ├── datasets/                # локальные снапшоты для прогонов
+│   ├── artifacts/               # weight-profile.json
+│   └── tests/                   # воспроизводимость и метрики
+├── contracts/
+│   ├── ml-internal.proto        # gRPC-контракт Java ↔ ml-service
+│   └── training-artifact.schema.json
+├── frontend/                    # Vue 3 + TypeScript
+├── infra/
+│   ├── docker-compose.yml
+│   └── mock-llm/                # заглушка LLM для CI и демо
+└── .github/workflows/
+```
+
+---
+
+## 15. Качество и проверка
+
+| Что проверяем | Как |
+|---|---|
+| Воспроизводимость | Одно резюме и одна вакансия дают один и тот же балл (LLM замокана, арифметика детерминирована) |
+| Защита от галлюцинаций | Тест: цитата, которой нет в тексте, отбрасывается, покрытие требования равно 0 |
+| Утечка PII | Тест исходящих запросов к LLM из Java и из `ml-service`: ни имён, ни контактов |
+| Порядок кандидатов | 10–15 синтетических резюме с заранее известным порядком. Таблица «наш рейтинг против эталона» |
+| Устойчивость весов | Сдвигаем веса на ±20 % и смотрим, меняется ли топ-5. Если нет, рейтингу можно доверять |
+| Калибровка (после хакатона) | 100–300 пар «резюме — вакансия» с оценками рекрутёров. Метрики: корреляция Спирмена, NDCG@10. Веса `M`, `N`, `F` подбираются логистической регрессией или попарным ранжированием |
+| gRPC-контракт | Contract-тест Java ↔ `ml-service`: `AnalyzeAndScore` и `Refine` соответствуют `contracts/ml-internal.proto` |
+| Обучение | Датасет и артефакт соответствуют JSON Schema, в датасете нет PII, у `ml-trainer` нет клиентов PostgreSQL и внешних API, кроме тренировочного бакета MinIO |
+| Воспроизводимость обучения | Один датасет и фиксированный seed дают один и тот же `weight-profile.json`; метрики на holdout не хуже активной версии |
+
+---
+
 ## 16. Риски
 
 | Риск | Мера |
@@ -806,6 +900,8 @@ erDiagram
 | Расползание скоупа | Приоритеты P0, P1, P2 и заморозка набора фич |
 | Судьи не поймут формулу | Один экран «как считается» с примером из раздела 6 |
 | Обученные веса ухудшают ранжирование | Артефакт импортируется как `candidate`, активируется вручную, метрики на holdout сравниваются с активной версией |
+| `ml-service` ходит в LLM | Только обезличенный текст, таймауты и кеш `parsed`, mock-LLM в CI, лимит на размер запроса |
+| Рассинхрон gRPC-контракта | `contracts/ml-internal.proto` — источник истины, contract-тест Java ↔ Python в CI |
 
 ---
 
@@ -851,7 +947,8 @@ erDiagram
 | **Cap** | Ограничение итога при непокрытом критичном требовании |
 | **Слепой режим** | Просмотр оценки без PII до аудируемого раскрытия |
 | **Профиль весов** | Набор `λ`, `wM`, `wN`, `wF` под уровень позиции |
-| **`ml-service`** | Онлайн-сервис математической модели: `Score_pre`, `Score_final`, cap, вилка. Stateless, только JSON |
+| **`ml-service`** | Онлайн-ML: принимает обезличенный текст и шаблон по gRPC, сам вызывает LLM для разбора резюме и `m/t`, считает `Score_pre`, `Score_final`, cap и вилку. Stateless |
+| **gRPC** | Внутренний контракт Java ↔ `ml-service` (`contracts/ml-internal.proto`): `AnalyzeAndScore`, `Refine` |
 | **Офлайн-обучение** | Отдельный сервис `ml-trainer`: подбирает `λ`, `wM`, `wN`, `wF` по обезличенному датасету и отдаёт артефакт |
 | **Артефакт весов** | `weight-profile.json` с версией профиля, метриками и хешем датасета; импортируется в Java как `candidate` |
 | **Память весов** | История расстановки HR (`kind`, `weight`, `critical`) по паре «специализация × уровень × навык»; источник плейсхолдеров в новых шаблонах |
