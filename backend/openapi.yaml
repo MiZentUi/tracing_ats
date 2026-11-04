@@ -1,0 +1,128 @@
+openapi: "3.0.4"
+info:
+  title: ATS API
+  description: ATS Backend OpenAPI Specification
+  version: "1.0"
+servers:
+  - url: https://localhost:8080/api/v1
+
+paths:
+  /users/signup:
+    post:
+      tags:
+        - Users
+      summary: User registration
+      operationId: signUp
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/AuthRequest"
+      responses:
+        "200":
+          description: "Signed up"
+        default:
+          $ref: "#/components/responses/default"
+
+  /users/login:
+    post:
+      tags:
+        - Users
+      summary: User login
+      operationId: login
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/AuthRequest"
+      responses:
+        "200":
+          $ref: "#/components/responses/auth"
+        default:
+          $ref: "#/components/responses/default"
+
+  /users/refresh:
+    post:
+      tags:
+        - Users
+      summary: Refresh token
+      operationId: refresh
+      parameters:
+        - name: refresh_token
+          in: cookie
+          required: true
+          schema:
+            type: string
+      responses:
+        "200":
+          $ref: "#/components/responses/auth"
+        default:
+          $ref: "#/components/responses/default"
+
+components:
+  schemas:
+    AuthRequest:
+      type: object
+      required:
+        - username
+        - password
+      properties:
+        username:
+          type: string
+          example: username
+        password:
+          type: string
+          format: password
+          example: password123
+
+    AccessToken:
+      type: object
+      required:
+        - access_token
+      properties:
+        access_token:
+          type: string
+
+    ApiStatusResponse:
+      type: object
+      required:
+        - code
+        - status
+        - message
+      properties:
+        code:
+          type: integer
+        status:
+          type: string
+        message:
+          type: string
+
+  securitySchemes:
+    BearerAuth:
+      type: http
+      scheme: bearer
+      bearerFormat: JWT
+
+  responses:
+    auth:
+      description: Auth response with token
+      headers:
+        Set-Cookie:
+          description: Refresh token
+          schema:
+            example: refresh_token=xyz; HttpOnly; Secure; Path=/refresh
+      content:
+        application/json:
+          schema:
+            $ref: "#/components/schemas/AccessToken"
+    bad:
+      description: Bad request
+
+    default:
+      description: Status response
+      content:
+        application/json:
+          schema:
+            $ref: "#/components/schemas/ApiStatusResponse"

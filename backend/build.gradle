@@ -1,0 +1,133 @@
+plugins {
+	id 'java'
+	id 'org.springframework.boot' version '4.1.2'
+	id 'io.spring.dependency-management' version '1.1.7'
+	id 'com.diffplug.spotless' version '8.10.4'	
+	id 'com.google.protobuf' version '0.9.5'
+	id 'org.openapi.generator' version '7.21.0'
+}
+
+group = 'ats'
+version = '0.0.1-SNAPSHOT'
+
+java {
+	toolchain {
+		languageVersion = JavaLanguageVersion.of(21)
+	}
+}
+
+repositories {
+	mavenCentral()
+}
+
+ext {
+	set('springGrpcVersion', "1.0.3")
+	set('springAiVersion', "2.0.1")
+}
+
+dependencies {
+	implementation 'org.springframework.boot:spring-boot-starter-data-jpa'
+	implementation 'org.springframework.boot:spring-boot-starter-security'
+	implementation 'org.springframework.boot:spring-boot-starter-webmvc'
+	implementation 'org.springdoc:springdoc-openapi-starter-webmvc-ui:3.2.0'
+	implementation 'org.springframework.grpc:spring-grpc-client-spring-boot-starter'
+	implementation 'org.springframework.ai:spring-ai-pdf-document-reader'
+	implementation 'org.openapitools:jackson-databind-nullable:0.2.10'
+	implementation 'org.mapstruct:mapstruct:1.6.3'
+	implementation 'io.jsonwebtoken:jjwt-api:0.13.0'
+	implementation 'io.jsonwebtoken:jjwt-impl:0.13.0'
+	implementation 'io.jsonwebtoken:jjwt-jackson:0.13.0'
+	compileOnly 'org.projectlombok:lombok'
+	developmentOnly 'org.springframework.boot:spring-boot-docker-compose'
+	runtimeOnly 'org.postgresql:postgresql'
+	developmentOnly 'org.springframework.ai:spring-ai-spring-boot-docker-compose'
+	annotationProcessor 'org.projectlombok:lombok'
+	annotationProcessor 'org.mapstruct:mapstruct-processor:1.6.3'
+	testImplementation 'org.springframework.boot:spring-boot-starter-data-jpa-test'
+	testImplementation 'org.springframework.boot:spring-boot-starter-security-test'
+	testImplementation 'org.springframework.boot:spring-boot-starter-webmvc-test'
+	testImplementation 'org.springframework.boot:spring-boot-testcontainers'
+	testImplementation 'org.springframework.ai:spring-ai-spring-boot-testcontainers'
+	testImplementation 'org.testcontainers:testcontainers-junit-jupiter'
+	testImplementation 'org.testcontainers:testcontainers-postgresql'
+	testCompileOnly 'org.projectlombok:lombok'
+	testRuntimeOnly 'org.junit.platform:junit-platform-launcher'
+	testAnnotationProcessor 'org.projectlombok:lombok'
+}
+
+dependencyManagement {
+	imports {
+		mavenBom "org.springframework.grpc:spring-grpc-dependencies:${springGrpcVersion}"
+		mavenBom "org.springframework.ai:spring-ai-bom:${springAiVersion}"
+	}
+}
+
+protobuf {
+	protoc {
+		artifact = 'com.google.protobuf:protoc'
+	}
+	plugins {
+		grpc {
+			artifact = 'io.grpc:protoc-gen-grpc-java'
+		}
+	}
+	generateProtoTasks {
+		all()*.plugins {
+			grpc {
+				option '@generated=omit'
+			}
+		}
+	}
+}
+
+
+tasks.named('test') {
+	useJUnitPlatform()
+}
+
+sourceSets {
+    main {
+        java {
+            srcDirs += "$buildDir/generated/src/main/java"
+            srcDirs += "$buildDir/generated/sources/proto/main/grpc"
+        }
+    }
+}
+
+tasks.compileJava {
+	dependsOn(tasks.generateProto)
+	dependsOn(tasks.openApiGenerate)
+	dependsOn(tasks.spotlessApply)
+}
+
+openApiGenerate {
+	generatorName = "spring"
+	inputSpec = "openapi.yaml"
+	outputDir = "$buildDir/generated"
+	ignoreFileOverride = "$projectDir/.openapi-generator-ignore"
+	importMappings = [
+        "Nullable": "org.jspecify.annotations.Nullable"
+    ]
+	configOptions = [
+		library                             : "spring-boot",
+		invokerPackage                      : "ats",
+        apiPackage                          : "ats.api",
+        modelPackage                        : "ats.gateway.model",
+        configPackage                       : "ats.gateway.configuration",
+        basePackage                         : "ats.gateway",
+        interfaceOnly                       : "false",
+		openApiNullable						: "true",
+		generateBuilders 					: "true",
+        additionalModelTypeAnnotations      : "@lombok.Setter\n@lombok.Getter\n@lombok.NoArgsConstructor\n@com.fasterxml.jackson.annotation.JsonIgnoreProperties(ignoreUnknown=true)\n@com.fasterxml.jackson.databind.annotation.JsonNaming(com.fasterxml.jackson.databind.PropertyNamingStrategies.SnakeCaseStrategy.class)",
+        useTags                             : "true"
+    ]
+}
+
+spotless {
+    java {
+        target 'src/**/*.java'
+        importOrder()
+        removeUnusedImports()
+        googleJavaFormat('1.36.1').aosp()
+    }
+}
