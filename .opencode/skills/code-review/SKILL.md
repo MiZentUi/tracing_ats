@@ -25,7 +25,7 @@ git log --oneline <base>..HEAD
 
 Сначала ответь на три вопроса:
 
-1. Какие сервисы и контракты затронуты: `backend`, `resume-service`, `vacancy-service`,
+1. Какие сервисы и контракты затронуты: `resume-service`, `vacancy-service`,
    `migrations`, `infra`, `contracts`, `scoring-service`, `ml-trainer`, `frontend`?
 2. Меняются ли формула, константы, веса, схема БД или публичный/gRPC-контракт?
 3. Есть ли в diff PII, секреты, новые внешние вызовы или новые зависимости?
@@ -55,7 +55,7 @@ git log --oneline <base>..HEAD
 - [ ] Цитата проверяется как подстрока обезличенного текста. Непроверенная цитата
       отбрасывается, покрытие не завышается.
 - [ ] Вся арифметика `q`, `E`, `D`, `c_r`, `M`, `N`, `F`, `Score`, cap, вилка и `refine`
-      остаётся в `backend/scoring-service/app/scoring/` и не дублируется в Java, SQL или TypeScript.
+      остаётся в `scoring-service/app/scoring/` и не дублируется в Java, SQL или TypeScript.
 - [ ] Константы (0.3/0.5/0.8, `T½`, `L_ref`, 0.70/0.15/0.15, порог cap 0.2) не менялись
       без ADR и обновления golden-тестов.
 - [ ] `refine` не вызывает LLM повторно.
@@ -74,7 +74,7 @@ git log --oneline <base>..HEAD
 
 ### Контракты и границы
 
-- [ ] Код соответствует `backend/openapi.yaml`, `contracts/ml-internal.proto`,
+- [ ] Код соответствует `contracts/openapi.yaml`, `contracts/ml-internal.proto`,
       `contracts/training-artifact.schema.json`.
 - [ ] Если контракт менялся, спецификация обновлена в том же изменении.
 - [ ] Java не считает `q`, `E`, `D`, `c_r`, `M`, `N`, `F`, `Score`.
@@ -85,28 +85,49 @@ git log --oneline <base>..HEAD
 ### Миграции и инфраструктура
 
 - [ ] Схема меняется только через Liquibase-миграции, а не через приложение и не руками.
-- [ ] Миграции лежат в `backend/migrations` и накатываются джобой `migrations` из
-      `infra/docker-compose.yml`, а не стартом сервисов.
+- [ ] Миграции лежат в `migrations` и накатываются джобой `migrations` из
+      корневого `docker-compose.yml`, а не стартом сервисов.
 - [ ] Новые changesets идут после существующих; старые не переписываются.
 - [ ] У новых changesets есть `--rollback` или объяснение, почему его нет.
-- [ ] `docker compose -f infra/docker-compose.yml config` остаётся валидным.
+- [ ] `docker compose config` остаётся валидным.
 
 ## 4. Запусти проверки
 
-Не верь описанию изменения на слово. Минимальный набор:
+Не верь описанию изменения на слово.
+
+**Обязательно для Java — каждый сервис собирается отдельно:**
 
 ```bash
-# Java
-mvn -f backend/pom.xml test
+(cd resume-service && ./gradlew test)
+(cd vacancy-service && ./gradlew test)
+```
 
-# миграции
-docker compose -f infra/docker-compose.yml config
-docker compose -f infra/docker-compose.yml run --rm migrations
+**Только если MR меняет `migrations/**` или `docker-compose.yml`:**
 
-# Python, когда появится
-# pytest backend/scoring-service && pytest ml-trainer
+```bash
+docker compose config
 
-# быстрый поиск опасных мест
+POSTGRES_PORT=55432 docker compose -p ats-review \
+  up --build --abort-on-container-exit --exit-code-from migrations migrations
+
+POSTGRES_PORT=55432 docker compose -p ats-review down -v
+```
+
+`--build` гарантирует, что проверяется новый образ с новыми changesets. Отдельный
+`-p ats-review` и порт `55432` не трогают локальную базу разработчика; `down -v`
+удаляет тестовый volume. `run --rm migrations` без `--build` может взять старый
+образ и применить схему в рабочую БД, поэтому в ревью его не используем.
+
+**Python, когда появится:**
+
+```bash
+(cd scoring-service && pytest)
+(cd ml-trainer && pytest)
+```
+
+**Быстрый поиск опасных мест:**
+
+```bash
 rg -n "password|secret|token|BEGIN PRIVATE KEY" <затронутые файлы>
 ```
 
@@ -120,21 +141,22 @@ rg -n "password|secret|token|BEGIN PRIVATE KEY" <затронутые файлы
 **Вердикт:** request changes — нарушен инвариант проверки цитат.
 
 **BLOCKER**
-- `backend/scoring-service/app/analyze/quote.py:42` — цитата принимается без проверки подстроки.
+- `scoring-service/app/analyze/quote.py:42` — цитата принимается без проверки подстроки.
   Требование получает покрытие без доказательства. Проверять `quote in masked_text`
   до расчёта `c_r`.
 
 **MAJOR**
-- `backend/.../ScoreService.java:88` — балл считается в Java. Арифметика должна
-  остаться в `backend/scoring-service/app/scoring/`.
-- `backend/migrations/changes/002-...sql` — нет `--rollback`.
+- `vacancy-service/.../ScoreService.java:88` — балл считается в Java. Арифметика должна
+  остаться в `scoring-service/app/scoring/`.
+- `migrations/changes/002-...sql` — нет `--rollback`.
 
 **MINOR / NIT**
 - `...` — опечатка в имени поля.
 
 **Что проверено**
-- `mvn -f backend/pom.xml test` — зелёный.
-- `docker compose ... config` — валиден.
+- `(cd resume-service && ./gradlew test)` — зелёный.
+- `(cd vacancy-service && ./gradlew test)` — зелёный.
+- `docker compose config` — валиден.
 
 **Не проверено**
 - Реальный вызов LLM: нет ключа в окружении.

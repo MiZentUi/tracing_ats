@@ -246,7 +246,7 @@ flowchart LR
 | Сервис | Технологии | Ответственность |
 |---|---|---|
 | **web** | Vue 3, TypeScript, Vite | Вакансии, редактор шаблона и весов, загрузка резюме, рейтинг, отчёт, слепой режим |
-| **api** | Java 21, Spring Boot 4, Gradle, Spring Security, JPA, PostgreSQL | Домен, роли, оркестрация, хранение результатов, аудит раскрытий. Публичный REST генерируется из `backend/openapi.yaml` |
+| **api** | Java 21, Spring Boot 4, Gradle, Spring Security, JPA, PostgreSQL | Домен, роли, оркестрация, хранение результатов, аудит раскрытий. Публичный REST генерируется из `contracts/openapi.yaml` |
 | **ingestion** | PDFBox, Spring AI PDF, hh open API | Извлечение текста из PDF, DOCX, TXT; импорт откликов hh. Файлы и токены не покидают Java |
 | **masking** | модуль Java | Замена PII плейсхолдерами до отправки текста в Python и до любого вызова LLM |
 | **template** | модуль Java + Spring AI | Требования из текста вакансии, плейсхолдеры весов из истории HR, советы по формулировкам |
@@ -273,7 +273,7 @@ flowchart LR
 - **Обучение не активируется само.** Java импортирует артефакт как версию `WEIGHT_PROFILE` со статусом `candidate`; активирует человек. Активные вакансии и сохранённые запуски не пересчитываются.
 - **Маскировка до любого LLM.** Java маскирует PII до передачи текста в Python, поэтому и Java, и Python отправляют модели только обезличенный текст.
 - **Кого обогащать GitHub, решает Java**, а не обученная модель.
-- **Контракты.** Публичный REST — OpenAPI (`backend/openapi.yaml`), внутренний ML — gRPC (`contracts/ml-internal.proto`), обучение — JSON Schema (`contracts/training-artifact.schema.json`).
+- **Контракты.** Публичный REST — OpenAPI (`contracts/openapi.yaml`), внутренний ML — gRPC (`contracts/ml-internal.proto`), обучение — JSON Schema (`contracts/training-artifact.schema.json`).
 
 ---
 
@@ -417,7 +417,7 @@ Score = 100 · (0.70·0.706 + 0.15·0.45 + 0.15·0.867) ≈ 69
 
 Цитата, которой нет в исходном тексте, отбрасывается, а требование остаётся без покрытия. Это защита от галлюцинаций.
 
-Вся арифметика живёт в `backend/scoring-service/app/scoring/`: Java передаёт туда обезличенный текст резюме и шаблон, Python сам вызывает LLM для разбора и категорий `m`/`t`, а затем возвращает балл, вилку и матрицу требований.
+Вся арифметика живёт в `scoring-service/app/scoring/`: Java передаёт туда обезличенный текст резюме и шаблон, Python сам вызывает LLM для разбора и категорий `m`/`t`, а затем возвращает балл, вилку и матрицу требований.
 
 ---
 
@@ -625,7 +625,7 @@ erDiagram
 
 ### Публичный API (Java)
 
-Контракт — `backend/openapi.yaml`. Из него генерируются Spring-интерфейсы (`ats.api`) и DTO (`ats.gateway.model`).
+Контракт — `contracts/openapi.yaml`. Из него генерируются Spring-интерфейсы (`ats.api`) и DTO (`ats.gateway.model`).
 
 | Метод и путь                                     | Назначение                                                                                        |
 |--------------------------------------------------|---------------------------------------------------------------------------------------------------|
@@ -821,36 +821,41 @@ erDiagram
 tracing-ats/
 ├── README.md
 ├── AGENTS.md                    # инструкция для AI-агента
-├── backend/                     # Java-сервисы и Python scoring-service
-│   ├── pom.xml                  # родительский POM (Java)
-│   ├── openapi.yaml             # публичный REST-контракт
-│   ├── migrations/              # общие Liquibase-миграции (SQL) + Dockerfile джобы
-│   │   ├── Dockerfile
-│   │   ├── db.changelog-master.xml
-│   │   └── changes/
-│   ├── resume-service/          # приём и обработка выгруженных резюме
-│   │   └── src/main/java/ats/resume/
-│   ├── vacancy-service/         # приём и обработка выгруженных вакансий
-│   │   └── src/main/java/ats/vacancy/
-│   └── scoring-service/         # Python 3.12, gRPC: LLM и математическая модель
-│       ├── app/
-│       │   ├── api/             # gRPC-сервер
-│       │   ├── llm/             # клиент LLM и промпты резюме
-│       │   ├── analyze/         # разбор резюме, неявные навыки, m/t
-│       │   ├── scoring/         # q, E, D, c_r, M/N/F, Score, cap, вилка, refine
-│       │   └── models/          # Pydantic-схемы
-│       └── tests/golden/        # эталонные резюме и ожидаемый порядок
+├── docs/                        # общая документация
+├── migrations/                  # общие Liquibase-миграции (SQL) + Dockerfile
+│   ├── Dockerfile
+│   ├── db.changelog-master.xml
+│   └── changes/
+├── docker-compose.yml           # запуск всей системы
+├── resume-service/              # Java 21, Spring Boot 4, Gradle
+│   ├── build.gradle
+│   ├── gradlew
+│   ├── Dockerfile
+│   └── src/main/java/ats/resume/
+├── vacancy-service/             # Java 21, Spring Boot 4, Gradle
+│   ├── build.gradle
+│   ├── gradlew
+│   ├── Dockerfile
+│   └── src/main/java/ats/vacancy/
+├── scoring-service/             # Python 3.12, gRPC: LLM и математическая модель
+│   ├── app/
+│   │   ├── api/                 # gRPC-сервер
+│   │   ├── llm/                 # клиент LLM и промпты резюме
+│   │   ├── analyze/             # разбор резюме, неявные навыки, m/t
+│   │   ├── scoring/             # q, E, D, c_r, M/N/F, Score, cap, вилка, refine
+│   │   └── models/              # Pydantic-схемы
+│   └── tests/golden/            # эталонные резюме и ожидаемый порядок
 ├── ml-trainer/                  # Python 3.12, только офлайн-обучение
 │   ├── train/                   # обучение λ, wM, wN, wF
 │   ├── datasets/                # локальные снапшоты для прогонов
 │   ├── artifacts/               # weight-profile.json
 │   └── tests/                   # воспроизводимость и метрики
 ├── contracts/
+│   ├── openapi.yaml             # публичный REST-контракт
 │   ├── ml-internal.proto        # gRPC-контракт Java ↔ scoring-service
 │   └── training-artifact.schema.json
 ├── frontend/                    # Vue 3 + TypeScript
 ├── infra/
-│   ├── docker-compose.yml
 │   └── mock-llm/                # заглушка LLM для CI и демо
 └── .github/workflows/
 ```

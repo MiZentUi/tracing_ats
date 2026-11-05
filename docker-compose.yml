@@ -1,0 +1,66 @@
+name: tracing-ats
+
+services:
+  postgres:
+    image: postgres:18
+    environment:
+      POSTGRES_DB: ${POSTGRES_DB:-ats}
+      POSTGRES_USER: ${POSTGRES_USER:-ats}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-ats}
+    ports:
+      - "${POSTGRES_PORT:-5432}:5432"
+    volumes:
+      - ats-pgdata:/var/lib/postgresql
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U $${POSTGRES_USER} -d $${POSTGRES_DB}"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+
+  # Отдельная джоба: накатывает схему и завершается.
+  migrations:
+    build:
+      context: ./migrations
+    image: ats-migrations:local
+    environment:
+      LIQUIBASE_COMMAND_URL: jdbc:postgresql://postgres:5432/${POSTGRES_DB:-ats}
+      LIQUIBASE_COMMAND_USERNAME: ${POSTGRES_USER:-ats}
+      LIQUIBASE_COMMAND_PASSWORD: ${POSTGRES_PASSWORD:-ats}
+      LIQUIBASE_COMMAND_CHANGELOG_FILE: db.changelog-master.xml
+      LIQUIBASE_SEARCH_PATH: /liquibase/changelog
+    command: ["update"]
+    depends_on:
+      postgres:
+        condition: service_healthy
+    restart: "no"
+
+  resume-service:
+    build:
+      context: ./resume-service
+    environment:
+      SPRING_DATASOURCE_URL: jdbc:postgresql://postgres:5432/${POSTGRES_DB:-ats}
+      SPRING_DATASOURCE_USERNAME: ${POSTGRES_USER:-ats}
+      SPRING_DATASOURCE_PASSWORD: ${POSTGRES_PASSWORD:-ats}
+    ports:
+      - "${RESUME_SERVICE_PORT:-8081}:8081"
+    depends_on:
+      migrations:
+        condition: service_completed_successfully
+    restart: unless-stopped
+
+  vacancy-service:
+    build:
+      context: ./vacancy-service
+    environment:
+      SPRING_DATASOURCE_URL: jdbc:postgresql://postgres:5432/${POSTGRES_DB:-ats}
+      SPRING_DATASOURCE_USERNAME: ${POSTGRES_USER:-ats}
+      SPRING_DATASOURCE_PASSWORD: ${POSTGRES_PASSWORD:-ats}
+    ports:
+      - "${VACANCY_SERVICE_PORT:-8080}:8080"
+    depends_on:
+      migrations:
+        condition: service_completed_successfully
+    restart: unless-stopped
+
+volumes:
+  ats-pgdata:

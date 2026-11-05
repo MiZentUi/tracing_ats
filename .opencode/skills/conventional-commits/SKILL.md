@@ -55,10 +55,9 @@ description: Использовать при написании, ревью и �
 
 - `resume-service`, `vacancy-service` — Java-сервисы;
 - `migrations` — Liquibase-миграции и джоба миграций;
-- `backend` — общий родительский POM и сквозные изменения Java-контура;
-- `infra` — `docker-compose`, окружение, mock-LLM;
-- `contracts` — `openapi.yaml`, gRPC-прото и JSON Schema;
-- `scoring-service` — Python-сервис в `backend/scoring-service`;
+- `infra` — mock-LLM и вспомогательная инфраструктура;
+- `contracts` — `contracts/openapi.yaml`, gRPC-прото и JSON Schema;
+- `scoring-service` — Python-сервис в корне проекта;
 - `ml-trainer` — Python-контур офлайн-обучения;
 - `frontend` — Vue-приложение;
 - `docs`, `agents` — документация и инструкции агента.
@@ -109,10 +108,9 @@ Refs: #128
 ```
 
 ```text
-build(backend): перевести сборку на Maven multi-module
+build(resume-service): вернуть Gradle-сборку
 
-BREAKING CHANGE: модули resume-service и vacancy-service собираются
-из backend/pom.xml, старый build.gradle удалён
+BREAKING CHANGE: сервис собирается отдельно через ./gradlew, Maven POM удалён
 ```
 
 ```text
