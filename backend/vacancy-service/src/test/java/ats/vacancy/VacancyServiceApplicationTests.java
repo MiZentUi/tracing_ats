@@ -1,4 +1,4 @@
-package ats;
+package ats.vacancy;
 
 import org.junit.jupiter.api.Test;
 import org.springframework.boot.test.context.SpringBootTest;
@@ -6,7 +6,7 @@ import org.springframework.context.annotation.Import;
 
 @Import(TestcontainersConfiguration.class)
 @SpringBootTest
-class AtsApplicationTests {
+class VacancyServiceApplicationTests {
 
     @Test
     void contextLoads() {}

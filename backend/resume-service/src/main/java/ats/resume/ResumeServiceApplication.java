@@ -1,12 +1,12 @@
-package ats;
+package ats.resume;
 
 import org.springframework.boot.SpringApplication;
 import org.springframework.boot.autoconfigure.SpringBootApplication;
 
 @SpringBootApplication
-public class AtsApplication {
+public class ResumeServiceApplication {
 
     public static void main(String[] args) {
-        SpringApplication.run(AtsApplication.class, args);
+        SpringApplication.run(ResumeServiceApplication.class, args);
     }
 }

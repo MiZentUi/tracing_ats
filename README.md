@@ -821,28 +821,17 @@ erDiagram
 tracing-ats/
 ├── README.md
 ├── AGENTS.md                    # инструкция для AI-агента
-├── backend/                     # Java 21, Spring Boot 4, Gradle
+├── backend/                     # Java 21, Spring Boot 4, Maven multi-module
+│   ├── pom.xml                  # родительский POM
 │   ├── openapi.yaml             # публичный REST-контракт
-│   ├── build.gradle             # Spring Boot, gRPC, Spring AI, OpenAPI generator
-│   ├── settings.gradle
-│   └── src/
-│       ├── main/java/ats/
-│       │   ├── AtsApplication.java
-│       │   ├── api/             # REST-контроллеры (генерация из OpenAPI)
-│       │   ├── gateway/         # сгенерированные DTO и конфиг
-│       │   ├── domain/          # сущности, сервисы, репозитории
-│       │   ├── ingestion/       # PDFBox, Spring AI PDF, hh-коннектор
-│       │   ├── masking/         # маскировка PII до LLM
-│       │   ├── template/        # шаблон вакансии через LLM
-│       │   ├── ml/              # gRPC-клиент к ml-service
-│       │   ├── screening/       # политика шорт-листа
-│       │   ├── enrichment/      # GitHub и другие адаптеры
-│       │   ├── report/          # HTML в PDF
-│       │   └── security/        # JWT, роли
-│       ├── main/resources/
-│       │   ├── application.yaml
-│       │   └── prompts/         # промпты вакансии, вопросов и письма
-│       └── test/java/ats/       # Testcontainers, contract-тесты
+│   ├── migrations/              # общие Liquibase-миграции (SQL) + Dockerfile джобы
+│   │   ├── Dockerfile
+│   │   ├── db.changelog-master.xml
+│   │   └── changes/
+│   ├── resume-service/          # приём и обработка выгруженных резюме
+│   │   └── src/main/java/ats/resume/
+│   └── vacancy-service/         # приём и обработка выгруженных вакансий
+│       └── src/main/java/ats/vacancy/
 ├── ml-service/                  # Python 3.12, gRPC
 │   ├── app/
 │   │   ├── api/                 # gRPC-сервер

@@ -147,7 +147,7 @@ Cap     = критичное требование с c_r < 0.2 → Score ≤ 49 
 
 **Java (backend)**
 
-- Java 21, Spring Boot 4, Gradle, пакет `ats`. Слои `api` → `domain` → `infrastructure`. Контроллеры не содержат бизнес-логики.
+- Java 21, Spring Boot 4, Maven multi-module (`backend/pom.xml`), пакеты `ats.resume` и `ats.vacancy`. Слои `api` → `domain` → `infrastructure`. Контроллеры не содержат бизнес-логики.
 - Публичный REST генерируется из `backend/openapi.yaml` (`ats.api`, `ats.gateway.model`). Руками DTO не дублируй.
 - Внутренний ML — Spring gRPC client по `contracts/ml-internal.proto`.
 - DTO отдельно от сущностей. Миграции через Liquibase, схема не меняется руками.
