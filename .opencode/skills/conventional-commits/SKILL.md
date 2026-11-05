@@ -58,7 +58,8 @@ description: Использовать при написании, ревью и �
 - `backend` — общий родительский POM и сквозные изменения Java-контура;
 - `infra` — `docker-compose`, окружение, mock-LLM;
 - `contracts` — `openapi.yaml`, gRPC-прото и JSON Schema;
-- `ml-service`, `ml-trainer` — Python-контур;
+- `scoring-service` — Python-сервис в `backend/scoring-service`;
+- `ml-trainer` — Python-контур офлайн-обучения;
 - `frontend` — Vue-приложение;
 - `docs`, `agents` — документация и инструкции агента.
 

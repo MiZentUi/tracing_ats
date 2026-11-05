@@ -26,7 +26,7 @@ git log --oneline <base>..HEAD
 Сначала ответь на три вопроса:
 
 1. Какие сервисы и контракты затронуты: `backend`, `resume-service`, `vacancy-service`,
-   `migrations`, `infra`, `contracts`, `ml-service`, `ml-trainer`, `frontend`?
+   `migrations`, `infra`, `contracts`, `scoring-service`, `ml-trainer`, `frontend`?
 2. Меняются ли формула, константы, веса, схема БД или публичный/gRPC-контракт?
 3. Есть ли в diff PII, секреты, новые внешние вызовы или новые зависимости?
 
@@ -55,7 +55,7 @@ git log --oneline <base>..HEAD
 - [ ] Цитата проверяется как подстрока обезличенного текста. Непроверенная цитата
       отбрасывается, покрытие не завышается.
 - [ ] Вся арифметика `q`, `E`, `D`, `c_r`, `M`, `N`, `F`, `Score`, cap, вилка и `refine`
-      остаётся в `ml-service/app/scoring/` и не дублируется в Java, SQL или TypeScript.
+      остаётся в `backend/scoring-service/app/scoring/` и не дублируется в Java, SQL или TypeScript.
 - [ ] Константы (0.3/0.5/0.8, `T½`, `L_ref`, 0.70/0.15/0.15, порог cap 0.2) не менялись
       без ADR и обновления golden-тестов.
 - [ ] `refine` не вызывает LLM повторно.
@@ -66,7 +66,7 @@ git log --oneline <base>..HEAD
 ### Приватность и данные
 
 - [ ] PII маскируется в Java до вызова LLM и до передачи в Python.
-- [ ] `ml-service` остаётся stateless: нет файлов, PostgreSQL, MinIO, hh, GitHub, токенов и PII.
+- [ ] `scoring-service` остаётся stateless: нет файлов, PostgreSQL, MinIO, hh, GitHub, токенов и PII.
 - [ ] `ml-trainer` не ходит в БД, hh, GitHub и LLM; только тренировочный бакет MinIO.
 - [ ] В логах только идентификаторы и технические метаданные, без текстов резюме и контактов.
 - [ ] Тестовые данные синтетические.
@@ -104,7 +104,7 @@ docker compose -f infra/docker-compose.yml config
 docker compose -f infra/docker-compose.yml run --rm migrations
 
 # Python, когда появится
-# pytest ml-service && pytest ml-trainer
+# pytest backend/scoring-service && pytest ml-trainer
 
 # быстрый поиск опасных мест
 rg -n "password|secret|token|BEGIN PRIVATE KEY" <затронутые файлы>
@@ -120,13 +120,13 @@ rg -n "password|secret|token|BEGIN PRIVATE KEY" <затронутые файлы
 **Вердикт:** request changes — нарушен инвариант проверки цитат.
 
 **BLOCKER**
-- `ml-service/app/analyze/quote.py:42` — цитата принимается без проверки подстроки.
+- `backend/scoring-service/app/analyze/quote.py:42` — цитата принимается без проверки подстроки.
   Требование получает покрытие без доказательства. Проверять `quote in masked_text`
   до расчёта `c_r`.
 
 **MAJOR**
 - `backend/.../ScoreService.java:88` — балл считается в Java. Арифметика должна
-  остаться в `ml-service/app/scoring/`.
+  остаться в `backend/scoring-service/app/scoring/`.
 - `backend/migrations/changes/002-...sql` — нет `--rollback`.
 
 **MINOR / NIT**

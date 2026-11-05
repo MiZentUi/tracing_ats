@@ -1,16 +1,17 @@
 # Backend
 
-Java 21, Spring Boot 4, Maven multi-module.
+Java 21, Spring Boot 4, Maven multi-module + Python `scoring-service`.
 
 ```text
 backend/
-├── pom.xml                    # родительский POM
+├── pom.xml                    # родительский POM (Java)
 ├── migrations/                # общие Liquibase-миграции (SQL) + Dockerfile
 │   ├── Dockerfile
 │   ├── db.changelog-master.xml
 │   └── changes/
 ├── resume-service/            # приём и обработка выгруженных резюме
-└── vacancy-service/           # приём и обработка выгруженных вакансий
+├── vacancy-service/           # приём и обработка выгруженных вакансий
+└── scoring-service/           # Python: LLM и математическая модель (код появится позже)
 ```
 
 ## Сервисы
@@ -19,6 +20,7 @@ backend/
 |---|---|---|
 | `resume-service` | Загрузка резюме (PDF, DOCX, TXT), извлечение текста, маскировка PII, разбор резюме | 8081 |
 | `vacancy-service` | Загрузка вакансии, извлечение текста, шаблон требований, веса и их история | 8080 |
+| `scoring-service` | Python 3.12, gRPC: вызов LLM для резюме, расчёт `q`, `E`, `D`, `c_r`, `M/N/F`, `Score`, cap, вилка, `refine` | — |
 
 ## Сборка и запуск
 
