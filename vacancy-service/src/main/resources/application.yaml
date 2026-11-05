@@ -5,6 +5,16 @@ spring:
     hibernate:
       ddl-auto: validate
     open-in-view: false
+  servlet:
+    multipart:
+      max-file-size: 10MB
+      max-request-size: 10MB
 
 server:
   port: 8080
+
+ats:
+  dev:
+    extraction-endpoint:
+      # Временный endpoint для ручной проверки. По умолчанию выключен.
+      enabled: false
