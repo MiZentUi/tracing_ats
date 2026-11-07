@@ -826,7 +826,7 @@ tracing-ats/
 │   ├── Dockerfile
 │   ├── db.changelog-master.xml
 │   └── changes/
-├── docker-compose.yml           # запуск всей системы
+├── compose.yaml                 # запуск всей системы
 ├── resume-service/              # Java 21, Spring Boot 4, Gradle
 │   ├── build.gradle
 │   ├── gradlew

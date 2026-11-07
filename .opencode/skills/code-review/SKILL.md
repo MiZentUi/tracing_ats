@@ -86,7 +86,7 @@ git log --oneline <base>..HEAD
 
 - [ ] Схема меняется только через Liquibase-миграции, а не через приложение и не руками.
 - [ ] Миграции лежат в `migrations` и накатываются джобой `migrations` из
-      корневого `docker-compose.yml`, а не стартом сервисов.
+      корневого `compose.yaml`, а не стартом сервисов.
 - [ ] Новые changesets идут после существующих; старые не переписываются.
 - [ ] У новых changesets есть `--rollback` или объяснение, почему его нет.
 - [ ] `docker compose config` остаётся валидным.
@@ -102,7 +102,7 @@ git log --oneline <base>..HEAD
 (cd vacancy-service && ./gradlew test)
 ```
 
-**Только если MR меняет `migrations/**` или `docker-compose.yml`:**
+**Только если MR меняет `migrations/**` или `compose.yaml`:**
 
 ```bash
 docker compose config

@@ -2,7 +2,7 @@
 
 Схема соответствует миграции `migrations/changes/001-vacancy-schema.sql` (MVP).
 Корневой changelog Liquibase — `migrations/db.changelog-master.xml`; его накатывает не
-приложение, а отдельная джоба `migrations` из корневого `docker-compose.yml` (см. `migrations/Dockerfile`).
+приложение, а отдельная джоба `migrations` из корневого `compose.yaml` (см. `migrations/Dockerfile`).
 
 ## ER-диаграмма
 

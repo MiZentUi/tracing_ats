@@ -1,13 +1,17 @@
 FROM gradle:9.8.2-jdk21 AS build
-
-WORKDIR /workspace
-COPY . .
-RUN gradle bootJar --no-daemon
-
-FROM eclipse-temurin:21-jre
-
 WORKDIR /app
-COPY --from=build /workspace/build/libs/*.jar app.jar
 
+COPY build.gradle settings.gradle ./
+RUN --mount=type=cache,id=resume-service-gradle,target=/home/gradle/.gradle \
+    gradle dependencies --no-daemon
+
+COPY lombok.config ./
+COPY src ./src
+RUN --mount=type=cache,id=resume-service-gradle,target=/home/gradle/.gradle \
+    gradle clean build -x test --no-daemon
+
+FROM eclipse-temurin:21-jre-alpine
+RUN apk --no-cache add curl
 EXPOSE 8081
+COPY --from=build /app/build/libs/*.jar app.jar
 ENTRYPOINT ["java", "-jar", "/app.jar"]
