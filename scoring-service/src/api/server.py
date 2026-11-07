@@ -7,7 +7,10 @@ from dataclasses import dataclass
 import grpc
 from grpc_health.v1 import health, health_pb2, health_pb2_grpc
 
+import contracts.scoring_service.v1.scoring_pb2_grpc as scoring_pb2_grpc
+
 from .config import Settings, get_settings
+from .scoring import ScoringService
 
 logger = logging.getLogger(__name__)
 
@@ -25,11 +28,18 @@ def create_server(settings: Settings | None = None) -> ServerHandle:
     Domain RPCs are added as the scoring contract is implemented.
     """
     settings = settings or get_settings()
-    server = grpc.server(futures.ThreadPoolExecutor(max_workers=settings.max_workers))
+    server = grpc.server(
+        futures.ThreadPoolExecutor(max_workers=settings.max_workers)
+    )
     health_servicer = health.HealthServicer()
     health_pb2_grpc.add_HealthServicer_to_server(health_servicer, server)
 
     health_servicer.set("", health_pb2.HealthCheckResponse.SERVING)
+
+    scoring_servicer = ScoringService()
+    scoring_pb2_grpc.add_ScoringServiceServicer_to_server(
+        scoring_servicer, server
+    )
 
     address = f"{settings.grpc_host}:{settings.grpc_port}"
     bound_port = server.add_insecure_port(address)
@@ -48,7 +58,11 @@ def run(settings: Settings | None = None) -> None:
 
     handle = create_server(settings)
     handle.server.start()
-    logger.info("scoring-service gRPC listening on %s:%s", settings.grpc_host, handle.port)
+    logger.info(
+        "scoring-service gRPC listening on %s:%s",
+        settings.grpc_host,
+        handle.port,
+    )
 
     try:
         handle.server.wait_for_termination()
@@ -58,11 +72,15 @@ def run(settings: Settings | None = None) -> None:
         handle.server.stop(grace=5)
 
 
-def check_health(host: str = "127.0.0.1", port: int = 8082, timeout: float = 2.0) -> bool:
+def check_health(
+    host: str = "127.0.0.1", port: int = 8082, timeout: float = 2.0
+) -> bool:
     with grpc.insecure_channel(f"{host}:{port}") as channel:
         stub = health_pb2_grpc.HealthStub(channel)
         try:
-            response = stub.Check(health_pb2.HealthCheckRequest(service=""), timeout=timeout)
+            response = stub.Check(  # type: ignore
+                health_pb2.HealthCheckRequest(service=""), timeout=timeout
+            )
         except grpc.RpcError:
             return False
 
