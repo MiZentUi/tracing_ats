@@ -54,6 +54,7 @@
     * `Unclassified`: everything else (TODO: an example)
 3. Свойства класса (структурированная информация об экземпляре,
 которая используется для скоринга и/или принятия решения HR'ом)
+
 | Класс              | Общие свойства | Свойства вакансии | Свойства резюме | Свойства синтеза |
 |--------------------|----------------|-------------------|-----------------|------------------|
 | `Skill`            | normalized name, tenure | - | recency | relevance, coverage, evidence  |
@@ -133,6 +134,7 @@ $R_i = \max\limits_j \mathtt{S}^{ij}$. То есть для каждого тр�
 > утратит прежнее значение.
 
 Наконец, **общая релевантность** резюме вакансии определяется как
+
 $$ \mathtt{Rv} =
 \frac{\sum\limits_i\mathtt{Wv}^iR_i}
 {\sum\limits_i\mathtt{Wv}^i} \in [0;1] $$
@@ -153,11 +155,10 @@ $E_\mathrm{общ}$.
 * Для каждого навыка давность последнего использования $r_i$ в годах.
 
 На основании этого получаем **темпоральный коэффициент**:
-<!-- TODO: гиперпараметры -->
+
 $$
 \tau_i =
-% Часть 
-\frac{1}{2}\left(1 + \tanh\left\{{\mathcal{A}} \cdot\left(\frac{E_i}{E_\mathtt{треб,i}}-1\right)+{\mathcal{B}}\right\}\right) \times \\
+\frac{1}{2}\left[1 + \tanh\left({\mathcal{A}} \cdot\left(\frac{E_i}{E_\mathtt{треб,i}}-1\right)+{\mathcal{B}}\right)\right] \times \\
 \times
 {\LARGE 2}^{-\displaystyle\frac{r_i}{\mathcal{T_{1/2}}}}
 $$
@@ -184,10 +185,11 @@ $$
 вдвое. Референс $\mathcal{T_{1/2}} = 2$.
 
 Темпоральный коэффициент общего стажа определяется аналогично:
+
 $$
 \tau =
 % Часть 
-\frac{1}{2}\left(1 + \tanh\left\{{\mathcal{A}} \cdot\left(\frac{E_\mathrm{общ}}{E_\mathtt{треб}}-1\right)+{\mathcal{B}}\right\}\right)
+\frac{1}{2}\left[1 + \tanh\left({\mathcal{A}} \cdot\left(\frac{E_\mathrm{общ}}{E_\mathtt{треб}}-1\right)+{\mathcal{B}}\right)\right]
 $$
 
 Параметры $\mathcal{A}, \mathcal{B}, \mathcal{T_{1/2}}$ можно подбирать в зависимости
@@ -226,7 +228,9 @@ $$
 фактором.
 В предыдущей версии итоговый вес для навыка (покрытие)
 считался как 
+
 $$ c_r = \left(1 - (1-q_r)\prod(1-\lambda q_{r,l})\right) \cdot D, $$
+
 где $q \propto mtp$, а $D$ задает стаж с капом. Стаж сверх требований
 учитывается отдельно.
 
@@ -235,7 +239,9 @@ $$ c_r = \left(1 - (1-q_r)\prod(1-\lambda q_{r,l})\right) \cdot D, $$
 навыков (по мере возможности) и в совокупности. Стаж
 сверх требований также учитывается в $\tau$.
 Поэтому примем пока
+
 $$ c_i = 1 - (1-R_i')\prod_l(1-\lambda_lq^l_i) $$
+
 |переменная| пояснение |
 |--|--|
 | $q^l_i \in [0;1]$ | коэффициент для внешнего источника $l$ |
@@ -244,10 +250,14 @@ $$ c_i = 1 - (1-R_i')\prod_l(1-\lambda_lq^l_i) $$
 
 
 С этим введем понятие уточненной релевантности резюме:
+
 $$ R' = \frac{\sum_i c_i\mathtt{Wv}^i}{\sum_i \mathtt{Wv}^i} $$
 
 Тогда итоговая оценка вычисляется по формуле:
-$$ \mathtt{Score} = \mathcal{M}\cdot R' + \mathcal{F} \cdot F \qquad \mathcal{M},\,\mathcal{F}\;\in[0; 1],\;\mathcal{M}+\mathcal{F}=1$$
+
+$$
+\mathtt{Score} = \mathcal{M}\cdot R' + \mathcal{F} \cdot F \qquad \mathcal{M},\,\mathcal{F}\;\in[0; 1],\;\mathcal{M}+\mathcal{F}=1
+$$
 
 *Замечание. Поскольку получить часть сведений невозможно,
 оценку необходимо провести несколько раз с граничными значениями
@@ -258,7 +268,9 @@ $$ \mathtt{Score} = \mathcal{M}\cdot R' + \mathcal{F} \cdot F \qquad \mathcal{M}
 Веса не являются частью публичного API и должны задаваться таким образом, чтобы приоритет отдавался
 критичным навыкам без введения явных капов.
 Условно (todo),
-$$ \mathtt{Wv}^i \propto e^{\mathcal{D}\left(\mathtt{db\_weight}_i\in\overline{1;3} + \mathcal{C}\cdot\mathtt{db\_crit_i}\right)} $$
+
+$$ \mathtt{Wv}^i \propto \exp\left(\mathcal{D}\cdot\left(\mathtt{dbWeight}_{i} \in\overline{1;3} + \mathcal{C}\cdot\mathtt{dbCrit_{i}}\right)\right) $$
+
 Кроме того, для придания приоритета различным требованиям можно использовать нелинейные активаторы,
 которые будут содержать внутри себя ограничения.
 
