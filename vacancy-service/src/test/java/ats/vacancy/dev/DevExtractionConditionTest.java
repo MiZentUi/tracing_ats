@@ -9,13 +9,15 @@ import org.springframework.boot.test.context.runner.ApplicationContextRunner;
 
 class DevExtractionConditionTest {
 
-    private final ApplicationContextRunner contextRunner = new ApplicationContextRunner()
-            .withBean(TextExtractionService.class, () -> mock(TextExtractionService.class))
-            .withUserConfiguration(DevExtractionController.class);
+    private final ApplicationContextRunner contextRunner =
+            new ApplicationContextRunner()
+                    .withBean(TextExtractionService.class, () -> mock(TextExtractionService.class))
+                    .withUserConfiguration(DevExtractionController.class);
 
     @Test
     void controllerIsAbsentByDefault() {
-        contextRunner.run(context -> assertThat(context).doesNotHaveBean(DevExtractionController.class));
+        contextRunner.run(
+                context -> assertThat(context).doesNotHaveBean(DevExtractionController.class));
     }
 
     @Test

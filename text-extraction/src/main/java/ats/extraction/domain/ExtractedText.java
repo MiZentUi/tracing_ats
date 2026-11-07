@@ -4,10 +4,7 @@ import java.util.List;
 import java.util.Objects;
 
 public record ExtractedText(
-        String text,
-        FileType type,
-        Integer pageCount,
-        List<ExtractionWarning> warnings) {
+        String text, FileType type, Integer pageCount, List<ExtractionWarning> warnings) {
 
     public ExtractedText {
         Objects.requireNonNull(text, "text");

@@ -18,14 +18,17 @@ class TextExtractionConfigurationTest {
                 .withPropertyValues(
                         "ats.ingestion.extraction.max-text-chars=123",
                         "ats.ingestion.extraction.timeout=5s")
-                .run(context -> {
-                    assertThat(context).hasNotFailed();
-                    assertThat(context).hasSingleBean(TextExtractionService.class);
-                    assertThat(context.getBean(ExtractionProperties.class).getMaxTextChars())
-                            .isEqualTo(123);
-                    assertThat(context.getBean(ExtractionProperties.class).getTimeout())
-                            .hasSeconds(5);
-                });
+                .run(
+                        context -> {
+                            assertThat(context).hasNotFailed();
+                            assertThat(context).hasSingleBean(TextExtractionService.class);
+                            assertThat(
+                                            context.getBean(ExtractionProperties.class)
+                                                    .getMaxTextChars())
+                                    .isEqualTo(123);
+                            assertThat(context.getBean(ExtractionProperties.class).getTimeout())
+                                    .hasSeconds(5);
+                        });
     }
 
     @Test

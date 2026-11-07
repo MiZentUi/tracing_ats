@@ -11,8 +11,8 @@ import java.nio.charset.CodingErrorAction;
 import java.nio.charset.StandardCharsets;
 
 /**
- * Общая логика определения и декодирования текстовых файлов. Используется и детектором
- * типа, и текстовым экстрактором, чтобы правила не расходились.
+ * Общая логика определения и декодирования текстовых файлов. Используется и детектором типа, и
+ * текстовым экстрактором, чтобы правила не расходились.
  */
 final class TextDecoder {
 
@@ -50,13 +50,16 @@ final class TextDecoder {
             return new Decoded(decodeBom(content, UTF8_BOM.length, StandardCharsets.UTF_8), null);
         }
         if (startsWith(content, UTF16_LE_BOM)) {
-            return new Decoded(decodeBom(content, UTF16_LE_BOM.length, StandardCharsets.UTF_16LE), null);
+            return new Decoded(
+                    decodeBom(content, UTF16_LE_BOM.length, StandardCharsets.UTF_16LE), null);
         }
         if (startsWith(content, UTF16_BE_BOM)) {
-            return new Decoded(decodeBom(content, UTF16_BE_BOM.length, StandardCharsets.UTF_16BE), null);
+            return new Decoded(
+                    decodeBom(content, UTF16_BE_BOM.length, StandardCharsets.UTF_16BE), null);
         }
         try {
-            return new Decoded(decodeStrict(content, 0, content.length, StandardCharsets.UTF_8), null);
+            return new Decoded(
+                    decodeStrict(content, 0, content.length, StandardCharsets.UTF_8), null);
         } catch (CharacterCodingException e) {
             return new Decoded(
                     new String(content, WINDOWS_1251), ExtractionWarning.ENCODING_FALLBACK_CP1251);
@@ -73,10 +76,10 @@ final class TextDecoder {
 
     private static String decodeStrict(byte[] content, int offset, int length, Charset charset)
             throws CharacterCodingException {
-        CharsetDecoder decoder = charset
-                .newDecoder()
-                .onMalformedInput(CodingErrorAction.REPORT)
-                .onUnmappableCharacter(CodingErrorAction.REPORT);
+        CharsetDecoder decoder =
+                charset.newDecoder()
+                        .onMalformedInput(CodingErrorAction.REPORT)
+                        .onUnmappableCharacter(CodingErrorAction.REPORT);
         return decoder.decode(ByteBuffer.wrap(content, offset, length)).toString();
     }
 

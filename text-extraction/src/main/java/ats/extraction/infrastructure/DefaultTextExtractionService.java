@@ -22,14 +22,12 @@ import java.util.concurrent.Future;
 import java.util.concurrent.RejectedExecutionException;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.TimeoutException;
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
+import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Component;
 
+@Slf4j
 @Component
 public class DefaultTextExtractionService implements TextExtractionService {
-
-    private static final Logger log = LoggerFactory.getLogger(DefaultTextExtractionService.class);
 
     private final FileTypeDetector detector;
     private final Map<FileType, TextExtractor> extractors;
@@ -46,11 +44,14 @@ public class DefaultTextExtractionService implements TextExtractionService {
         this.extractors = buildRegistry(extractors);
         this.normalizer = normalizer;
         this.properties = properties;
-        this.executor = Executors.newFixedThreadPool(properties.getPoolSize(), runnable -> {
-            Thread thread = new Thread(runnable, "text-extraction");
-            thread.setDaemon(true);
-            return thread;
-        });
+        this.executor =
+                Executors.newFixedThreadPool(
+                        properties.getPoolSize(),
+                        runnable -> {
+                            Thread thread = new Thread(runnable, "text-extraction");
+                            thread.setDaemon(true);
+                            return thread;
+                        });
     }
 
     @Override
@@ -60,8 +61,7 @@ public class DefaultTextExtractionService implements TextExtractionService {
 
         if (content.length > properties.getMaxFileSize().toBytes()) {
             throw new ExtractionException(
-                    ErrorCode.FILE_TOO_LARGE,
-                    "File is larger than " + properties.getMaxFileSize());
+                    ErrorCode.FILE_TOO_LARGE, "File is larger than " + properties.getMaxFileSize());
         }
 
         FileType type = detector.detect(file.fileName(), content);
@@ -81,7 +81,9 @@ public class DefaultTextExtractionService implements TextExtractionService {
         if (text.length() > properties.getMaxTextChars()) {
             throw new ExtractionException(
                     ErrorCode.LIMIT_EXCEEDED,
-                    "Extracted text is longer than " + properties.getMaxTextChars() + " characters");
+                    "Extracted text is longer than "
+                            + properties.getMaxTextChars()
+                            + " characters");
         }
 
         long durationMillis = (System.nanoTime() - startedAt) / 1_000_000;
@@ -108,17 +110,20 @@ public class DefaultTextExtractionService implements TextExtractionService {
             return future.get(properties.getTimeout().toMillis(), TimeUnit.MILLISECONDS);
         } catch (TimeoutException e) {
             future.cancel(true);
-            throw new ExtractionException(ErrorCode.EXTRACTION_TIMEOUT, "Text extraction timed out", e);
+            throw new ExtractionException(
+                    ErrorCode.EXTRACTION_TIMEOUT, "Text extraction timed out", e);
         } catch (InterruptedException e) {
             future.cancel(true);
             Thread.currentThread().interrupt();
-            throw new ExtractionException(ErrorCode.EXTRACTION_TIMEOUT, "Text extraction interrupted", e);
+            throw new ExtractionException(
+                    ErrorCode.EXTRACTION_TIMEOUT, "Text extraction interrupted", e);
         } catch (ExecutionException e) {
             Throwable cause = e.getCause();
             if (cause instanceof ExtractionException extractionException) {
                 throw extractionException;
             }
-            throw new ExtractionException(ErrorCode.CORRUPTED_FILE, "Text extraction failed", cause);
+            throw new ExtractionException(
+                    ErrorCode.CORRUPTED_FILE, "Text extraction failed", cause);
         }
     }
 
@@ -129,8 +134,11 @@ public class DefaultTextExtractionService implements TextExtractionService {
                 TextExtractor previous = registry.putIfAbsent(type, extractor);
                 if (previous != null) {
                     throw new IllegalStateException(
-                            "Multiple text extractors registered for " + type + ": "
-                                    + previous.getClass().getName() + " and "
+                            "Multiple text extractors registered for "
+                                    + type
+                                    + ": "
+                                    + previous.getClass().getName()
+                                    + " and "
                                     + extractor.getClass().getName());
                 }
             }

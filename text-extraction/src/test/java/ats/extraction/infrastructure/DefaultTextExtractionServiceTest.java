@@ -40,9 +40,13 @@ class DefaultTextExtractionServiceTest {
 
     @Test
     void normalizesTextAndReturnsMetadata() {
-        TextExtractor extractor = extractor(
-                FileType.TEXT,
-                new RawExtraction("  hello\r\n\r\n\r\nworld  ", 2, List.of(ExtractionWarning.ENCODING_FALLBACK_CP1251)));
+        TextExtractor extractor =
+                extractor(
+                        FileType.TEXT,
+                        new RawExtraction(
+                                "  hello\r\n\r\n\r\nworld  ",
+                                2,
+                                List.of(ExtractionWarning.ENCODING_FALLBACK_CP1251)));
         service = service(properties(), detector(FileType.TEXT), extractor);
 
         ExtractedText result = service.extract(file("resume.txt", "ignored"));
@@ -57,21 +61,32 @@ class DefaultTextExtractionServiceTest {
     void rejectsFileLargerThanLimit() {
         ExtractionProperties properties = properties();
         properties.setMaxFileSize(DataSize.ofBytes(3));
-        service = service(properties, detector(FileType.TEXT), extractor(FileType.TEXT, RawExtraction.text("ok")));
+        service =
+                service(
+                        properties,
+                        detector(FileType.TEXT),
+                        extractor(FileType.TEXT, RawExtraction.text("ok")));
 
-        ExtractionException exception = catchThrowableOfType(
-                () -> service.extract(file("resume.txt", "four")), ExtractionException.class);
+        ExtractionException exception =
+                catchThrowableOfType(
+                        () -> service.extract(file("resume.txt", "four")),
+                        ExtractionException.class);
 
         assertThat(exception.errorCode()).isEqualTo(ErrorCode.FILE_TOO_LARGE);
     }
 
     @Test
     void rejectsEmptyText() {
-        service = service(
-                properties(), detector(FileType.TEXT), extractor(FileType.TEXT, RawExtraction.text(" \n\t ")));
+        service =
+                service(
+                        properties(),
+                        detector(FileType.TEXT),
+                        extractor(FileType.TEXT, RawExtraction.text(" \n\t ")));
 
-        ExtractionException exception = catchThrowableOfType(
-                () -> service.extract(file("resume.txt", "ignored")), ExtractionException.class);
+        ExtractionException exception =
+                catchThrowableOfType(
+                        () -> service.extract(file("resume.txt", "ignored")),
+                        ExtractionException.class);
 
         assertThat(exception.errorCode()).isEqualTo(ErrorCode.TEXT_EMPTY);
     }
@@ -80,10 +95,16 @@ class DefaultTextExtractionServiceTest {
     void rejectsTextLongerThanLimit() {
         ExtractionProperties properties = properties();
         properties.setMaxTextChars(3);
-        service = service(properties, detector(FileType.TEXT), extractor(FileType.TEXT, RawExtraction.text("hello")));
+        service =
+                service(
+                        properties,
+                        detector(FileType.TEXT),
+                        extractor(FileType.TEXT, RawExtraction.text("hello")));
 
-        ExtractionException exception = catchThrowableOfType(
-                () -> service.extract(file("resume.txt", "ignored")), ExtractionException.class);
+        ExtractionException exception =
+                catchThrowableOfType(
+                        () -> service.extract(file("resume.txt", "ignored")),
+                        ExtractionException.class);
 
         assertThat(exception.errorCode()).isEqualTo(ErrorCode.LIMIT_EXCEEDED);
     }
@@ -93,21 +114,24 @@ class DefaultTextExtractionServiceTest {
         ExtractionProperties properties = properties();
         properties.setTimeout(Duration.ofMillis(50));
         properties.setPoolSize(1);
-        TextExtractor slowExtractor = extractor(
-                FileType.TEXT,
-                RawExtraction.text("late"),
-                () -> {
-                    try {
-                        Thread.sleep(1_000);
-                    } catch (InterruptedException e) {
-                        Thread.currentThread().interrupt();
-                    }
-                    return RawExtraction.text("late");
-                });
+        TextExtractor slowExtractor =
+                extractor(
+                        FileType.TEXT,
+                        RawExtraction.text("late"),
+                        () -> {
+                            try {
+                                Thread.sleep(1_000);
+                            } catch (InterruptedException e) {
+                                Thread.currentThread().interrupt();
+                            }
+                            return RawExtraction.text("late");
+                        });
         service = service(properties, detector(FileType.TEXT), slowExtractor);
 
-        ExtractionException exception = catchThrowableOfType(
-                () -> service.extract(file("resume.txt", "ignored")), ExtractionException.class);
+        ExtractionException exception =
+                catchThrowableOfType(
+                        () -> service.extract(file("resume.txt", "ignored")),
+                        ExtractionException.class);
 
         assertThat(exception.errorCode()).isEqualTo(ErrorCode.EXTRACTION_TIMEOUT);
     }
@@ -117,30 +141,41 @@ class DefaultTextExtractionServiceTest {
         TextExtractor first = extractor(FileType.TEXT, RawExtraction.text("first"));
         TextExtractor second = extractor(FileType.TEXT, RawExtraction.text("second"));
 
-        IllegalStateException exception = catchThrowableOfType(
-                () -> service(properties(), detector(FileType.TEXT), first, second),
-                IllegalStateException.class);
+        IllegalStateException exception =
+                catchThrowableOfType(
+                        () -> service(properties(), detector(FileType.TEXT), first, second),
+                        IllegalStateException.class);
 
         assertThat(exception).hasMessageContaining("Multiple text extractors");
     }
 
     @Test
     void propagatesDetectorError() {
-        FileTypeDetector failingDetector = (fileName, content) -> {
-            throw new ExtractionException(ErrorCode.UNSUPPORTED_TYPE, "unsupported");
-        };
-        service = service(properties(), failingDetector, extractor(FileType.TEXT, RawExtraction.text("ok")));
+        FileTypeDetector failingDetector =
+                (fileName, content) -> {
+                    throw new ExtractionException(ErrorCode.UNSUPPORTED_TYPE, "unsupported");
+                };
+        service =
+                service(
+                        properties(),
+                        failingDetector,
+                        extractor(FileType.TEXT, RawExtraction.text("ok")));
 
-        ExtractionException exception = catchThrowableOfType(
-                () -> service.extract(file("resume.bin", "ignored")), ExtractionException.class);
+        ExtractionException exception =
+                catchThrowableOfType(
+                        () -> service.extract(file("resume.bin", "ignored")),
+                        ExtractionException.class);
 
         assertThat(exception.errorCode()).isEqualTo(ErrorCode.UNSUPPORTED_TYPE);
     }
 
     @Test
     void doesNotLogFileTextOrName() {
-        service = service(
-                properties(), detector(FileType.TEXT), extractor(FileType.TEXT, RawExtraction.text("secret text")));
+        service =
+                service(
+                        properties(),
+                        detector(FileType.TEXT),
+                        extractor(FileType.TEXT, RawExtraction.text("secret text")));
         Logger logger = (Logger) LoggerFactory.getLogger(DefaultTextExtractionService.class);
         Level previousLevel = logger.getLevel();
         ListAppender<ILoggingEvent> appender = new ListAppender<>();
@@ -157,13 +192,18 @@ class DefaultTextExtractionServiceTest {
 
         assertThat(appender.list).isNotEmpty();
         assertThat(appender.list)
-                .allSatisfy(event -> assertThat(event.getFormattedMessage())
-                        .doesNotContain("secret text", "private-resume.txt"));
+                .allSatisfy(
+                        event ->
+                                assertThat(event.getFormattedMessage())
+                                        .doesNotContain("secret text", "private-resume.txt"));
     }
 
     private DefaultTextExtractionService service(
-            ExtractionProperties properties, FileTypeDetector detector, TextExtractor... extractors) {
-        return new DefaultTextExtractionService(detector, List.of(extractors), normalizer, properties);
+            ExtractionProperties properties,
+            FileTypeDetector detector,
+            TextExtractor... extractors) {
+        return new DefaultTextExtractionService(
+                detector, List.of(extractors), normalizer, properties);
     }
 
     private static ExtractionProperties properties() {

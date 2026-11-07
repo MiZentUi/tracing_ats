@@ -57,6 +57,7 @@ class PlainTextExtractorTest {
     void supportsTextAndMarkdown() {
         assertThat(extractor.supportedTypes())
                 .containsExactlyInAnyOrder(
-                        ats.extraction.domain.FileType.TEXT, ats.extraction.domain.FileType.MARKDOWN);
+                        ats.extraction.domain.FileType.TEXT,
+                        ats.extraction.domain.FileType.MARKDOWN);
     }
 }

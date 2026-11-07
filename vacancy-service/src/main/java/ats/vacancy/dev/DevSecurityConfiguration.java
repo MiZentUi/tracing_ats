@@ -8,8 +8,8 @@ import org.springframework.security.config.annotation.web.builders.HttpSecurity;
 import org.springframework.security.web.SecurityFilterChain;
 
 /**
- * Временно открывает dev-эндпоинт без Basic Auth, но только когда он явно
- * включён флагом ats.dev.extraction-endpoint.enabled=true.
+ * Временно открывает dev-эндпоинт без Basic Auth, но только когда он явно включён флагом
+ * ats.dev.extraction-endpoint.enabled=true.
  */
 @Configuration(proxyBeanMethods = false)
 @ConditionalOnProperty(
@@ -22,11 +22,12 @@ public class DevSecurityConfiguration {
     @Order(1)
     SecurityFilterChain devSecurityFilterChain(HttpSecurity http) throws Exception {
         return http.csrf(csrf -> csrf.disable())
-                .authorizeHttpRequests(auth -> auth
-                        .requestMatchers("/api/v1/dev/**")
-                        .permitAll()
-                        .anyRequest()
-                        .authenticated())
+                .authorizeHttpRequests(
+                        auth ->
+                                auth.requestMatchers("/api/v1/dev/**")
+                                        .permitAll()
+                                        .anyRequest()
+                                        .authenticated())
                 .build();
     }
 }

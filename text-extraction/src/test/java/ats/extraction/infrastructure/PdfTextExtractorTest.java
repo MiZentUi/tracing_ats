@@ -35,9 +35,10 @@ class PdfTextExtractorTest {
     void rejectsPasswordProtectedPdf() throws Exception {
         PdfTextExtractor extractor = extractorWithPageLimit(10);
 
-        ExtractionException exception = catchThrowableOfType(
-                () -> extractor.extract(TestDocuments.passwordProtectedPdf("secret")),
-                ExtractionException.class);
+        ExtractionException exception =
+                catchThrowableOfType(
+                        () -> extractor.extract(TestDocuments.passwordProtectedPdf("secret")),
+                        ExtractionException.class);
 
         assertThat(exception.errorCode()).isEqualTo(ErrorCode.ENCRYPTED_FILE);
     }
@@ -47,8 +48,8 @@ class PdfTextExtractorTest {
         PdfTextExtractor extractor = extractorWithPageLimit(10);
         byte[] corrupted = "%PDF-1.7\nthis is not a real pdf".getBytes(StandardCharsets.US_ASCII);
 
-        ExtractionException exception = catchThrowableOfType(
-                () -> extractor.extract(corrupted), ExtractionException.class);
+        ExtractionException exception =
+                catchThrowableOfType(() -> extractor.extract(corrupted), ExtractionException.class);
 
         assertThat(exception.errorCode()).isEqualTo(ErrorCode.CORRUPTED_FILE);
     }

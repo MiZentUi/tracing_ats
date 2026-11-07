@@ -42,8 +42,8 @@ class DocxExtractorTest {
         DocxExtractor extractor = new DocxExtractor(new ExtractionProperties());
         byte[] corrupted = {0x50, 0x4B, 0x03, 0x04, 0x00, 0x01, 0x02};
 
-        ExtractionException exception = catchThrowableOfType(
-                () -> extractor.extract(corrupted), ExtractionException.class);
+        ExtractionException exception =
+                catchThrowableOfType(() -> extractor.extract(corrupted), ExtractionException.class);
 
         assertThat(exception.errorCode()).isEqualTo(ErrorCode.CORRUPTED_FILE);
     }

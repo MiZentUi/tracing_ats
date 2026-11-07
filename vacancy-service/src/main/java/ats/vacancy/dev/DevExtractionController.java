@@ -7,6 +7,7 @@ import ats.extraction.domain.error.ExtractionException;
 import java.io.IOException;
 import java.util.List;
 import java.util.Objects;
+import lombok.RequiredArgsConstructor;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.MediaType;
@@ -20,10 +21,11 @@ import org.springframework.web.multipart.MultipartFile;
 import org.springframework.web.server.ResponseStatusException;
 
 /**
- * Временный dev-эндпоинт для ручной проверки извлечения текста.
- * Удалить после проверки; в RFC контроллер не входит.
+ * Временный dev-эндпоинт для ручной проверки извлечения текста. Удалить после проверки; в RFC
+ * контроллер не входит.
  */
 @RestController
+@RequiredArgsConstructor
 @ConditionalOnProperty(
         prefix = "ats.dev.extraction-endpoint",
         name = "enabled",
@@ -32,10 +34,6 @@ import org.springframework.web.server.ResponseStatusException;
 public class DevExtractionController {
 
     private final TextExtractionService textExtractionService;
-
-    public DevExtractionController(TextExtractionService textExtractionService) {
-        this.textExtractionService = textExtractionService;
-    }
 
     @PostMapping(consumes = MediaType.MULTIPART_FORM_DATA_VALUE)
     public ExtractionResponse extract(@RequestPart("file") MultipartFile file) {
@@ -47,7 +45,8 @@ public class DevExtractionController {
         try {
             content = file.getBytes();
         } catch (IOException e) {
-            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "cannot read uploaded file", e);
+            throw new ResponseStatusException(
+                    HttpStatus.BAD_REQUEST, "cannot read uploaded file", e);
         }
 
         String fileName = Objects.requireNonNullElse(file.getOriginalFilename(), "upload");
@@ -62,10 +61,10 @@ public class DevExtractionController {
     }
 
     @ExceptionHandler(ExtractionException.class)
-    public ResponseEntity<ExtractionError> handleExtractionException(ExtractionException exception) {
+    public ResponseEntity<ExtractionError> handleExtractionException(
+            ExtractionException exception) {
         return ResponseEntity.status(exception.errorCode().httpStatus())
-                .body(new ExtractionError(
-                        exception.errorCode().name(), exception.getMessage()));
+                .body(new ExtractionError(exception.errorCode().name(), exception.getMessage()));
     }
 
     public record ExtractionResponse(

@@ -12,13 +12,14 @@ import org.apache.commons.compress.utils.SeekableInMemoryByteChannel;
 import org.springframework.stereotype.Component;
 
 /**
- * Определяет формат по сигнатурам и структуре файла. Расширение используется только
- * как подсказка для Markdown и для проверки явных расхождений с PDF/DOCX.
+ * Определяет формат по сигнатурам и структуре файла. Расширение используется только как подсказка
+ * для Markdown и для проверки явных расхождений с PDF/DOCX.
  */
 @Component
 public class ContentFileTypeDetector implements FileTypeDetector {
 
-    private static final byte[] PDF_SIGNATURE = "%PDF-".getBytes(java.nio.charset.StandardCharsets.US_ASCII);
+    private static final byte[] PDF_SIGNATURE =
+            "%PDF-".getBytes(java.nio.charset.StandardCharsets.US_ASCII);
     private static final byte[] ZIP_SIGNATURE = {0x50, 0x4B, 0x03, 0x04};
     private static final byte[] OLE2_SIGNATURE = {
         (byte) 0xD0, (byte) 0xCF, 0x11, (byte) 0xE0, (byte) 0xA1, (byte) 0xB1, 0x1A, (byte) 0xE1
@@ -52,7 +53,8 @@ public class ContentFileTypeDetector implements FileTypeDetector {
         }
         if (startsWith(content, OLE2_SIGNATURE)) {
             throw new ExtractionException(
-                    ErrorCode.UNSUPPORTED_TYPE, "Legacy .doc is not supported; save the file as DOCX");
+                    ErrorCode.UNSUPPORTED_TYPE,
+                    "Legacy .doc is not supported; save the file as DOCX");
         }
         if (startsWith(content, ZIP_SIGNATURE)) {
             if (isDocx(content)) {
@@ -68,9 +70,10 @@ public class ContentFileTypeDetector implements FileTypeDetector {
     }
 
     private static boolean isDocx(byte[] content) {
-        try (ZipFile zipFile = ZipFile.builder()
-                .setSeekableByteChannel(new SeekableInMemoryByteChannel(content))
-                .get()) {
+        try (ZipFile zipFile =
+                ZipFile.builder()
+                        .setSeekableByteChannel(new SeekableInMemoryByteChannel(content))
+                        .get()) {
             return zipFile.getEntry("[Content_Types].xml") != null
                     && zipFile.getEntry("word/document.xml") != null;
         } catch (IOException e) {

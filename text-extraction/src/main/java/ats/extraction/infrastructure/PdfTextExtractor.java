@@ -8,6 +8,7 @@ import ats.extraction.domain.error.ExtractionException;
 import java.io.IOException;
 import java.util.List;
 import java.util.Set;
+import lombok.RequiredArgsConstructor;
 import org.apache.pdfbox.Loader;
 import org.apache.pdfbox.pdmodel.PDDocument;
 import org.apache.pdfbox.pdmodel.encryption.InvalidPasswordException;
@@ -15,15 +16,12 @@ import org.apache.pdfbox.text.PDFTextStripper;
 import org.springframework.stereotype.Component;
 
 @Component
+@RequiredArgsConstructor
 public class PdfTextExtractor implements TextExtractor {
 
     private static final Set<FileType> SUPPORTED_TYPES = Set.of(FileType.PDF);
 
     private final ExtractionProperties properties;
-
-    public PdfTextExtractor(ExtractionProperties properties) {
-        this.properties = properties;
-    }
 
     @Override
     public Set<FileType> supportedTypes() {
@@ -37,7 +35,10 @@ public class PdfTextExtractor implements TextExtractor {
             if (pageCount > properties.getMaxPdfPages()) {
                 throw new ExtractionException(
                         ErrorCode.LIMIT_EXCEEDED,
-                        "PDF has too many pages: " + pageCount + " > " + properties.getMaxPdfPages());
+                        "PDF has too many pages: "
+                                + pageCount
+                                + " > "
+                                + properties.getMaxPdfPages());
             }
 
             PDFTextStripper stripper = new PDFTextStripper();

@@ -4,14 +4,13 @@ import java.text.Normalizer;
 import java.util.regex.Pattern;
 import org.springframework.stereotype.Component;
 
-/**
- * Приводит сырой текст к единому виду. Класс не хранит состояние и потокобезопасен.
- */
+/** Приводит сырой текст к единому виду. Класс не хранит состояние и потокобезопасен. */
 @Component
 public class TextNormalizer {
 
     private static final Pattern CONTROL_CHARS = Pattern.compile("[\\p{Cc}&&[^\\n\\t]]");
-    private static final Pattern ZERO_WIDTH_CHARS = Pattern.compile("[\\u200B-\\u200D\\u2060\\uFEFF]");
+    private static final Pattern ZERO_WIDTH_CHARS =
+            Pattern.compile("[\\u200B-\\u200D\\u2060\\uFEFF]");
     private static final Pattern MULTIPLE_NEW_LINES = Pattern.compile("\\n{3,}");
 
     public String normalize(String text) {

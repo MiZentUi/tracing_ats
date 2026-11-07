@@ -16,7 +16,8 @@ class ContentFileTypeDetectorTest {
 
     @Test
     void detectsPdfBySignature() throws Exception {
-        assertThat(detector.detect("document.pdf", TestDocuments.pdf("hello"))).isEqualTo(FileType.PDF);
+        assertThat(detector.detect("document.pdf", TestDocuments.pdf("hello")))
+                .isEqualTo(FileType.PDF);
     }
 
     @Test
@@ -27,14 +28,12 @@ class ContentFileTypeDetectorTest {
 
     @Test
     void detectsPlainText() {
-        assertThat(detector.detect("resume.txt", bytes("hello")))
-                .isEqualTo(FileType.TEXT);
+        assertThat(detector.detect("resume.txt", bytes("hello"))).isEqualTo(FileType.TEXT);
     }
 
     @Test
     void detectsMarkdownByExtension() {
-        assertThat(detector.detect("notes.md", bytes("# hello")))
-                .isEqualTo(FileType.MARKDOWN);
+        assertThat(detector.detect("notes.md", bytes("# hello"))).isEqualTo(FileType.MARKDOWN);
     }
 
     @Test
@@ -51,18 +50,20 @@ class ContentFileTypeDetectorTest {
 
     @Test
     void rejectsExecutableRenamedToPdf() {
-        ExtractionException exception = catchThrowableOfType(
-                () -> detector.detect("resume.pdf", new byte[] {0x4D, 0x5A, 0x00, 0x00}),
-                ExtractionException.class);
+        ExtractionException exception =
+                catchThrowableOfType(
+                        () -> detector.detect("resume.pdf", new byte[] {0x4D, 0x5A, 0x00, 0x00}),
+                        ExtractionException.class);
 
         assertThat(exception.errorCode()).isEqualTo(ErrorCode.UNSUPPORTED_TYPE);
     }
 
     @Test
     void rejectsXlsxRenamedToDocx() throws Exception {
-        ExtractionException exception = catchThrowableOfType(
-                () -> detector.detect("resume.docx", TestDocuments.xlsx()),
-                ExtractionException.class);
+        ExtractionException exception =
+                catchThrowableOfType(
+                        () -> detector.detect("resume.docx", TestDocuments.xlsx()),
+                        ExtractionException.class);
 
         assertThat(exception.errorCode()).isEqualTo(ErrorCode.UNSUPPORTED_TYPE);
     }
@@ -70,12 +71,20 @@ class ContentFileTypeDetectorTest {
     @Test
     void rejectsLegacyDoc() {
         byte[] ole2 = {
-            (byte) 0xD0, (byte) 0xCF, 0x11, (byte) 0xE0, (byte) 0xA1, (byte) 0xB1, 0x1A, (byte) 0xE1,
+            (byte) 0xD0,
+            (byte) 0xCF,
+            0x11,
+            (byte) 0xE0,
+            (byte) 0xA1,
+            (byte) 0xB1,
+            0x1A,
+            (byte) 0xE1,
             0x00
         };
 
-        ExtractionException exception = catchThrowableOfType(
-                () -> detector.detect("resume.doc", ole2), ExtractionException.class);
+        ExtractionException exception =
+                catchThrowableOfType(
+                        () -> detector.detect("resume.doc", ole2), ExtractionException.class);
 
         assertThat(exception.errorCode()).isEqualTo(ErrorCode.UNSUPPORTED_TYPE);
         assertThat(exception.getMessage()).contains("DOCX");
@@ -83,8 +92,10 @@ class ContentFileTypeDetectorTest {
 
     @Test
     void rejectsTextContentWithDocxExtension() {
-        ExtractionException exception = catchThrowableOfType(
-                () -> detector.detect("resume.docx", bytes("just text")), ExtractionException.class);
+        ExtractionException exception =
+                catchThrowableOfType(
+                        () -> detector.detect("resume.docx", bytes("just text")),
+                        ExtractionException.class);
 
         assertThat(exception.errorCode()).isEqualTo(ErrorCode.UNSUPPORTED_TYPE);
     }
