@@ -1,0 +1,47 @@
+name: PR Title
+
+on:
+  pull_request:
+    branches: [main]
+    types: [opened, edited, reopened, synchronize]
+
+permissions:
+  contents: read
+
+concurrency:
+  group: pr-title-${{ github.event.pull_request.number }}
+  cancel-in-progress: true
+
+jobs:
+  conventional-commits:
+    name: Conventional Commits
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - name: Validate PR title
+        env:
+          PR_TITLE: ${{ github.event.pull_request.title }}
+        run: |
+          pattern='^(build|chore|ci|docs|feat|fix|perf|refactor|revert|style|test)(\([a-z0-9][a-z0-9._-]*\))?(!)?: .+[^.]$'
+
+          if [[ "$PR_TITLE" =~ $pattern ]]; then
+            echo "PR title is valid: $PR_TITLE"
+            exit 0
+          fi
+
+          echo "::error::Заголовок PR не соответствует Conventional Commits: $PR_TITLE"
+          cat <<'EOF'
+
+          Формат: <type>[(scope)][!]: <описание>
+
+          Допустимые типы: build, chore, ci, docs, feat, fix, perf, refactor, revert, style, test.
+
+          Примеры:
+            feat(vacancy-service): добавить шаблон требований из вакансии
+            fix(contracts)!: заменить поле score на score_pre
+            ci: проверять заголовок PR на Conventional Commits
+
+          Требования: тип и scope в нижнем регистре, пробел после двоеточия,
+          описание без точки в конце.
+          EOF
+          exit 1
