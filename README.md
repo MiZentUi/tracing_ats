@@ -837,6 +837,9 @@ tracing-ats/
 │   ├── gradlew
 │   ├── Dockerfile
 │   └── src/main/java/ats/vacancy/
+├── text-extraction/             # Java-библиотека: PDF, DOCX, TXT, MD → текст
+│   ├── build.gradle
+│   └── src/main/java/ats/extraction/
 ├── scoring-service/             # Python 3.12, gRPC: LLM и математическая модель
 │   ├── app/
 │   │   ├── api/                 # gRPC-сервер

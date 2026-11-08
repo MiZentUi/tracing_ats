@@ -36,7 +36,7 @@ description: Использовать при написании, ревью и �
 |---|---|---|
 | `feat` | Новая функциональность | MINOR |
 | `fix` | Исправление ошибки | PATCH |
-| `build` | Сборка, зависимости, Maven/Docker | — |
+| `build` | Сборка, зависимости, Gradle/Docker | — |
 | `chore` | Рутина, конфиги, `.gitignore` | — |
 | `ci` | CI/CD и пайплайны | — |
 | `docs` | Документация, README, ADR | — |
@@ -110,7 +110,7 @@ Refs: #128
 ```text
 build(resume-service): вернуть Gradle-сборку
 
-BREAKING CHANGE: сервис собирается отдельно через ./gradlew, Maven POM удалён
+BREAKING CHANGE: сервис собирается отдельно через ./gradlew, multi-module сборка удалена
 ```
 
 ```text
