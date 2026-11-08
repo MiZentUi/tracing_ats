@@ -5,8 +5,9 @@ description: Использовать при любых задачах по fron
 
 # Frontend Tracing ATS
 
-Референс стека и методологии — репозиторий `temp/frontend-example/fractal-flame`
-(ветка `feature/add-frontend`). Домен и экраны там другие: копируй технологии,
+Референс стека и методологии — репозиторий
+[MiZentUi/fractal-flame](https://github.com/MiZentUi/fractal-flame) (ветка
+`feature/add-frontend`). Домен и экраны там другие: копируй технологии,
 структуру и подход, но не бизнес-логику, тексты и вёрстку.
 
 ## Источники истины
