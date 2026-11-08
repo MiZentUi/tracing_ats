@@ -43,6 +43,10 @@
   Python-сервис.
 - **Инструменты агента.** Скиллы Conventional Commits, Conventional Branch,
   code review, frontend и work-report; отчёты и RFC по извлечению текста в `docs/`.
+- **CI.** GitHub Actions workflow запускает тесты и `spotlessCheck` для
+  `text-extraction`, `resume-service` и `vacancy-service`, накатывает
+  Liquibase-миграции на PostgreSQL через `compose.yaml` и проверяет заголовок
+  PR на соответствие Conventional Commits.
 
 ### Changed
 
