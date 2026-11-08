@@ -1,0 +1,2 @@
+rootProject.name = 'vacancy-service'
+includeBuild('../text-extraction')
