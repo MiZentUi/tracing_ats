@@ -209,47 +209,61 @@ onMounted(load)
     <p v-if="loading" class="text-slate-500">Загрузка…</p>
 
     <template v-else-if="vacancy">
-      <div class="grid gap-4 rounded border border-slate-200 bg-white p-5 sm:grid-cols-2">
-        <label class="text-sm">
-          Название
-          <input v-model="title" class="mt-1 w-full rounded border border-slate-300 px-3 py-2" />
-        </label>
-        <label class="text-sm">
-          Специализация
-          <select v-model="specialization" class="mt-1 w-full rounded border border-slate-300 px-3 py-2">
-            <option v-for="item in specializations" :key="item.code" :value="item.code">{{ item.name }}</option>
-          </select>
-        </label>
-        <label class="text-sm">
-          Уровень
-          <select v-model="level" class="mt-1 w-full rounded border border-slate-300 px-3 py-2">
-            <option v-for="item in levels" :key="item.code" :value="item.code">{{ item.name }}</option>
-          </select>
-        </label>
-        <p class="self-end text-xs text-slate-500">
-          Модель: {{ vacancy.template.meta?.model ?? '—' }} · промпт:
-          {{ vacancy.template.meta?.prompt_version ?? '—' }}
-        </p>
-      </div>
+      <div class="grid gap-6 lg:grid-cols-[minmax(0,1fr)_22rem] lg:items-start">
+        <div class="space-y-4">
+          <div class="grid gap-4 rounded border border-slate-200 bg-white p-5 sm:grid-cols-2">
+            <label class="text-sm">
+              Название
+              <input v-model="title" class="mt-1 w-full rounded border border-slate-300 px-3 py-2" />
+            </label>
+            <label class="text-sm">
+              Специализация
+              <select v-model="specialization" class="mt-1 w-full rounded border border-slate-300 px-3 py-2">
+                <option v-for="item in specializations" :key="item.code" :value="item.code">{{ item.name }}</option>
+              </select>
+            </label>
+            <label class="text-sm">
+              Уровень
+              <select v-model="level" class="mt-1 w-full rounded border border-slate-300 px-3 py-2">
+                <option v-for="item in levels" :key="item.code" :value="item.code">{{ item.name }}</option>
+              </select>
+            </label>
+            <p class="self-end text-xs text-slate-500">
+              Модель: {{ vacancy.template.meta?.model ?? '—' }} · промпт:
+              {{ vacancy.template.meta?.prompt_version ?? '—' }}
+            </p>
+          </div>
 
-      <div v-for="section in kindSections" :key="section.kind" :data-section="section.kind" class="space-y-2">
-        <h2 class="text-lg font-semibold">{{ section.title }}</h2>
-        <p v-if="requirementsFor(section.kind).length === 0" class="rounded border border-dashed border-slate-300 p-4 text-sm text-slate-500">
-          {{ section.hint }}
-        </p>
-        <RequirementCard
-          v-for="item in requirementsFor(section.kind)"
-          :key="item.key"
-          :requirement="item"
-          :duplicate="duplicateKeys.has(normalizedSkill(item.skill))"
-          @update="(patch) => updateRequirement(item.key, patch)"
-          @remove="removeRequirement(item.key)"
-        />
-      </div>
+          <div v-for="section in kindSections" :key="section.kind" :data-section="section.kind" class="space-y-2">
+            <h2 class="text-lg font-semibold">{{ section.title }}</h2>
+            <p v-if="requirementsFor(section.kind).length === 0" class="rounded border border-dashed border-slate-300 p-4 text-sm text-slate-500">
+              {{ section.hint }}
+            </p>
+            <RequirementCard
+              v-for="item in requirementsFor(section.kind)"
+              :key="item.key"
+              :requirement="item"
+              :duplicate="duplicateKeys.has(normalizedSkill(item.skill))"
+              @update="(patch) => updateRequirement(item.key, patch)"
+              @remove="removeRequirement(item.key)"
+            />
+          </div>
 
-      <button class="rounded border border-slate-300 px-4 py-2 text-sm" @click="addRequirement">
-        Добавить требование
-      </button>
+          <button class="rounded border border-slate-300 px-4 py-2 text-sm" @click="addRequirement">
+            Добавить требование
+          </button>
+        </div>
+
+        <aside class="rounded border border-slate-200 bg-white lg:sticky lg:top-4">
+          <h2 class="border-b border-slate-200 px-4 py-3 text-sm font-semibold">Текст вакансии</h2>
+          <div
+            data-testid="vacancy-source-text"
+            class="max-h-[70vh] overflow-auto whitespace-pre-wrap px-4 py-3 text-sm leading-6 text-slate-700"
+          >
+            {{ vacancy.source_text ?? 'Текст вакансии недоступен' }}
+          </div>
+        </aside>
+      </div>
     </template>
   </section>
 </template>

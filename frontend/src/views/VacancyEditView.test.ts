@@ -28,6 +28,7 @@ function vacancy(): Vacancy {
     level: 'middle',
     title: 'Backend',
     status: 'DRAFT',
+    source_text: 'Обязательно:\n- JavaScript\n- Kafka\n- Docker',
     template: {
       version: 1,
       is_confirmed: false,
@@ -98,6 +99,7 @@ describe('VacancyEditView', () => {
     expect(wrapper.text()).toContain('Обязательные')
     expect(wrapper.text()).toContain('Желательные')
     expect(wrapper.text()).toContain('Научим / не требуется')
+    expect(wrapper.get('[data-testid="vacancy-source-text"]').text()).toContain('JavaScript')
 
     const selects = wrapper.findAll('select[aria-label="Тип требования"]')
     expect(selects).toHaveLength(3)
