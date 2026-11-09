@@ -1,0 +1,4 @@
+syntax = "proto3";
+
+package scoring_service.v1.models;
+

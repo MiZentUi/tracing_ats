@@ -1,0 +1,81 @@
+syntax = "proto3";
+
+package scoring_service.v1.models;
+
+option java_multiple_files = true;
+option java_outer_classname = "ScoringProto";
+option java_package = "ats.vacancy.proto";
+
+/// Уровень позиции
+enum JobPosition {
+  JOB_POSITION_UNSPECIFIED = 0;
+  JOB_POSITION_INTERN = 1;
+  JOB_POSITION_JUNIOR = 2;
+  JOB_POSITION_MIDDLE = 3;
+  JOB_POSITION_SENIOR = 4;
+}
+
+/// Критичность и необходимость навыка/фичи для вакансии.
+/// От данного параметра зависим его удельный вес при оценке
+/// релевантности и скора.
+enum FeatureCriticality {
+  FEATURE_CRITICALITY_UNSPECIFIED = 0;
+  FEATURE_CRITICALITY_OPTIONAL = 1;
+  FEATURE_CRITICALITY_NICE = 2;
+  FEATURE_CRITICALITY_REQUIRED = 3;
+  FEATURE_CRITICALITY_CRITICAL = 4;
+}
+
+/// Полное описание вакансии. Содержит как общую
+/// информацию о вакансии, так и 
+message Vacancy {
+  uint32 tenure = 1;
+  string text_description = 2;
+  JobPosition position = 3;
+  string category = 4;
+  repeated RequiredSkill skills = 5;
+}
+
+message EducationRequirement {
+  string master = 1;
+}
+
+message RequiredSkill {
+  string name = 1;
+  string normalize_name = 2;
+  string description = 3;
+  FeatureCriticality criticality = 4;
+  uint32 tenure = 5;
+}
+
+message UnprocessedResume {
+  string text = 1;
+}
+
+message ScoreResumeRequest {
+  Vacancy vacancy = 1;
+  UnprocessedResume resume = 2;
+}
+
+message FeatureEvidence {
+  uint32 start_index = 1;
+  uint32 end_index = 2;
+  string text = 3;
+}
+
+message SkillAssessment {
+  double coverage = 1;
+  bool recency_unknown = 2;
+  optional int32 tenure = 3;
+  FeatureEvidence evidence = 4;
+}
+
+message ScoreResumeResponse {
+  double relevance = 1;
+  double score_low = 2;
+  double score_high = 3;
+  double score = 4;
+  optional int32 tenure = 5;
+  bool refine = 6;
+  repeated SkillAssessment skills = 7;
+}
