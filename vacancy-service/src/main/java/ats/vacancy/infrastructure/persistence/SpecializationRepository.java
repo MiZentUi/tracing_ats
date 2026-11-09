@@ -9,5 +9,9 @@ public interface SpecializationRepository extends JpaRepository<SpecializationEn
 
     Optional<SpecializationEntity> findByCodeAndActiveTrue(String code);
 
+    Optional<SpecializationEntity> findByCode(String code);
+
+    Optional<SpecializationEntity> findByNameIgnoreCase(String name);
+
     List<SpecializationEntity> findAllByActiveTrueOrderByName();
 }

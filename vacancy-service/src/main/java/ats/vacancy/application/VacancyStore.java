@@ -299,28 +299,55 @@ public class VacancyStore {
         }
     }
 
+    @Transactional
+    public void delete(UUID vacancyId) {
+        VacancyEntity vacancy =
+                vacancyRepository
+                        .findByIdForUpdate(vacancyId)
+                        .orElseThrow(() -> ApiException.notFound("Vacancy not found"));
+
+        versionRepository
+                .findFirstByVacancyIdAndConfirmedTrueOrderByVersionNoDesc(vacancyId)
+                .ifPresent(
+                        version ->
+                                contributionOf(version)
+                                        .forEach(
+                                                (key, count) ->
+                                                        statWriter.applyDelta(
+                                                                key.specializationId(),
+                                                                key.levelId(),
+                                                                key.skillId(),
+                                                                key.kind(),
+                                                                -count)));
+
+        vacancyRepository.delete(vacancy);
+    }
+
+    private Map<StatKey, Integer> contributionOf(TemplateVersionEntity version) {
+        Map<StatKey, Integer> contribution = new LinkedHashMap<>();
+        for (RequirementEntity requirement :
+                requirementRepository.findByTemplateVersionIdOrderByPosition(version.getId())) {
+            if (requirement.getSkillId() != null) {
+                contribution.put(
+                        new StatKey(
+                                version.getSpecializationId(),
+                                version.getLevelId(),
+                                requirement.getSkillId(),
+                                requirement.getKind()),
+                        1);
+            }
+        }
+        return contribution;
+    }
+
     private void updateStats(
             TemplateVersionEntity oldConfirmed,
             TemplateVersionEntity newVersion,
             List<PreparedRequirement> prepared,
             UUID specializationId,
             UUID levelId) {
-        Map<StatKey, Integer> oldContribution = new LinkedHashMap<>();
-        if (oldConfirmed != null) {
-            for (RequirementEntity requirement :
-                    requirementRepository.findByTemplateVersionIdOrderByPosition(
-                            oldConfirmed.getId())) {
-                if (requirement.getSkillId() != null) {
-                    oldContribution.put(
-                            new StatKey(
-                                    oldConfirmed.getSpecializationId(),
-                                    oldConfirmed.getLevelId(),
-                                    requirement.getSkillId(),
-                                    requirement.getKind()),
-                            1);
-                }
-            }
-        }
+        Map<StatKey, Integer> oldContribution =
+                oldConfirmed == null ? Map.of() : contributionOf(oldConfirmed);
 
         Map<StatKey, Integer> newContribution = new LinkedHashMap<>();
         for (PreparedRequirement item : prepared) {
@@ -397,6 +424,12 @@ public class VacancyStore {
             return levelRepository
                     .findById(fallbackId)
                     .orElseThrow(() -> ApiException.notFound("Level not found"));
+        }
+        if ("none".equals(code)) {
+            return levelRepository
+                    .findByCode("none")
+                    .orElseThrow(
+                            () -> new IllegalStateException("Hidden level 'none' is not seeded"));
         }
         return levelRepository
                 .findByCodeAndActiveTrue(code)

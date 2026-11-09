@@ -50,4 +50,10 @@ public class VacancyController implements VacanciesApi {
                 mapper.toVacancy(
                         vacancyService.update(id, mapper.toCommand(updateTemplateRequest))));
     }
+
+    @Override
+    public ResponseEntity<Void> deleteVacancy(UUID id) {
+        vacancyService.delete(id);
+        return ResponseEntity.noContent().build();
+    }
 }

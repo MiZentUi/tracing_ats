@@ -45,9 +45,6 @@ public class VacancyService {
             throw ApiException.unprocessable(
                     "SPECIALIZATION_REQUIRED", "specialization is required");
         }
-        if (command.level() == null || command.level().isBlank()) {
-            throw ApiException.unprocessable("LEVEL_REQUIRED", "level is required");
-        }
         SpecializationEntity specialization =
                 specializationRepository
                         .findByCodeAndActiveTrue(command.specialization())
@@ -57,14 +54,25 @@ public class VacancyService {
                                                 "UNKNOWN_SPECIALIZATION",
                                                 "Unknown specialization: "
                                                         + command.specialization()));
-        LevelEntity level =
-                levelRepository
-                        .findByCodeAndActiveTrue(command.level())
-                        .orElseThrow(
-                                () ->
-                                        ApiException.unprocessable(
-                                                "UNKNOWN_LEVEL",
-                                                "Unknown level: " + command.level()));
+        LevelEntity level;
+        if (command.level() == null || command.level().isBlank()) {
+            level =
+                    levelRepository
+                            .findByCode("none")
+                            .orElseThrow(
+                                    () ->
+                                            new IllegalStateException(
+                                                    "Hidden level 'none' is not seeded"));
+        } else {
+            level =
+                    levelRepository
+                            .findByCodeAndActiveTrue(command.level())
+                            .orElseThrow(
+                                    () ->
+                                            ApiException.unprocessable(
+                                                    "UNKNOWN_LEVEL",
+                                                    "Unknown level: " + command.level()));
+        }
 
         boolean hasText = command.text() != null && !command.text().isBlank();
         boolean hasFile = command.file() != null && !command.file().isEmpty();
@@ -152,6 +160,10 @@ public class VacancyService {
 
     public VacancyView update(UUID id, UpdateTemplateCommand command) {
         return store.update(id, command);
+    }
+
+    public void delete(UUID id) {
+        store.delete(id);
     }
 
     public List<ReferenceItem> specializations() {

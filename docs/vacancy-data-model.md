@@ -162,6 +162,14 @@ erDiagram
 | все ссылки на справочники | `ON DELETE RESTRICT`, физически удалить используемую строку нельзя |
 | `vacancy` → версии → требования | `ON DELETE CASCADE` |
 
+## Уровень «Без уровня»
+
+Для специализаций без деления на грейды в `level` заведена скрытая запись
+`code = 'none'`, `name = 'Без уровня'`, `is_active = false`. Она не попадает в
+`GET /levels`, но используется в `vacancy_template_version.level_id` и в ключе
+`skill_kind_stat`, если уровень не указан. История типов для таких вакансий
+изолирована от `junior/middle/senior`.
+
 ## Отличия от прежней схемы
 
 - Колонка `vacancy_requirement.weight` и ограничение `ck_requirement_weight` удалены.

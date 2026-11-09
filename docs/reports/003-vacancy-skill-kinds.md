@@ -48,6 +48,18 @@
 - Публичный REST-контракт обновлён; Spring-интерфейсы и DTO генерируются из
   `contracts/openapi.yaml`.
 
+### 1.2.1. Управление вакансиями после ревью
+
+- `POST /api/v1/specializations` — добавление специализации; код необязателен и
+  генерируется транслитерацией из названия.
+- Уровень при создании вакансии необязателен. Для специализаций без грейдов
+  используется скрытая запись `level.code = 'none'` («Без уровня»); история
+  типов для неё изолирована от `junior/middle/senior`.
+- `DELETE /api/v1/vacancies/{id}` — удаление вакансии; вклад последней
+  подтверждённой версии вычитается из `skill_kind_stat`.
+- В UI добавлены «Подтвердить черновик», удаление вакансии, форма добавления
+  специализации и вариант «Без уровня».
+
 ### 1.3. Frontend
 
 Каталога `frontend/` в репозитории не было. Добавлен минимальный MVP-интерфейс на
@@ -73,11 +85,11 @@ Vue 3 + TypeScript + Vite + Tailwind: список вакансий, созда�
 
 ## 2. Что проверено
 
-- `vacancy-service`: `./gradlew test spotlessCheck` — 40 тестов зелёные, включая
+- `vacancy-service`: `./gradlew test spotlessCheck` — 44 теста зелёные, включая
   Testcontainers/PostgreSQL, разбор ответа, очистку, нормализацию, подсказку
   истории, счётчики, `PUT`/`GET`/`POST`, `409`, дубликаты и мок-клиент LLM.
 - `text-extraction`: `gradle test spotlessCheck` — зелёные.
-- `frontend`: `npm test` — 8 компонентных тестов; `npm run build` — `vue-tsc` и
+- `frontend`: `npm test` — 12 компонентных тестов; `npm run build` — `vue-tsc` и
   Vite-сборка проходят.
 - Liquibase: все 13 changeset накатаны на PostgreSQL 18 через `compose`.
 - `docker compose config --quiet` — успешно.

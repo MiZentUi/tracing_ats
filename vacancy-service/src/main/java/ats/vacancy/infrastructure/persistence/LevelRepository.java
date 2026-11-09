@@ -9,5 +9,7 @@ public interface LevelRepository extends JpaRepository<LevelEntity, UUID> {
 
     Optional<LevelEntity> findByCodeAndActiveTrue(String code);
 
+    Optional<LevelEntity> findByCode(String code);
+
     List<LevelEntity> findAllByActiveTrueOrderBySortOrder();
 }

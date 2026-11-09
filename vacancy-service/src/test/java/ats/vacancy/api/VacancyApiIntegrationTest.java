@@ -3,8 +3,10 @@ package ats.vacancy.api;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.when;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.delete;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.multipart;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.put;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
@@ -278,6 +280,122 @@ class VacancyApiIntegrationTest {
                                                         .path("items")
                                                         .size())
                                         .isEqualTo(1));
+    }
+
+    @Test
+    void confirmsDraftWithoutChanges() throws Exception {
+        JsonNode created = createVacancy();
+        String vacancyId = created.path("vacancy_id").asText();
+        List<Map<String, Object>> requirements = new java.util.ArrayList<>();
+        for (JsonNode item : created.path("template").path("requirements")) {
+            JsonNode years = item.path("years_required");
+            requirements.add(
+                    requirement(
+                            item.path("id").asText(),
+                            item.path("skill").asText(),
+                            item.path("kind").asText(),
+                            years.isNull() ? null : years.asInt(),
+                            item.path("quote").asText(),
+                            item.path("clarity_warning").isNull()
+                                    ? null
+                                    : item.path("clarity_warning").asText()));
+        }
+
+        MvcResult result =
+                mockMvc.perform(
+                                put("/api/v1/vacancies/{id}/template", vacancyId)
+                                        .contentType(MediaType.APPLICATION_JSON)
+                                        .content(
+                                                objectMapper.writeValueAsString(
+                                                        Map.of(
+                                                                "base_version",
+                                                                1,
+                                                                "requirements",
+                                                                requirements))))
+                        .andExpect(status().isOk())
+                        .andReturn();
+        JsonNode saved = objectMapper.readTree(result.getResponse().getContentAsString());
+        assertThat(saved.path("status").asText()).isEqualTo("ACTIVE");
+        assertThat(saved.path("template").path("version").asInt()).isEqualTo(2);
+        assertThat(saved.path("template").path("is_confirmed").asBoolean()).isTrue();
+    }
+
+    @Test
+    void createsVacancyWithoutLevel() throws Exception {
+        MvcResult result =
+                mockMvc.perform(
+                                multipart("/api/v1/vacancies")
+                                        .param("specialization", "backend")
+                                        .param("text", TEXT))
+                        .andExpect(status().isCreated())
+                        .andReturn();
+        JsonNode created = objectMapper.readTree(result.getResponse().getContentAsString());
+        assertThat(created.path("level").asText()).isEqualTo("none");
+    }
+
+    @Test
+    void createsAndDeletesVacancyWithStatsRollback() throws Exception {
+        JsonNode created = createVacancy();
+        String vacancyId = created.path("vacancy_id").asText();
+        JsonNode javascript = created.path("template").path("requirements").get(0);
+        Map<String, Object> requirement =
+                requirement(
+                        javascript.path("id").asText(),
+                        "JavaScript",
+                        "MUST",
+                        3,
+                        "Опыт работы с JS от 3 лет",
+                        null);
+        mockMvc.perform(
+                        put("/api/v1/vacancies/{id}/template", vacancyId)
+                                .contentType(MediaType.APPLICATION_JSON)
+                                .content(
+                                        objectMapper.writeValueAsString(
+                                                Map.of(
+                                                        "base_version",
+                                                        1,
+                                                        "requirements",
+                                                        List.of(requirement)))))
+                .andExpect(status().isOk());
+
+        assertThat(
+                        jdbcTemplate.queryForObject(
+                                "SELECT must_count FROM skill_kind_stat sks "
+                                        + "JOIN skill s ON s.id = sks.skill_id "
+                                        + "WHERE s.normalized_name = 'javascript'",
+                                Integer.class))
+                .isEqualTo(1);
+
+        mockMvc.perform(delete("/api/v1/vacancies/{id}", vacancyId))
+                .andExpect(status().isNoContent());
+        mockMvc.perform(get("/api/v1/vacancies/{id}", vacancyId)).andExpect(status().isNotFound());
+        assertThat(
+                        jdbcTemplate.queryForObject(
+                                "SELECT must_count FROM skill_kind_stat sks "
+                                        + "JOIN skill s ON s.id = sks.skill_id "
+                                        + "WHERE s.normalized_name = 'javascript'",
+                                Integer.class))
+                .isZero();
+    }
+
+    @Test
+    void createsSpecializationAndRejectsDuplicate() throws Exception {
+        MvcResult result =
+                mockMvc.perform(
+                                post("/api/v1/specializations")
+                                        .contentType(MediaType.APPLICATION_JSON)
+                                        .content("{\"name\":\"Аналитика\"}"))
+                        .andExpect(status().isCreated())
+                        .andReturn();
+        JsonNode created = objectMapper.readTree(result.getResponse().getContentAsString());
+        assertThat(created.path("code").asText()).isEqualTo("analitika");
+        assertThat(created.path("name").asText()).isEqualTo("Аналитика");
+
+        mockMvc.perform(
+                        post("/api/v1/specializations")
+                                .contentType(MediaType.APPLICATION_JSON)
+                                .content("{\"name\":\"Аналитика\"}"))
+                .andExpect(status().isConflict());
     }
 
     @Test

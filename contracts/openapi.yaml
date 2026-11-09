@@ -78,6 +78,30 @@ paths:
                   $ref: "#/components/schemas/ReferenceItem"
         default:
           $ref: "#/components/responses/error"
+    post:
+      tags:
+        - Reference
+      summary: Добавить специализацию
+      operationId: createSpecialization
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/CreateSpecializationRequest"
+      responses:
+        "201":
+          description: Специализация создана
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ReferenceItem"
+        "409":
+          $ref: "#/components/responses/conflict"
+        "422":
+          $ref: "#/components/responses/unprocessable"
+        default:
+          $ref: "#/components/responses/error"
 
   /levels:
     get:
@@ -143,7 +167,6 @@ paths:
               type: object
               required:
                 - specialization
-                - level
               properties:
                 specialization:
                   type: string
@@ -151,7 +174,8 @@ paths:
                   example: backend
                 level:
                   type: string
-                  description: Код уровня из справочника
+                  nullable: true
+                  description: Код уровня из справочника; если не указан, используется «Без уровня»
                   example: middle
                 title:
                   type: string
@@ -202,6 +226,20 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/Vacancy"
+        "404":
+          $ref: "#/components/responses/notFound"
+        default:
+          $ref: "#/components/responses/error"
+    delete:
+      tags:
+        - Vacancies
+      summary: Удалить вакансию и убрать её вклад из истории типов
+      operationId: deleteVacancy
+      parameters:
+        - $ref: "#/components/parameters/VacancyId"
+      responses:
+        "204":
+          description: Вакансия удалена
         "404":
           $ref: "#/components/responses/notFound"
         default:
@@ -260,6 +298,20 @@ components:
         name:
           type: string
           example: Backend
+
+    CreateSpecializationRequest:
+      type: object
+      required:
+        - name
+      properties:
+        name:
+          type: string
+          example: Аналитика
+        code:
+          type: string
+          nullable: true
+          description: Латинский код; если не указан, генерируется из названия
+          example: analytics
 
     SkillKind:
       type: string
