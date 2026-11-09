@@ -37,6 +37,7 @@ function mountList() {
     global: {
       stubs: {
         RouterLink: { template: '<a><slot /></a>' },
+        teleport: true,
       },
     },
   })
@@ -56,10 +57,12 @@ describe('VacancyListView', () => {
     await flushPromises()
     expect(wrapper.text()).toContain('Без уровня')
 
-    const deleteButton = wrapper
+    await wrapper.get('button[title="Удалить вакансию"]').trigger('click')
+    await flushPromises()
+    const confirmButton = wrapper
       .findAll('button')
-      .find((button) => button.text().includes('Удалить'))
-    await deleteButton?.trigger('click')
+      .find((button) => button.text().trim() === 'Удалить')
+    await confirmButton?.trigger('click')
     await flushPromises()
 
     expect(deleteVacancy).toHaveBeenCalledWith({ id: 'vacancy-1' })

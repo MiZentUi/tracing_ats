@@ -29,7 +29,9 @@ async function mountCreate() {
   })
   await router.push('/vacancies/new')
   await router.isReady()
-  const wrapper = mount(VacancyCreateView, { global: { plugins: [router] } })
+  const wrapper = mount(VacancyCreateView, {
+    global: { plugins: [router], stubs: { teleport: true } },
+  })
   await flushPromises()
   return wrapper
 }
@@ -60,12 +62,10 @@ describe('VacancyCreateView', () => {
     createSpecialization.mockResolvedValue({ data: { code: 'analitika', name: 'Аналитика' } })
     const wrapper = await mountCreate()
 
-    const toggle = wrapper
-      .findAll('button')
-      .find((button) => button.text().includes('Добавить специализацию'))
-    await toggle?.trigger('click')
+    await wrapper.get('button[title="Добавить специализацию"]').trigger('click')
     await wrapper.get('input[placeholder="Например, Аналитика"]').setValue('Аналитика')
-    const addButton = wrapper
+    const dialog = wrapper.get('[role="dialog"]')
+    const addButton = dialog
       .findAll('button')
       .find((button) => button.text().trim() === 'Добавить')
     await addButton?.trigger('click')

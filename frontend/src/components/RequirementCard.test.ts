@@ -25,14 +25,14 @@ describe('RequirementCard', () => {
   it('показывает источник, историю и расхождение с LLM', () => {
     const wrapper = mount(RequirementCard, { props: { requirement: requirement() } })
     expect(wrapper.text()).toContain('История')
-    expect(wrapper.text()).toContain('Предложено по истории HR')
-    expect(wrapper.text()).toContain('LLM предлагала: NICE')
+    expect(wrapper.text()).toContain('история HR переопределила тип')
+    expect(wrapper.text()).toContain('LLM предлагала')
     expect(wrapper.text()).toContain('из словаря')
   })
 
   it('эмитит смену типа', async () => {
     const wrapper = mount(RequirementCard, { props: { requirement: requirement() } })
-    await wrapper.get('select[aria-label="Тип требования"]').setValue('OPTIONAL')
+    await wrapper.get('button[data-kind="OPTIONAL"]').trigger('click')
     const emitted = wrapper.emitted('update')
     expect(emitted?.[0]).toEqual([{ kind: 'OPTIONAL' }])
   })

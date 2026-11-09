@@ -1,38 +1,68 @@
 <script setup lang="ts">
 import { computed, onMounted, ref } from 'vue'
 import { onBeforeRouteLeave, useRouter } from 'vue-router'
+import {
+  AlertTriangle,
+  ArrowLeft,
+  CheckCircle2,
+  Copy,
+  LoaderCircle,
+  Plus,
+  Save,
+  Search,
+  Sparkles,
+  Trash2,
+} from 'lucide-vue-next'
 import type { ReferenceItem, SkillKind, Vacancy } from '@/api/generated'
 import { apiErrorCode, apiErrorMessage, referenceApi, vacanciesApi } from '@/api'
+import ConfirmDialog from '@/components/ConfirmDialog.vue'
 import RequirementCard from '@/components/RequirementCard.vue'
-import { kindSections, toEditable, type EditableRequirement } from '@/types'
+import { useToast } from '@/composables/useToast'
+import { kindSections, levelLabel, toEditable, type EditableRequirement } from '@/types'
 
 const props = defineProps<{ id: string }>()
 const router = useRouter()
+const { success, error: toastError } = useToast()
 
 const vacancy = ref<Vacancy | null>(null)
 const requirements = ref<EditableRequirement[]>([])
-const specialization = ref('')
-const level = ref('')
 const title = ref('')
+const specialization = ref('')
+const level = ref('none')
 const specializations = ref<ReferenceItem[]>([])
 const levels = ref<ReferenceItem[]>([])
 const snapshot = ref('')
 const loading = ref(true)
 const saving = ref(false)
 const deleting = ref(false)
+const deleteOpen = ref(false)
 const error = ref('')
 const conflict = ref(false)
 const savedMessage = ref('')
+const sourceSearch = ref('')
 
 const canConfirmDraft = computed(
   () => !!vacancy.value && !vacancy.value.template.is_confirmed && !saving.value && !deleting.value,
 )
 
+const sourceText = computed(() => vacancy.value?.source_text ?? '')
+const sourceChars = computed(() => sourceText.value.length.toLocaleString('ru-RU'))
+
+const highlightedSource = computed(() => {
+  const query = sourceSearch.value.trim()
+  if (!query || !sourceText.value) {
+    return [{ text: sourceText.value, match: false }]
+  }
+  const escaped = query.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')
+  const parts = sourceText.value.split(new RegExp(`(${escaped})`, 'gi'))
+  return parts.map((text) => ({ text, match: text.toLowerCase() === query.toLowerCase() }))
+})
+
 function serialize() {
   return JSON.stringify({
+    title: title.value,
     specialization: specialization.value,
     level: level.value,
-    title: title.value,
     requirements: requirements.value.map((item) => ({
       id: item.id,
       skill: item.skill,
@@ -48,9 +78,9 @@ const dirty = computed(() => snapshot.value !== '' && serialize() !== snapshot.v
 
 function apply(v: Vacancy) {
   vacancy.value = v
+  title.value = v.title ?? ''
   specialization.value = v.specialization
   level.value = v.level
-  title.value = v.title ?? ''
   requirements.value = v.template.requirements.map(toEditable)
   snapshot.value = serialize()
 }
@@ -134,6 +164,7 @@ async function save() {
     error.value = 'У требования должен быть навык или цитата'
     return
   }
+  const wasDraft = !vacancy.value.template.is_confirmed
   saving.value = true
   error.value = ''
   savedMessage.value = ''
@@ -158,30 +189,46 @@ async function save() {
     })
     apply(response.data)
     savedMessage.value = `Сохранено, версия ${response.data.template.version}`
+    success(
+      wasDraft ? 'Черновик подтверждён' : 'Шаблон сохранён',
+      `Версия ${response.data.template.version} · ${response.data.template.requirements.length} требований`,
+    )
   } catch (e) {
-    error.value = apiErrorMessage(e)
+    const message = apiErrorMessage(e)
+    error.value = message
     conflict.value = apiErrorCode(e) === 'VERSION_CONFLICT'
+    toastError('Не удалось сохранить шаблон', message)
   } finally {
     saving.value = false
   }
 }
 
-async function deleteVacancy() {
-  if (!vacancy.value || deleting.value) {
-    return
-  }
-  if (!window.confirm(`Удалить вакансию «${vacancy.value.title}»? Действие необратимо.`)) {
+async function confirmDeleteVacancy() {
+  if (deleting.value) {
     return
   }
   deleting.value = true
-  error.value = ''
   try {
     await vacanciesApi.deleteVacancy({ id: props.id })
+    deleteOpen.value = false
+    success('Вакансия удалена', 'Её вклад убран из истории типов')
     await router.push('/vacancies')
   } catch (e) {
-    error.value = apiErrorMessage(e)
+    toastError('Не удалось удалить вакансию', apiErrorMessage(e))
   } finally {
     deleting.value = false
+  }
+}
+
+async function copySource() {
+  if (!sourceText.value) {
+    return
+  }
+  try {
+    await navigator.clipboard.writeText(sourceText.value)
+    success('Текст скопирован')
+  } catch {
+    toastError('Не удалось скопировать текст')
   }
 }
 
@@ -196,114 +243,200 @@ onMounted(load)
 </script>
 
 <template>
-  <section class="space-y-4">
-    <div class="flex flex-wrap items-start justify-between gap-3">
-      <div>
-        <h1 class="text-2xl font-semibold">Редактор шаблона</h1>
-        <p v-if="vacancy" class="text-sm text-slate-500">
-          Версия {{ vacancy.template.version }} ·
-          <span
-            class="rounded px-2 py-1 text-xs"
-            :class="vacancy.template.is_confirmed ? 'bg-emerald-50 text-emerald-700' : 'bg-slate-100 text-slate-600'"
-          >
-            {{ vacancy.template.is_confirmed ? 'Подтверждён' : 'Черновик, не подтверждён' }}
-          </span>
-        </p>
-      </div>
-      <div class="flex flex-wrap gap-2">
-        <button class="rounded border border-slate-300 px-3 py-2 text-sm" @click="router.push('/vacancies')">
-          К списку
-        </button>
-        <button
-          v-if="canConfirmDraft"
-          class="rounded border border-emerald-600 px-3 py-2 text-sm text-emerald-700 disabled:opacity-50"
-          :disabled="saving || duplicateKeys.size > 0"
-          @click="save"
-        >
-          {{ saving ? 'Подтверждение…' : 'Подтвердить черновик' }}
-        </button>
-        <button
-          class="rounded bg-slate-900 px-4 py-2 text-sm font-medium text-white disabled:cursor-not-allowed disabled:opacity-50"
-          :disabled="!dirty || saving || duplicateKeys.size > 0"
-          @click="save"
-        >
-          {{ saving ? 'Сохранение…' : 'Сохранить шаблон' }}
-        </button>
-        <button
-          class="rounded border border-red-300 px-3 py-2 text-sm text-red-700 disabled:opacity-50"
-          :disabled="deleting || saving"
-          @click="deleteVacancy"
-        >
-          {{ deleting ? 'Удаление…' : 'Удалить вакансию' }}
-        </button>
-      </div>
+  <section class="space-y-5 pb-4">
+    <div>
+      <RouterLink to="/vacancies" class="inline-flex items-center gap-1.5 text-sm font-medium text-slate-500 transition hover:text-slate-900">
+        <ArrowLeft :size="16" />
+        К списку вакансий
+      </RouterLink>
     </div>
 
-    <p v-if="savedMessage" class="rounded bg-emerald-50 p-3 text-emerald-800">{{ savedMessage }}</p>
-    <div v-if="error" class="rounded bg-red-50 p-3 text-red-700">
-      {{ error }}
-      <button v-if="conflict" class="ml-3 underline" @click="load">Перезагрузить</button>
+    <div v-if="loading" class="card space-y-4 p-6">
+      <div class="skeleton h-8 w-1/2" />
+      <div class="skeleton h-4 w-1/3" />
+      <div class="grid gap-4 lg:grid-cols-[minmax(0,1fr)_24rem]">
+        <div class="space-y-4">
+          <div class="skeleton h-28 w-full" />
+          <div class="skeleton h-40 w-full" />
+          <div class="skeleton h-40 w-full" />
+        </div>
+        <div class="skeleton h-80 w-full" />
+      </div>
     </div>
-
-    <p v-if="loading" class="text-slate-500">Загрузка…</p>
 
     <template v-else-if="vacancy">
-      <div class="grid gap-6 lg:grid-cols-[minmax(0,1fr)_22rem] lg:items-start">
+      <div class="flex flex-wrap items-start justify-between gap-4">
+        <div class="min-w-0 flex-1">
+          <div class="flex flex-wrap items-center gap-3">
+            <h1 class="truncate text-3xl font-semibold tracking-tight text-slate-900">
+              {{ title || 'Без названия' }}
+            </h1>
+            <span :class="vacancy.template.is_confirmed ? 'badge-success' : 'badge-warning'">
+              <CheckCircle2 v-if="vacancy.template.is_confirmed" :size="12" />
+              {{ vacancy.template.is_confirmed ? 'Подтверждена' : 'Черновик' }}
+            </span>
+            <span class="badge-neutral">Версия {{ vacancy.template.version }}</span>
+          </div>
+          <p class="mt-1 text-sm text-slate-500">
+            {{ vacancy.specialization }} · {{ levelLabel(vacancy.level) }} ·
+            {{ vacancy.template.meta?.model ?? 'модель не указана' }} ·
+            {{ vacancy.template.meta?.prompt_version ?? 'промпт не указан' }}
+          </p>
+        </div>
+      </div>
+
+      <div v-if="savedMessage" class="flex items-center gap-2 rounded-2xl border border-emerald-200 bg-emerald-50 p-3 text-sm text-emerald-800">
+        <CheckCircle2 :size="16" />
+        {{ savedMessage }}
+      </div>
+
+      <div v-if="error" class="flex flex-wrap items-center justify-between gap-3 rounded-2xl border border-red-200 bg-red-50 p-4 text-sm text-red-800">
+        <span class="flex items-center gap-2">
+          <AlertTriangle :size="16" />
+          {{ error }}
+        </span>
+        <button v-if="conflict" class="btn-secondary shrink-0" @click="load">Перезагрузить</button>
+      </div>
+
+      <div v-if="duplicateKeys.size > 0" class="flex items-center gap-2 rounded-2xl border border-amber-200 bg-amber-50 p-4 text-sm text-amber-800">
+        <AlertTriangle :size="16" />
+        Найдены дубликаты навыков. Исправьте их, чтобы сохранить шаблон.
+      </div>
+
+      <div class="grid gap-5 lg:grid-cols-[minmax(0,1fr)_24rem] lg:items-start">
         <div class="space-y-4">
-          <div class="grid gap-4 rounded border border-slate-200 bg-white p-5 sm:grid-cols-2">
-            <label class="text-sm">
-              Название
-              <input v-model="title" class="mt-1 w-full rounded border border-slate-300 px-3 py-2" />
-            </label>
-            <label class="text-sm">
-              Специализация
-              <select v-model="specialization" class="mt-1 w-full rounded border border-slate-300 px-3 py-2">
-                <option v-for="item in specializations" :key="item.code" :value="item.code">{{ item.name }}</option>
-              </select>
-            </label>
-            <label class="text-sm">
-              Уровень (необязательно)
-              <select v-model="level" class="mt-1 w-full rounded border border-slate-300 px-3 py-2">
-                <option value="none">Без уровня</option>
-                <option v-for="item in levels" :key="item.code" :value="item.code">{{ item.name }}</option>
-              </select>
-            </label>
-            <p class="self-end text-xs text-slate-500">
-              Модель: {{ vacancy.template.meta?.model ?? '—' }} · промпт:
-              {{ vacancy.template.meta?.prompt_version ?? '—' }}
-            </p>
+          <div class="card p-5">
+            <div class="flex items-center justify-between gap-3">
+              <div>
+                <h2 class="text-base font-semibold text-slate-900">Параметры шаблона</h2>
+                <p class="text-sm text-slate-500">Смена специализации или уровня создаст новую версию.</p>
+              </div>
+            </div>
+            <div class="mt-4 grid gap-4 sm:grid-cols-2">
+              <div class="sm:col-span-2">
+                <label class="label" for="editor-title">Название</label>
+                <input id="editor-title" v-model="title" class="input" />
+              </div>
+              <div>
+                <label class="label" for="editor-specialization">Специализация</label>
+                <select id="editor-specialization" v-model="specialization" class="input">
+                  <option v-for="item in specializations" :key="item.code" :value="item.code">{{ item.name }}</option>
+                </select>
+              </div>
+              <div>
+                <label class="label" for="editor-level">Уровень</label>
+                <select id="editor-level" v-model="level" class="input">
+                  <option value="none">Без уровня</option>
+                  <option v-for="item in levels" :key="item.code" :value="item.code">{{ item.name }}</option>
+                </select>
+              </div>
+            </div>
           </div>
 
-          <div v-for="section in kindSections" :key="section.kind" :data-section="section.kind" class="space-y-2">
-            <h2 class="text-lg font-semibold">{{ section.title }}</h2>
-            <p v-if="requirementsFor(section.kind).length === 0" class="rounded border border-dashed border-slate-300 p-4 text-sm text-slate-500">
-              {{ section.hint }}
-            </p>
-            <RequirementCard
-              v-for="item in requirementsFor(section.kind)"
-              :key="item.key"
-              :requirement="item"
-              :duplicate="duplicateKeys.has(normalizedSkill(item.skill))"
-              @update="(patch) => updateRequirement(item.key, patch)"
-              @remove="removeRequirement(item.key)"
-            />
+          <div
+            v-for="section in kindSections"
+            :key="section.kind"
+            :data-section="section.kind"
+            class="card overflow-hidden"
+          >
+            <div class="flex items-center gap-2 border-b border-slate-100 px-5 py-3">
+              <span
+                class="h-2.5 w-2.5 rounded-full"
+                :class="section.kind === 'MUST' ? 'bg-rose-400' : section.kind === 'NICE' ? 'bg-indigo-400' : 'bg-emerald-400'"
+              />
+              <h2 class="text-base font-semibold text-slate-900">{{ section.title }}</h2>
+              <span class="badge-neutral">{{ requirementsFor(section.kind).length }}</span>
+            </div>
+            <div class="space-y-3 p-4">
+              <p v-if="requirementsFor(section.kind).length === 0" class="rounded-xl border border-dashed border-slate-300 px-4 py-8 text-center text-sm text-slate-400">
+                {{ section.hint }}
+              </p>
+              <RequirementCard
+                v-for="item in requirementsFor(section.kind)"
+                :key="item.key"
+                :requirement="item"
+                :duplicate="duplicateKeys.has(normalizedSkill(item.skill))"
+                @update="(patch) => updateRequirement(item.key, patch)"
+                @remove="removeRequirement(item.key)"
+              />
+            </div>
           </div>
 
-          <button class="rounded border border-slate-300 px-4 py-2 text-sm" @click="addRequirement">
+          <button type="button" class="btn-secondary w-full border-dashed" @click="addRequirement">
+            <Plus :size="16" />
             Добавить требование
           </button>
         </div>
 
-        <aside class="rounded border border-slate-200 bg-white lg:sticky lg:top-4">
-          <h2 class="border-b border-slate-200 px-4 py-3 text-sm font-semibold">Текст вакансии</h2>
+        <aside class="card order-first overflow-hidden lg:order-none lg:sticky lg:top-24">
+          <div class="border-b border-slate-100 px-4 py-3">
+            <div class="flex items-center justify-between gap-2">
+              <h2 class="text-sm font-semibold text-slate-900">Текст вакансии</h2>
+              <button class="icon-btn" title="Скопировать текст" @click="copySource">
+                <Copy :size="15" />
+              </button>
+            </div>
+            <p class="mt-0.5 text-xs text-slate-400">{{ sourceChars }} символов</p>
+            <label class="relative mt-3 block">
+              <Search :size="14" class="pointer-events-none absolute left-2.5 top-1/2 -translate-y-1/2 text-slate-400" />
+              <input v-model="sourceSearch" class="input py-2 pl-8 text-xs" placeholder="Найти в тексте" />
+            </label>
+          </div>
           <div
             data-testid="vacancy-source-text"
-            class="max-h-[70vh] overflow-auto whitespace-pre-wrap px-4 py-3 text-sm leading-6 text-slate-700"
+            class="max-h-72 overflow-auto whitespace-pre-wrap px-4 py-3 text-sm leading-6 text-slate-700 lg:max-h-[68vh]"
           >
-            {{ vacancy.source_text ?? 'Текст вакансии недоступен' }}
+            <template v-if="sourceText">
+              <template v-for="(part, index) in highlightedSource" :key="index">
+                <mark v-if="part.match" class="rounded bg-amber-200 px-0.5 text-slate-900">{{ part.text }}</mark>
+                <span v-else>{{ part.text }}</span>
+              </template>
+            </template>
+            <span v-else class="text-slate-400">Текст вакансии недоступен</span>
           </div>
         </aside>
       </div>
+
+      <div class="sticky bottom-3 z-20">
+        <div class="card flex flex-wrap items-center gap-2 p-3 shadow-xl backdrop-blur">
+          <span class="mr-auto flex items-center gap-2 px-1 text-xs font-medium" :class="dirty ? 'text-amber-700' : 'text-slate-400'">
+            <span class="h-2 w-2 rounded-full" :class="dirty ? 'bg-amber-400' : 'bg-slate-300'" />
+            {{ dirty ? 'Есть несохранённые изменения' : 'Изменений нет' }}
+          </span>
+          <button class="btn-danger" :disabled="deleting || saving" @click="deleteOpen = true">
+            <Trash2 :size="16" />
+            Удалить
+          </button>
+          <button
+            v-if="canConfirmDraft"
+            class="btn-success"
+            :disabled="saving || duplicateKeys.size > 0"
+            @click="save"
+          >
+            <Sparkles :size="16" />
+            {{ saving ? 'Подтверждение…' : 'Подтвердить черновик' }}
+          </button>
+          <button
+            class="btn-primary"
+            :disabled="!dirty || saving || duplicateKeys.size > 0"
+            @click="save"
+          >
+            <LoaderCircle v-if="saving" :size="16" class="animate-spin" />
+            <Save v-else :size="16" />
+            {{ saving ? 'Сохранение…' : 'Сохранить шаблон' }}
+          </button>
+        </div>
+      </div>
     </template>
+
+    <ConfirmDialog
+      :open="deleteOpen"
+      title="Удалить вакансию?"
+      message="Вакансия будет удалена вместе с версиями требований. Её вклад исчезнет из истории типов. Это действие необратимо."
+      confirm-label="Удалить"
+      danger
+      @cancel="deleteOpen = false"
+      @confirm="confirmDeleteVacancy"
+    />
   </section>
 </template>

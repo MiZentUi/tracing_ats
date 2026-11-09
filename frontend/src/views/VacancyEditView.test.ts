@@ -101,9 +101,9 @@ describe('VacancyEditView', () => {
     expect(wrapper.text()).toContain('Научим / не требуется')
     expect(wrapper.get('[data-testid="vacancy-source-text"]').text()).toContain('JavaScript')
 
-    const selects = wrapper.findAll('select[aria-label="Тип требования"]')
-    expect(selects).toHaveLength(3)
-    await selects[0].setValue('OPTIONAL')
+    const cards = wrapper.findAll('[data-testid="requirement-card"]')
+    expect(cards).toHaveLength(3)
+    await cards[0].get('button[data-kind="OPTIONAL"]').trigger('click')
     await flushPromises()
 
     const optionalSection = wrapper.get('[data-section="OPTIONAL"]')
