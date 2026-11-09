@@ -1,0 +1,18 @@
+syntax = "proto3";
+
+package scoring_service.v1.models.features;
+import "scoring_service/v1/models/features/common.proto";
+
+message SkillRequirement {
+  string name           = 1;
+  string normalize_name = 2;
+  string description    = 3;
+  uint32 tenure         = 4;
+}
+
+message SkillPerResume {
+    optional uint32 recency = 1;
+    string name = 2;
+    string normalized_name = 3;
+    scoring_service.v1.models.features.FeatureEvidence evidence = 4;
+}

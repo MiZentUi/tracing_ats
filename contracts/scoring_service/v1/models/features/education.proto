@@ -1,0 +1,35 @@
+syntax = "proto3";
+
+package scoring_service.v1.models.features;
+import "google/type/date.proto";
+import "scoring_service/v1/models/features/common.proto";
+
+enum EducationLevel {
+  EDUCATION_LEVEL_UNSPECIFIED = 0;
+  /// Среднее (школа)
+  EDUCATION_LEVEL_SECONDARY = 1;
+  /// Среднее специальное
+  EDUCATION_LEVEL_SECONDARY_SPECIALIZED = 2;
+  /// Бакалавриат
+  EDUCATION_LEVEL_BACHELOR = 3;
+  /// Магистратура
+  EDUCATION_LEVEL_MASTER = 4;
+}
+
+message EducationRequirement {
+  string master = 1;
+  EducationLevel level = 2;
+}
+
+message EducationPerResume {
+    string university = 1;
+    google.type.Date graduation_year = 2;
+}
+
+message SkillRequirement {
+  string             name           = 1;
+  string             normalize_name = 2;
+  string             description    = 3;
+  scoring_service.v1.models.features.FeatureCriticality criticality    = 4;
+  uint32             tenure         = 5;
+}

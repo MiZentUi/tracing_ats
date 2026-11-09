@@ -1,0 +1,20 @@
+syntax = "proto3";
+
+package scoring_service.v1.models.features;
+import "google/type/date.proto";
+import "scoring_service/v1/models/features/common.proto";
+
+message PriorExperienceRequirement {
+    uint32 tenure = 1;
+    string category = 2;
+}
+
+
+message PriorExperiencePerResume {
+    string category = 1;
+    google.type.Date begin = 2;
+    google.type.Date end = 3;
+    repeated FeatureEvidence metrics = 4;
+    string position = 5;
+}
+

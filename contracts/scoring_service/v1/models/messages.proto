@@ -1,4 +1,42 @@
 syntax = "proto3";
 
 package scoring_service.v1.models;
+import "scoring_service/v1/models/features.proto";
 
+/// Уровень позиции
+enum JobPositionLevel {
+  JOB_POSITION_UNSPECIFIED = 0;
+  JOB_POSITION_INTERN      = 1;
+  JOB_POSITION_JUNIOR      = 2;
+  JOB_POSITION_MIDDLE      = 3;
+  JOB_POSITION_SENIOR      = 4;
+}
+
+/// Полное описание вакансии. Содержит как общую
+/// информацию о вакансии, так и
+message Vacancy {
+  uint32                      tenure           = 1;
+  string                      text_description = 2;
+  JobPositionLevel            position         = 3;
+  string                      category         = 4;
+  repeated FeatureRequirement requirements     = 5;
+}
+
+message UnprocessedResume {
+  string text = 1;
+}
+
+message ScoreResumeRequest {
+  Vacancy           vacancy = 1;
+  UnprocessedResume resume  = 2;
+}
+
+message ScoreResumeResponse {
+  double                     relevance  = 1;
+  double                     score_low  = 2;
+  double                     score_high = 3;
+  double                     score      = 4;
+  optional int32             tenure     = 5;
+  bool                       refine     = 6;
+  repeated FeatureAssessment features   = 7;
+}
