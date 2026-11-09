@@ -1,0 +1,10 @@
+MOCK_SCENARIO: bad-quote
+
+Data Engineer
+
+Обязательно:
+- Python от 2 лет
+- SQL
+
+Желательно:
+- Airflow

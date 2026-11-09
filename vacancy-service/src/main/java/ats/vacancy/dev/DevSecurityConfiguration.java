@@ -21,13 +21,9 @@ public class DevSecurityConfiguration {
     @Bean
     @Order(1)
     SecurityFilterChain devSecurityFilterChain(HttpSecurity http) throws Exception {
-        return http.csrf(csrf -> csrf.disable())
-                .authorizeHttpRequests(
-                        auth ->
-                                auth.requestMatchers("/api/v1/dev/**")
-                                        .permitAll()
-                                        .anyRequest()
-                                        .authenticated())
+        return http.securityMatcher("/api/v1/dev/**")
+                .csrf(csrf -> csrf.disable())
+                .authorizeHttpRequests(auth -> auth.anyRequest().permitAll())
                 .build();
     }
 }

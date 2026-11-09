@@ -1,0 +1,12 @@
+.git
+.idea
+.vscode
+temp
+docs
+**/build
+**/.gradle
+**/node_modules
+**/dist
+resume-service
+scoring-service
+migrations

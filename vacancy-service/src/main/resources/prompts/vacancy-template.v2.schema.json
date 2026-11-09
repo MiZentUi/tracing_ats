@@ -1,0 +1,24 @@
+{
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["schema_version", "title", "requirements"],
+  "properties": {
+    "schema_version": { "type": "integer" },
+    "title": { "type": ["string", "null"] },
+    "requirements": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["skill", "kind", "years_required", "quote", "clarity_warning"],
+        "properties": {
+          "skill": { "type": ["string", "null"] },
+          "kind": { "type": "string", "enum": ["MUST", "NICE", "OPTIONAL"] },
+          "years_required": { "type": ["number", "null"] },
+          "quote": { "type": "string" },
+          "clarity_warning": { "type": ["string", "null"] }
+        }
+      }
+    }
+  }
+}

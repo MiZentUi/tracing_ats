@@ -3,9 +3,11 @@ package ats.vacancy;
 import ats.extraction.TextExtractionConfiguration;
 import org.springframework.boot.SpringApplication;
 import org.springframework.boot.autoconfigure.SpringBootApplication;
+import org.springframework.boot.context.properties.ConfigurationPropertiesScan;
 import org.springframework.context.annotation.Import;
 
 @SpringBootApplication
+@ConfigurationPropertiesScan
 @Import(TextExtractionConfiguration.class)
 public class VacancyServiceApplication {
 

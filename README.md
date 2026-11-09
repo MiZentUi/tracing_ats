@@ -121,7 +121,7 @@ flowchart TB
 
 Две ветки, которые легко потерять:
 
-- **Пунктир 5 → история → 3** — обратная связь. Когда HR сохраняет шаблон, её расстановка (`kind`, `weight`, `critical`) записывается в историю по паре «специализация × уровень × навык». В следующем шаблоне для той же пары навык получает плейсхолдер из истории, если он есть в требованиях. Отклики и статистика резюме в весах не участвуют.
+- **Пунктир 5 → история → 3** — обратная связь. Когда HR сохраняет шаблон, её расстановка (`kind`, `weight`, `critical`) записывается в историю по паре «специализация × уровень × навык». В MVP по RFC-002 хранится только `kind`: счётчики `MUST`/`NICE`/`OPTIONAL` ведутся в `skill_kind_stat`, весов и `critical` в шаблоне пока нет. В следующем шаблоне для той же пары навык получает плейсхолдер из истории, если он есть в требованиях. Отклики и статистика резюме в весах не участвуют.
 - **Ветка отказа** — кандидат, не прошедший отбор на шаге 12, сразу получает письмо с причинами. GitHub у него не запрашивается.
 
 ---
@@ -257,6 +257,7 @@ flowchart LR
 | **generation** | модуль Java | Вопросы по проекту, черновик письма отказа |
 | **ml client** | модуль Java, Spring gRPC | Единственная точка вызова Python-ML: предварительный скор и тот же расчёт с внешними данными |
 | **weight memory** | модуль Java | История расстановки HR по специализации × уровню × навыку |
+| **kind memory** | модуль Java | История типов требований (`MUST`/`NICE`/`OPTIONAL`) по специализации × уровню × навыку (MVP, RFC-002) |
 | **screening policy** | модуль Java | Порог, top-N, пограничная зона, ручной override с причиной |
 | **github-enrichment** | модуль Java, GitHub REST или GraphQL | Сбор фактов только для шорт-листа, нормализация в `facts` |
 | **report** | модуль Java, HTML в PDF | Отчёт для нанимающего менеджера |
@@ -438,6 +439,7 @@ flowchart LR
 ```
 
 - Наблюдение пишется при сохранении шаблона (шаг 5) по каждому требованию: специализация, уровень, нормализованный навык, `kind`, `weight`, `critical`, источник (`HR_EDITED` — HR изменила, `HR_CONFIRMED` — оставила как есть).
+- В MVP (RFC-002) наблюдение ограничено типом: при сохранении шаблона по каждому требованию пишутся специализация, уровень, нормализованный навык и `kind`. Счётчики `MUST`/`NICE`/`OPTIONAL` в `skill_kind_stat` меняются атомарно, создание черновика статистику не меняет.
 - Ключ памяти — **специализация × уровень × навык**. Значения junior и senior не смешиваются: «Python обязательный для junior-аналитика» и «Python желательный для senior-аналитика» — разные записи.
 - В новом шаблоне плейсхолдер подставляется только если навык уже есть в извлечённых требованиях. Отсутствующие навыки из истории не добавляются.
 - После каждого изменения вычисляется средний вес.
@@ -484,6 +486,9 @@ stateDiagram-v2
 ```mermaid
 erDiagram
     VACANCY ||--o{ REQUIREMENT : has
+    SPECIALIZATION ||--o{ SKILL_KIND_STAT : pair
+    LEVEL ||--o{ SKILL_KIND_STAT : pair
+    SKILL ||--o{ SKILL_KIND_STAT : counts
     VACANCY ||--o{ WEIGHT_OBSERVATION : records
     WEIGHT_PROFILE ||--o{ VACANCY : sets
     VACANCY ||--o{ APPLICATION : receives
@@ -508,11 +513,25 @@ erDiagram
         uuid id PK
         uuid vacancy_id FK
         string skill
-        string kind "must or nice"
+        string skill_text "имя NEW-навыка до сохранения"
+        string kind "MUST NICE OPTIONAL"
+        string kind_source "LLM HISTORY HR"
+        string llm_kind "исходное предложение LLM"
         int weight
         boolean critical
         float years_required
         float half_life_years
+        string quote "цитата из вакансии"
+        string clarity_warning
+    }
+    SKILL_KIND_STAT {
+        uuid specialization_id PK,FK
+        uuid level_id PK,FK
+        uuid skill_id PK,FK
+        int must_count
+        int nice_count
+        int optional_count
+        timestamp updated_at
     }
     WEIGHT_OBSERVATION {
         uuid id PK
@@ -604,6 +623,7 @@ erDiagram
 - **Версии профилей гиперпараметров неизменяемы.** Артефакт обучения хранится с `dataset_hash` и метриками; активация создаёт новую версию, старые запуски не пересчитываются.
 - **PII лежит отдельно и зашифрованной** (`PII_VAULT`). В `PARSED_RESUME` только обезличенные данные.
 - **Раскрытие данных в слепом режиме** пишется в журнал аудита с причиной.
+- **MVP (RFC-002):** шаблон хранит разметку типа `kind` и счётчики `skill_kind_stat`; `weight` и `critical` появятся в P1, до этого числовая важность требования в БД не хранится.
 
 ---
 
@@ -617,8 +637,12 @@ erDiagram
 
 | Метод и путь                                     | Назначение                                                                                        |
 |--------------------------------------------------|---------------------------------------------------------------------------------------------------|
-| `POST /api/v1/vacancies`                         | Создать вакансию из текста, получить черновик шаблона                                             |
-| `PUT /api/v1/vacancies/{id}/template`            | HR сохраняет правки требований и весов (новая версия). Расстановка пишется в `WEIGHT_OBSERVATION` |
+| `GET /api/v1/specializations`                    | Справочник специализаций (`code`, `name`)                                                         |
+| `GET /api/v1/levels`                             | Справочник уровней (`code`, `name`)                                                               |
+| `GET /api/v1/vacancies`                          | Список вакансий с пагинацией (`limit`, `offset`)                                                  |
+| `POST /api/v1/vacancies`                         | Создать вакансию из текста или файла, получить черновик шаблона                                   |
+| `GET /api/v1/vacancies/{id}`                     | Вакансия с текущей версией шаблона                                                                |
+| `PUT /api/v1/vacancies/{id}/template`            | HR сохраняет правки типов требований (новая версия). Счётчики пишутся в `skill_kind_stat`          |
 | `POST /api/v1/vacancies/{id}/screen`             | Запустить предварительный скоринг пачки, ответ `202`                                              |
 | `GET /api/v1/vacancies/{id}/ranking`             | Рейтинг с пометкой предварительный или итоговый балл                                              |
 | `POST /api/v1/resumes`                           | Загрузка PDF, DOCX, TXT                                                                           |
@@ -664,43 +688,60 @@ erDiagram
 ```json
 {
   "vacancy_id": "7f3c…",
+  "specialization": "backend",
   "level": "middle",
-  "specialization": "analyst",
-  "weight_profile": "middle",
-  "requirements": [
-    {
-      "id": "req-1",
-      "skill": "Python",
-      "kind": "must",
-      "critical": true,
-      "weight": 3,
-      "weight_source": "HR_HISTORY",
-      "prior_observations": 3,
-      "years_required": 3,
-      "half_life_years": 5,
-      "related_skills": [],
-      "clarity_warning": null
-    },
-    {
-      "id": "req-2",
-      "skill": "Kafka",
-      "kind": "must",
-      "critical": false,
-      "weight": 2,
-      "years_required": 0,
-      "half_life_years": 3,
-      "related_skills": [{ "skill": "RabbitMQ", "similarity": 0.6 }],
-      "clarity_warning": null
-    },
-    {
-      "id": "req-3",
-      "skill": null,
-      "raw_text": "опыт работы с высоконагруженными системами",
-      "kind": "nice",
-      "weight": 1,
-      "clarity_warning": "Расплывчато: укажите нагрузку (rps, объём данных) и роль кандидата"
+  "title": "Backend-разработчик",
+  "status": "DRAFT",
+  "template": {
+    "version": 1,
+    "is_confirmed": false,
+    "requirements": [
+      {
+        "id": "req-1",
+        "skill": "JavaScript",
+        "skill_id": "…",
+        "normalization_status": "MATCHED",
+        "kind": "MUST",
+        "kind_source": "HISTORY",
+        "llm_kind": "NICE",
+        "years_required": 3,
+        "quote": "опыт работы с JS от 3 лет",
+        "clarity_warning": null,
+        "history": { "must": 4, "nice": 1, "optional": 0 }
+      },
+      {
+        "id": "req-2",
+        "skill": "Tauri",
+        "skill_id": null,
+        "normalization_status": "NEW",
+        "kind": "OPTIONAL",
+        "kind_source": "LLM",
+        "llm_kind": "OPTIONAL",
+        "years_required": null,
+        "quote": "Tauri знать не обязательно, научим",
+        "clarity_warning": null,
+        "history": null
+      },
+      {
+        "id": "req-3",
+        "skill": null,
+        "skill_id": null,
+        "normalization_status": "NEW",
+        "kind": "NICE",
+        "kind_source": "LLM",
+        "llm_kind": "NICE",
+        "years_required": null,
+        "quote": "опыт работы с высоконагруженными системами",
+        "clarity_warning": "Расплывчато: укажите нагрузку (rps, объём данных)",
+        "history": null
+      }
+    ],
+    "meta": {
+      "model": "dots-studio/dots-3-note-preview:free",
+      "prompt_version": "vacancy-template.v2",
+      "dropped_requirements": 0
     }
-  ]
+  }
 }
 ```
 
@@ -796,7 +837,7 @@ Java собирает авторство, объём, устойчивость, 
 
 | Приоритет | Что входит |
 |---|---|
-| **P0** | Java-скелет: auth, вакансии, загрузка PDF/DOCX, извлечение текста, маскировка · Шаблон вакансии через LLM из Java · Python `scoring-service`: gRPC, вызов LLM для разбора резюме и категорий сходства/убедительности, `c_i`, `Score` с детерминированными границами · Шорт-лист по порогу · Отчёт «требование → доказательство → пробел» · Рейтинг · Слепой режим · PDF-отчёт · Docker Compose и демо-данные |
+| **P0** | Java-скелет: auth, вакансии, загрузка PDF/DOCX, извлечение текста, маскировка · Шаблон вакансии через LLM из Java · Python `scoring-service`: gRPC, вызов LLM для разбора резюме и категорий сходства/убедительности, `c_i`, `Score` с детерминированными границами · Шорт-лист по порогу · Отчёт «требование → доказательство → пробел» · Рейтинг · Слепой режим · PDF-отчёт · Docker Compose и демо-данные · Память типов `kind` по специализациям и уровням (исключение RFC-002) |
 | **P1** | Импорт откликов с hh · Скрапинг GitHub, тот же расчёт с внешними данными (`Score_final`), подсветка по уровню подтверждения, проверка накрутки · Профили гиперпараметров junior и senior · Память весов HR по специализациям и уровням (плейсхолдеры `kind`/`weight`/`critical`) · Карта смежных навыков · Советы по расплывчатым формулировкам · Вопросы по проекту · Письмо отказа |
 | **P2** | Классификация резюме · Офлайн-обучение гиперпараметров модели в `ml-trainer` и импорт артефакта · Другие внешние источники · Анализ интервью · Рекомендации по улучшению вакансий · Калибровка по оценкам рекрутёров · OCR |
 
@@ -941,3 +982,4 @@ tracing-ats/
 | **Офлайн-обучение** | Отдельный сервис `ml-trainer`: подбирает гиперпараметры модели по обезличенному датасету и отдаёт артефакт |
 | **Артефакт весов** | `weight-profile.json` с версией профиля, гиперпараметрами, метриками и хешем датасета; импортируется в Java как `candidate` |
 | **Память весов** | История расстановки HR (`kind`, `weight`, `critical`) по паре «специализация × уровень × навык»; источник плейсхолдеров в новых шаблонах |
+| **Память типов** | История расстановки HR (`kind`: `MUST`/`NICE`/`OPTIONAL`) по паре «специализация × уровень × навык»; источник подсказок в новых шаблонах; MVP по RFC-002 |

@@ -11,4 +11,8 @@
         Файлы миграций — formatted SQL, лежат в migration/changes.
     -->
     <include file="changes/001-vacancy-schema.sql" relativeToChangelogFile="true"/>
+    <include file="changes/009-requirement-skills-and-kinds.sql" relativeToChangelogFile="true"/>
+    <include file="changes/010-skill-alias-and-seed.sql" relativeToChangelogFile="true"/>
+    <include file="changes/011-skill-kind-stat.sql" relativeToChangelogFile="true"/>
+    <include file="changes/012-seed-specializations.sql" relativeToChangelogFile="true"/>
 </databaseChangeLog>

@@ -1,10 +1,17 @@
 spring:
   application:
     name: vacancy-service
+  config:
+    import: "optional:file:.env[.properties]"
   jpa:
     hibernate:
       ddl-auto: validate
     open-in-view: false
+  liquibase:
+    enabled: false
+  jackson:
+    deserialization:
+      fail-on-unknown-properties: false
   servlet:
     multipart:
       max-file-size: 10MB
@@ -18,3 +25,34 @@ ats:
     extraction-endpoint:
       # Временный endpoint для ручной проверки. По умолчанию выключен.
       enabled: false
+  ingestion:
+    extraction:
+      max-file-size: 5MB
+      max-text-chars: 30000
+
+vacancy:
+  llm:
+    base-url: https://openrouter.ai/api/v1
+    # Ключ OpenRouter. Не вписывай значение сюда: задай переменную окружения
+    # OPENROUTER_API_KEY или строку OPENROUTER_API_KEY=... в файле .env
+    api-key: ${OPENROUTER_API_KEY:}
+    model: dots-studio/dots-3-note-preview:free
+    fallback-models:
+      - google/gemma-4-31b-it:free
+      - google/gemma-4-26b-a4b-it:free
+    temperature: 0
+    max-tokens: 6000
+    connect-timeout: 5s
+    read-timeout: 120s
+    total-timeout: 170s
+    max-attempts: 3
+    delay: 5s
+    multiplier: 2
+    prompt-version: vacancy-template.v2
+    max-requirements: 50
+  template:
+    max-text-chars: 30000
+    max-file-size: 5MB
+    kind-history:
+      min-observations: 3
+      min-share: 0.6

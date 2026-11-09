@@ -1,0 +1,10 @@
+MOCK_SCENARIO: fenced
+
+Frontend-разработчик
+
+Обязательно:
+- JavaScript
+- TypeScript
+
+Желательно:
+- Vue

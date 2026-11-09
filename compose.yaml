@@ -50,11 +50,15 @@ services:
 
   vacancy-service:
     build:
-      context: ./vacancy-service
+      context: .
+      dockerfile: vacancy-service/Dockerfile
     environment:
       SPRING_DATASOURCE_URL: jdbc:postgresql://postgres:5432/${POSTGRES_DB:-ats}
       SPRING_DATASOURCE_USERNAME: ${POSTGRES_USER:-ats}
       SPRING_DATASOURCE_PASSWORD: ${POSTGRES_PASSWORD:-ats}
+      # Для запуска без ключа: VACANCY_PROFILES=mock-llm
+      SPRING_PROFILES_ACTIVE: ${VACANCY_PROFILES:-}
+      MOCK_LLM_URL: http://mock-llm:8089/api/v1
     ports:
       - "${VACANCY_SERVICE_PORT:-8080}:8080"
     depends_on:
@@ -72,6 +76,25 @@ services:
       SCORING_SERVICE_LOG_LEVEL: ${SCORING_SERVICE_LOG_LEVEL:-INFO}
     ports:
       - "${SCORING_SERVICE_PORT:-8082}:8082"
+    restart: unless-stopped
+
+  mock-llm:
+    build:
+      context: ./infra/mock-llm
+    ports:
+      - "${MOCK_LLM_PORT:-8089}:8089"
+    restart: unless-stopped
+
+  frontend:
+    build:
+      context: .
+      dockerfile: frontend/Dockerfile
+    environment:
+      VACANCY_SERVICE_URL: http://vacancy-service:8080
+    ports:
+      - "${FRONTEND_PORT:-3000}:80"
+    depends_on:
+      - vacancy-service
     restart: unless-stopped
 
 volumes:
