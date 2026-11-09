@@ -2,7 +2,6 @@ syntax = "proto3";
 
 package scoring_service.v1.models.features;
 import "google/type/date.proto";
-import "scoring_service/v1/models/features/common.proto";
 
 enum EducationLevel {
   EDUCATION_LEVEL_UNSPECIFIED = 0;

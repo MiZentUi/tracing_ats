@@ -6,7 +6,7 @@ Python 3.14, uv, gRPC, Pydantic. Онлайн-ML: разбор обезличе�
 
 ## Текущее состояние
 
-Каркас поднимает gRPC-сервер и стандартный `grpc.health.v1.Health`. Доменные RPC скоринга добавляются по мере фиксации gRPC-контракта.
+Сервис поднимает gRPC-сервер, стандартный `grpc.health.v1.Health` и заглушку `ScoringService.ScoreResume`. Заглушка возвращает детерминированный результат `0.5` с вилкой `0.4–0.6` и по одному `FeatureAssessment` на каждое требование вакансии. Реальная математика скоринга появится позже.
 
 ## Требования
 
@@ -24,6 +24,14 @@ uv run scoring-service
 
 ```bash
 uv run scoring-service-healthcheck
+```
+
+## Генерация gRPC
+
+Сгенерированные protobuf/gRPC-модули лежат в `src/scoring_service/` и коммитятся вместе с контрактом. После изменения `.proto`:
+
+```bash
+uv run sh protoc.sh
 ```
 
 ## Конфигурация
@@ -66,9 +74,11 @@ scoring-service/
 ├── Dockerfile
 ├── src/api/
 │   ├── config.py       # настройки из окружения
-│   ├── server.py       # gRPC-сервер и health service
+│   ├── server.py       # gRPC-сервер, health и ScoringService
+│   ├── scoring.py      # заглушка ScoreResume
 │   └── healthcheck.py  # проверка для Docker/Compose
+├── src/scoring_service/v1/  # сгенерированные protobuf/gRPC-модули
 └── tests/
 ```
 
-Арифметика скоринга будет жить в `src/api/scoring/`; формулы не дублируются в Java и других сервисах.
+Заглушка живёт в `src/api/scoring.py`; реальная арифметика будет в `src/api/scoring/`, формулы не дублируются в Java и других сервисах.

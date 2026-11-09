@@ -1,6 +1,8 @@
-#!sh
+#!/usr/bin/env sh
+set -eu
 
-cd ../contracts/proto
+SCRIPT_DIR=$(dirname "$0")
+cd "$SCRIPT_DIR/../contracts/proto"
 
 OUT=../../scoring-service/src/
 PROTOBUFS="scoring_service/v1/models/features/common.proto \
@@ -16,4 +18,3 @@ python -m grpc_tools.protoc -I. \
     --pyi_out=$OUT \
     --grpc_python_out=$OUT \
     $PROTOBUFS
-    # contracts/scoring_service/v1/scoring.proto 

@@ -1,30 +1,34 @@
+from __future__ import annotations
+
 import grpc
 
-from scoring_service.v1.models.messages_pb2 import (
-    
-)
-from contracts.scoring_service.v1.scoring_pb2_grpc import ScoringServiceServicer
+from scoring_service.v1 import scoring_pb2_grpc
+from scoring_service.v1.models import features_pb2, messages_pb2
 
 
-class ScoringService(ScoringServiceServicer):
+class ScoringService(scoring_pb2_grpc.ScoringServiceServicer):
+    """Deterministic placeholder until the scoring model is wired in."""
+
     def ScoreResume(
-        self, request: , context: grpc.ServicerContext
-    ) -> ScoreResumeResponse:
-        return ScoreResumeResponse(
-            relevance=0.0,
-            score_low=0.0,
-            score_high=1.0,
+        self,
+        request: messages_pb2.ScoreResumeRequest,
+        context: grpc.ServicerContext,
+    ) -> messages_pb2.ScoreResumeResponse:
+        features = [
+            features_pb2.FeatureAssessment(
+                id=requirement.id or f"feature-{index}",
+                relevance=0.5,
+                coverage=0.5,
+            )
+            for index, requirement in enumerate(request.vacancy.requirements)
+        ]
+
+        return messages_pb2.ScoreResumeResponse(
+            relevance=0.5,
+            score_low=0.4,
+            score_high=0.6,
             score=0.5,
-            tenure=12,
+            tenure=request.vacancy.tenure or None,
             refine=False,
-            skills=[
-                SkillAssessment(
-                    coverage=1.0,
-                    recency_unknown=True,
-                    tenure=None,
-                    evidence=FeatureEvidence(
-                        start_index=0, end_index=8, text="abyrvalg"
-                    ),
-                )
-            ],
+            features=features,
         )

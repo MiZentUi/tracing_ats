@@ -826,15 +826,14 @@ tracing-ats/
 │   ├── gradlew
 │   ├── Dockerfile
 │   └── src/main/java/ats/vacancy/
-├── scoring-service/             # Python 3.12, gRPC: LLM и математическая модель
-│   ├── app/
-│   │   ├── api/                 # gRPC-сервер
-│   │   ├── llm/                 # клиент LLM и промпты резюме
-│   │   ├── analyze/             # разбор резюме, неявные навыки, m/t
-│   │   ├── scoring/             # q, E, D, c_r, M/N/F, Score, cap, вилка, refine
-│   │   └── models/              # Pydantic-схемы
-│   └── tests/golden/            # эталонные резюме и ожидаемый порядок
-├── ml-trainer/                  # Python 3.12, только офлайн-обучение
+├── scoring-service/             # Python 3.14, uv, gRPC: LLM и математическая модель
+│   ├── pyproject.toml
+│   ├── uv.lock
+│   ├── Dockerfile
+│   ├── src/api/                 # gRPC-сервер, конфигурация, заглушка ScoreResume
+│   ├── src/scoring_service/     # сгенерированные protobuf/gRPC-модули
+│   └── tests/                   # golden и контрактные проверки
+├── ml-trainer/                  # Python 3.14, только офлайн-обучение
 │   ├── train/                   # обучение λ, wM, wN, wF
 │   ├── datasets/                # локальные снапшоты для прогонов
 │   ├── artifacts/               # weight-profile.json
