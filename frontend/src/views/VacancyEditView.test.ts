@@ -114,6 +114,21 @@ describe('VacancyEditView', () => {
     expect(skillInputs).toContain('Docker')
   })
 
+  it('добавляет требование и подсвечивает его для пользователя', async () => {
+    const wrapper = await mountEditor()
+    const addButton = wrapper
+      .findAll('button')
+      .find((button) => button.text().includes('Добавить требование'))
+    await addButton?.trigger('click')
+    await flushPromises()
+
+    expect(wrapper.findAll('[data-testid="requirement-card"]')).toHaveLength(4)
+    const highlighted = wrapper
+      .findAll('[data-requirement-key]')
+      .find((node) => node.classes().includes('ring-2'))
+    expect(highlighted).toBeTruthy()
+  })
+
   it('блокирует сохранение без изменений и разблокирует после правки', async () => {
     const wrapper = await mountEditor()
     const saveButton = wrapper

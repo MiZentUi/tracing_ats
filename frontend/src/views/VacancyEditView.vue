@@ -125,6 +125,22 @@ const duplicateKeys = computed(() => {
   return new Set([...counts.entries()].filter(([, count]) => count > 1).map(([key]) => key))
 })
 
+async function revealRequirement(key: string, focusSkill = false) {
+  highlightedKey.value = key
+  await nextTick()
+  const element = document.querySelector(`[data-requirement-key="${key}"]`)
+  element?.scrollIntoView?.({ behavior: 'smooth', block: 'center' })
+  if (focusSkill) {
+    const input = element?.querySelector<HTMLInputElement>('input[aria-label="Название навыка"]')
+    input?.focus({ preventScroll: true })
+  }
+  window.setTimeout(() => {
+    if (highlightedKey.value === key) {
+      highlightedKey.value = null
+    }
+  }, 1800)
+}
+
 async function updateRequirement(key: string, patch: Partial<EditableRequirement>) {
   const item = requirements.value.find((candidate) => candidate.key === key)
   if (!item) {
@@ -137,16 +153,7 @@ async function updateRequirement(key: string, patch: Partial<EditableRequirement
     const target = kindSections.find((section) => section.kind === patch.kind)
     const name = item.skill?.trim() || item.quote?.slice(0, 40) || 'Требование'
     info('Тип изменён', `«${name}» перенесено в «${target?.title ?? patch.kind}»`)
-    highlightedKey.value = key
-    await nextTick()
-    document
-      .querySelector(`[data-requirement-key="${key}"]`)
-      ?.scrollIntoView?.({ behavior: 'smooth', block: 'center' })
-    window.setTimeout(() => {
-      if (highlightedKey.value === key) {
-        highlightedKey.value = null
-      }
-    }, 1800)
+    await revealRequirement(key)
   }
 }
 
@@ -154,9 +161,10 @@ function removeRequirement(key: string) {
   requirements.value = requirements.value.filter((item) => item.key !== key)
 }
 
-function addRequirement() {
+async function addRequirement() {
+  const key = `new-${Date.now()}-${requirements.value.length}`
   requirements.value.push({
-    key: `new-${Date.now()}-${requirements.value.length}`,
+    key,
     id: null,
     skill: '',
     skillId: null,
@@ -169,6 +177,8 @@ function addRequirement() {
     clarityWarning: null,
     history: null,
   })
+  info('Добавлено требование', 'Заполните название навыка')
+  await revealRequirement(key, true)
 }
 
 async function save() {
