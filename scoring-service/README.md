@@ -55,6 +55,8 @@ uv run ruff check .
 uv run ruff format --check .
 ```
 
+CI выполняет эти же проверки в job `Python / scoring-service`, а также перегенерирует protobuf-модули через `protoc.sh` и проверяет, что они совпадают с закоммиченными.
+
 ## Docker
 
 Из корня репозитория:
