@@ -32,6 +32,12 @@ export function toEditable(requirement: Requirement, index: number): EditableReq
   }
 }
 
+export const NO_LEVEL = 'none'
+
+export function levelLabel(code: string | null | undefined): string {
+  return !code || code === NO_LEVEL ? 'Без уровня' : code
+}
+
 export const kindSections: Array<{ kind: SkillKind; title: string; hint: string }> = [
   { kind: 'MUST', title: 'Обязательные', hint: 'Пока нет обязательных требований' },
   { kind: 'NICE', title: 'Желательные', hint: 'Пока нет желательных требований' },

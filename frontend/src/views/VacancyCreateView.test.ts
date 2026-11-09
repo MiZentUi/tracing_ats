@@ -4,6 +4,7 @@ import { describe, expect, it, vi } from 'vitest'
 import VacancyCreateView from './VacancyCreateView.vue'
 
 const createVacancy = vi.fn()
+const createSpecialization = vi.fn()
 
 vi.mock('@/api', () => ({
   vacanciesApi: {
@@ -12,6 +13,7 @@ vi.mock('@/api', () => ({
   referenceApi: {
     listSpecializations: () => Promise.resolve({ data: [{ code: 'backend', name: 'Backend' }] }),
     listLevels: () => Promise.resolve({ data: [{ code: 'middle', name: 'Middle' }] }),
+    createSpecialization: (...args: unknown[]) => createSpecialization(...args),
   },
   apiErrorMessage: () => 'Ошибка',
   apiErrorCode: () => null,
@@ -52,6 +54,40 @@ describe('VacancyCreateView', () => {
 
     resolveRequest({ data: { vacancy_id: 'vacancy-1' } })
     await flushPromises()
+  })
+
+  it('добавляет специализацию и выбирает её', async () => {
+    createSpecialization.mockResolvedValue({ data: { code: 'analitika', name: 'Аналитика' } })
+    const wrapper = await mountCreate()
+
+    const toggle = wrapper
+      .findAll('button')
+      .find((button) => button.text().includes('Добавить специализацию'))
+    await toggle?.trigger('click')
+    await wrapper.get('input[placeholder="Например, Аналитика"]').setValue('Аналитика')
+    const addButton = wrapper
+      .findAll('button')
+      .find((button) => button.text().trim() === 'Добавить')
+    await addButton?.trigger('click')
+    await flushPromises()
+
+    expect(createSpecialization).toHaveBeenCalledWith({
+      createSpecializationRequest: { name: 'Аналитика', code: null },
+    })
+    expect((wrapper.findAll('select')[0].element as HTMLSelectElement).value).toBe('analitika')
+  })
+
+  it('позволяет создать вакансию без уровня', async () => {
+    createVacancy.mockResolvedValue({ data: { vacancy_id: 'vacancy-1' } })
+    const wrapper = await mountCreate()
+    await wrapper.findAll('select')[0].setValue('backend')
+    await wrapper.get('textarea').setValue('Java')
+    expect(wrapper.get('button[type="submit"]').attributes('disabled')).toBeUndefined()
+    await wrapper.get('form').trigger('submit')
+    await flushPromises()
+    expect(createVacancy).toHaveBeenCalledWith(
+      expect.objectContaining({ level: 'none', specialization: 'backend' }),
+    )
   })
 
   it('не отправляет форму без текста', async () => {

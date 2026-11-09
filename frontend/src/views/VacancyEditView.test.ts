@@ -125,6 +125,30 @@ describe('VacancyEditView', () => {
     expect(saveButton?.attributes('disabled')).toBeUndefined()
   })
 
+  it('подтверждает черновик без изменений', async () => {
+    const draft = vacancy()
+    const confirmed: Vacancy = {
+      ...draft,
+      status: 'ACTIVE',
+      template: { ...draft.template, version: 2, is_confirmed: true },
+    }
+    updateVacancyTemplate.mockResolvedValue({ data: confirmed })
+    const wrapper = await mountEditor()
+
+    const confirmButton = wrapper
+      .findAll('button')
+      .find((button) => button.text().includes('Подтвердить черновик'))
+    expect(confirmButton).toBeTruthy()
+    await confirmButton?.trigger('click')
+    await flushPromises()
+
+    expect(updateVacancyTemplate).toHaveBeenCalledTimes(1)
+    expect(wrapper.text()).toContain('Сохранено, версия 2')
+    expect(
+      wrapper.findAll('button').some((button) => button.text().includes('Подтвердить черновик')),
+    ).toBe(false)
+  })
+
   it('показывает 409 и предлагает перезагрузить', async () => {
     errorCode = 'VERSION_CONFLICT'
     updateVacancyTemplate.mockRejectedValue(new Error('conflict'))

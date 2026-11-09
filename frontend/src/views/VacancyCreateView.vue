@@ -8,19 +8,23 @@ const router = useRouter()
 const specializations = ref<ReferenceItem[]>([])
 const levels = ref<ReferenceItem[]>([])
 const specialization = ref('')
-const level = ref('')
+const level = ref('none')
 const title = ref('')
 const mode = ref<'text' | 'file'>('text')
 const text = ref('')
 const file = ref<File | null>(null)
 const loading = ref(false)
 const error = ref('')
+const showSpecializationForm = ref(false)
+const newSpecializationName = ref('')
+const newSpecializationCode = ref('')
+const addingSpecialization = ref(false)
+const specializationError = ref('')
 
 const canSubmit = computed(
   () =>
     !loading.value &&
     specialization.value !== '' &&
-    level.value !== '' &&
     (mode.value === 'text' ? text.value.trim() !== '' : file.value !== null),
 )
 
@@ -42,6 +46,34 @@ function onFile(event: Event) {
   file.value = selected
 }
 
+async function addSpecialization() {
+  if (!newSpecializationName.value.trim()) {
+    specializationError.value = 'Укажите название специализации'
+    return
+  }
+  addingSpecialization.value = true
+  specializationError.value = ''
+  try {
+    const response = await referenceApi.createSpecialization({
+      createSpecializationRequest: {
+        name: newSpecializationName.value.trim(),
+        code: newSpecializationCode.value.trim() || null,
+      },
+    })
+    specializations.value = [...specializations.value, response.data].sort((left, right) =>
+      left.name.localeCompare(right.name, 'ru'),
+    )
+    specialization.value = response.data.code
+    newSpecializationName.value = ''
+    newSpecializationCode.value = ''
+    showSpecializationForm.value = false
+  } catch (e) {
+    specializationError.value = apiErrorMessage(e)
+  } finally {
+    addingSpecialization.value = false
+  }
+}
+
 async function submit() {
   if (!canSubmit.value) {
     return
@@ -51,7 +83,7 @@ async function submit() {
   try {
     const response = await vacanciesApi.createVacancy({
       specialization: specialization.value,
-      level: level.value,
+      level: level.value || undefined,
       title: title.value.trim() || undefined,
       text: mode.value === 'text' ? text.value : undefined,
       file: mode.value === 'file' ? file.value : undefined,
@@ -83,14 +115,54 @@ async function submit() {
           </select>
         </label>
         <label class="text-sm">
-          Уровень
-          <select v-model="level" class="mt-1 w-full rounded border border-slate-300 px-3 py-2" required>
-            <option value="" disabled>Выберите</option>
+          Уровень (необязательно)
+          <select v-model="level" class="mt-1 w-full rounded border border-slate-300 px-3 py-2">
+            <option value="none">Без уровня</option>
             <option v-for="item in levels" :key="item.code" :value="item.code">
               {{ item.name }}
             </option>
           </select>
         </label>
+      </div>
+
+      <div class="text-sm">
+        <button
+          type="button"
+          class="text-indigo-700 hover:underline"
+          @click="showSpecializationForm = !showSpecializationForm"
+        >
+          {{ showSpecializationForm ? 'Скрыть форму' : 'Добавить специализацию' }}
+        </button>
+      </div>
+
+      <div v-if="showSpecializationForm" class="space-y-3 rounded border border-slate-200 bg-slate-50 p-4">
+        <p v-if="specializationError" class="text-sm text-red-600">{{ specializationError }}</p>
+        <div class="grid gap-3 sm:grid-cols-2">
+          <label class="text-sm">
+            Название
+            <input
+              v-model="newSpecializationName"
+              class="mt-1 w-full rounded border border-slate-300 px-3 py-2"
+              placeholder="Например, Аналитика"
+            />
+          </label>
+          <label class="text-sm">
+            Код (необязательно)
+            <input
+              v-model="newSpecializationCode"
+              class="mt-1 w-full rounded border border-slate-300 px-3 py-2"
+              placeholder="analytics"
+            />
+          </label>
+        </div>
+        <button
+          type="button"
+          class="rounded bg-slate-900 px-3 py-2 text-sm text-white disabled:opacity-50"
+          :disabled="addingSpecialization"
+          @click="addSpecialization"
+        >
+          {{ addingSpecialization ? 'Добавление…' : 'Добавить' }}
+        </button>
       </div>
 
       <label class="block text-sm">

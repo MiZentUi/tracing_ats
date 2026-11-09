@@ -19,9 +19,14 @@ const levels = ref<ReferenceItem[]>([])
 const snapshot = ref('')
 const loading = ref(true)
 const saving = ref(false)
+const deleting = ref(false)
 const error = ref('')
 const conflict = ref(false)
 const savedMessage = ref('')
+
+const canConfirmDraft = computed(
+  () => !!vacancy.value && !vacancy.value.template.is_confirmed && !saving.value && !deleting.value,
+)
 
 function serialize() {
   return JSON.stringify({
@@ -161,8 +166,27 @@ async function save() {
   }
 }
 
+async function deleteVacancy() {
+  if (!vacancy.value || deleting.value) {
+    return
+  }
+  if (!window.confirm(`Удалить вакансию «${vacancy.value.title}»? Действие необратимо.`)) {
+    return
+  }
+  deleting.value = true
+  error.value = ''
+  try {
+    await vacanciesApi.deleteVacancy({ id: props.id })
+    await router.push('/vacancies')
+  } catch (e) {
+    error.value = apiErrorMessage(e)
+  } finally {
+    deleting.value = false
+  }
+}
+
 onBeforeRouteLeave(() => {
-  if (dirty.value && !saving.value) {
+  if (dirty.value && !saving.value && !deleting.value) {
     return window.confirm('Есть несохранённые изменения. Перейти без сохранения?')
   }
   return true
@@ -186,9 +210,17 @@ onMounted(load)
           </span>
         </p>
       </div>
-      <div class="flex gap-2">
+      <div class="flex flex-wrap gap-2">
         <button class="rounded border border-slate-300 px-3 py-2 text-sm" @click="router.push('/vacancies')">
           К списку
+        </button>
+        <button
+          v-if="canConfirmDraft"
+          class="rounded border border-emerald-600 px-3 py-2 text-sm text-emerald-700 disabled:opacity-50"
+          :disabled="saving || duplicateKeys.size > 0"
+          @click="save"
+        >
+          {{ saving ? 'Подтверждение…' : 'Подтвердить черновик' }}
         </button>
         <button
           class="rounded bg-slate-900 px-4 py-2 text-sm font-medium text-white disabled:cursor-not-allowed disabled:opacity-50"
@@ -196,6 +228,13 @@ onMounted(load)
           @click="save"
         >
           {{ saving ? 'Сохранение…' : 'Сохранить шаблон' }}
+        </button>
+        <button
+          class="rounded border border-red-300 px-3 py-2 text-sm text-red-700 disabled:opacity-50"
+          :disabled="deleting || saving"
+          @click="deleteVacancy"
+        >
+          {{ deleting ? 'Удаление…' : 'Удалить вакансию' }}
         </button>
       </div>
     </div>
@@ -223,8 +262,9 @@ onMounted(load)
               </select>
             </label>
             <label class="text-sm">
-              Уровень
+              Уровень (необязательно)
               <select v-model="level" class="mt-1 w-full rounded border border-slate-300 px-3 py-2">
+                <option value="none">Без уровня</option>
                 <option v-for="item in levels" :key="item.code" :value="item.code">{{ item.name }}</option>
               </select>
             </label>

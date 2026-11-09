@@ -34,6 +34,10 @@ export function apiErrorMessage(error: unknown): string {
       return 'Один навык указан несколько раз. Исправьте дубликаты'
     case 'NO_ACTIVE_SCORING_WEIGHTS':
       return 'Нет активного профиля весов'
+    case 'SPECIALIZATION_EXISTS':
+      return 'Такая специализация уже есть'
+    case 'INVALID_SPECIALIZATION_CODE':
+      return 'Код специализации: только латиница, цифры и дефисы'
     default:
       if (axios.isAxiosError<ApiStatusResponse>(error)) {
         return error.response?.data?.message ?? 'Не удалось выполнить запрос'

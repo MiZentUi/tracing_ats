@@ -2,9 +2,11 @@
 import { onMounted, ref } from 'vue'
 import type { VacancyList } from '@/api/generated'
 import { apiErrorMessage, vacanciesApi } from '@/api'
+import { levelLabel } from '@/types'
 
 const loading = ref(true)
 const error = ref('')
+const deletingId = ref<string | null>(null)
 const page = ref<VacancyList | null>(null)
 
 async function load() {
@@ -22,6 +24,22 @@ async function load() {
 
 function formatDate(value: string) {
   return new Date(value).toLocaleString('ru-RU', { dateStyle: 'short', timeStyle: 'short' })
+}
+
+async function removeVacancy(id: string, title: string) {
+  if (!window.confirm(`Удалить вакансию «${title}»? Действие необратимо.`)) {
+    return
+  }
+  deletingId.value = id
+  error.value = ''
+  try {
+    await vacanciesApi.deleteVacancy({ id })
+    await load()
+  } catch (e) {
+    error.value = apiErrorMessage(e)
+  } finally {
+    deletingId.value = null
+  }
 }
 
 onMounted(load)
@@ -59,6 +77,7 @@ onMounted(load)
             <th class="px-4 py-3">Статус</th>
             <th class="px-4 py-3">Требований</th>
             <th class="px-4 py-3">Дата</th>
+            <th class="px-4 py-3">Действия</th>
           </tr>
         </thead>
         <tbody>
@@ -69,7 +88,7 @@ onMounted(load)
               </RouterLink>
             </td>
             <td class="px-4 py-3">{{ item.specialization }}</td>
-            <td class="px-4 py-3">{{ item.level }}</td>
+            <td class="px-4 py-3">{{ levelLabel(item.level) }}</td>
             <td class="px-4 py-3">
               <span
                 class="rounded px-2 py-1 text-xs"
@@ -80,6 +99,20 @@ onMounted(load)
             </td>
             <td class="px-4 py-3">{{ item.requirements_count }}</td>
             <td class="px-4 py-3">{{ formatDate(item.created_at) }}</td>
+            <td class="px-4 py-3">
+              <div class="flex gap-3">
+                <RouterLink :to="`/vacancies/${item.id}`" class="text-indigo-700 hover:underline">
+                  Редактировать
+                </RouterLink>
+                <button
+                  class="text-red-600 hover:underline disabled:opacity-50"
+                  :disabled="deletingId === item.id"
+                  @click="removeVacancy(item.id, item.title)"
+                >
+                  {{ deletingId === item.id ? 'Удаление…' : 'Удалить' }}
+                </button>
+              </div>
+            </td>
           </tr>
         </tbody>
       </table>
