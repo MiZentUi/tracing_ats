@@ -4,7 +4,6 @@ import { useRouter } from 'vue-router'
 import {
   ArrowLeft,
   Building2,
-  CheckCircle2,
   FileText,
   LoaderCircle,
   Plus,
@@ -161,27 +160,19 @@ async function submit() {
       <p class="mt-1 text-sm text-slate-500">
         Загрузите описание — LLM выделит требования, а вы проверите типы навыков.
       </p>
-    </div>
-
-    <div class="card flex flex-col gap-3 p-4 sm:flex-row sm:items-center">
-      <template v-for="(step, index) in steps" :key="step.number">
-        <div class="flex flex-1 items-center gap-3">
-          <span
-            class="grid h-9 w-9 shrink-0 place-items-center rounded-full text-sm font-semibold transition"
-            :class="currentStep >= step.number ? 'bg-indigo-600 text-white' : 'bg-slate-100 text-slate-400'"
-          >
-            <CheckCircle2 v-if="currentStep > step.number" :size="16" />
-            <span v-else>{{ step.number }}</span>
-          </span>
-          <div>
-            <p class="text-sm font-semibold" :class="currentStep >= step.number ? 'text-slate-900' : 'text-slate-400'">
-              {{ step.title }}
-            </p>
-            <p class="text-xs text-slate-400">{{ step.hint }}</p>
-          </div>
+      <div class="mt-3 flex items-center gap-3">
+        <div class="h-1.5 w-28 overflow-hidden rounded-full bg-slate-200">
+          <div
+            class="h-full rounded-full bg-indigo-500 transition-all duration-300"
+            :style="{ width: `${(currentStep / steps.length) * 100}%` }"
+          />
         </div>
-        <div v-if="index < steps.length - 1" class="hidden h-px flex-1 bg-slate-200 sm:block" />
-      </template>
+        <p class="text-xs font-medium text-slate-500">
+          Шаг {{ currentStep }} из {{ steps.length }} ·
+          <span class="text-slate-900">{{ steps[currentStep - 1]?.title }}</span>
+          <span class="hidden sm:inline"> — {{ steps[currentStep - 1]?.hint }}</span>
+        </p>
+      </div>
     </div>
 
     <div v-if="error" class="rounded-2xl border border-red-200 bg-red-50 p-4 text-sm text-red-800">

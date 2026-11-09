@@ -52,14 +52,18 @@ const historyRows = computed(() => {
   if (!history) {
     return []
   }
+  const total = history.must + history.nice + history.optional
+  if (total === 0) {
+    return []
+  }
   return [
     { label: 'MUST', count: history.must, color: 'bg-rose-400' },
     { label: 'NICE', count: history.nice, color: 'bg-indigo-400' },
     { label: 'OPTIONAL', count: history.optional, color: 'bg-emerald-400' },
   ]
+    .filter((row) => row.count > 0)
+    .map((row) => ({ ...row, percent: Math.round((row.count / total) * 100) }))
 })
-
-const historyMax = computed(() => Math.max(1, ...historyRows.value.map((row) => row.count)))
 
 function updateSkill(event: Event) {
   emit('update', { skill: (event.target as HTMLInputElement).value })
@@ -148,7 +152,7 @@ function updateYears(event: Event) {
       </button>
     </div>
 
-    <div v-if="requirement.history" class="mt-3 rounded-xl border border-indigo-100 bg-indigo-50/60 p-3">
+    <div v-if="requirement.history && historyRows.length > 0" class="mt-3 rounded-xl border border-indigo-100 bg-indigo-50/60 p-3">
       <div class="flex items-center gap-1.5 text-xs font-semibold text-indigo-800">
         <History :size="13" />
         История HR
@@ -157,9 +161,9 @@ function updateYears(event: Event) {
         <div v-for="row in historyRows" :key="row.label" class="flex items-center gap-2 text-[11px] text-indigo-900/70">
           <span class="w-16 shrink-0 font-medium">{{ row.label }}</span>
           <span class="h-1.5 flex-1 overflow-hidden rounded-full bg-white/80">
-            <span class="block h-full rounded-full" :class="row.color" :style="{ width: `${(row.count / historyMax) * 100}%` }" />
+            <span class="block h-full rounded-full" :class="row.color" :style="{ width: `${row.percent}%` }" />
           </span>
-          <span class="w-4 text-right font-semibold">{{ row.count }}</span>
+          <span class="w-8 text-right font-semibold">{{ row.percent }}%</span>
         </div>
       </div>
       <p v-if="historyConflict" class="mt-2 text-xs leading-5 text-indigo-800">

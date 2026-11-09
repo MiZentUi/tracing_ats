@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { computed, onMounted, ref } from 'vue'
+import { computed, nextTick, onMounted, ref } from 'vue'
 import { onBeforeRouteLeave, useRouter } from 'vue-router'
 import {
   AlertTriangle,
@@ -22,7 +22,7 @@ import { kindSections, levelLabel, toEditable, type EditableRequirement } from '
 
 const props = defineProps<{ id: string }>()
 const router = useRouter()
-const { success, error: toastError } = useToast()
+const { success, info, error: toastError } = useToast()
 
 const vacancy = ref<Vacancy | null>(null)
 const requirements = ref<EditableRequirement[]>([])
@@ -40,6 +40,7 @@ const error = ref('')
 const conflict = ref(false)
 const savedMessage = ref('')
 const sourceSearch = ref('')
+const highlightedKey = ref<string | null>(null)
 
 const canConfirmDraft = computed(
   () => !!vacancy.value && !vacancy.value.template.is_confirmed && !saving.value && !deleting.value,
@@ -124,10 +125,28 @@ const duplicateKeys = computed(() => {
   return new Set([...counts.entries()].filter(([, count]) => count > 1).map(([key]) => key))
 })
 
-function updateRequirement(key: string, patch: Partial<EditableRequirement>) {
+async function updateRequirement(key: string, patch: Partial<EditableRequirement>) {
   const item = requirements.value.find((candidate) => candidate.key === key)
-  if (item) {
-    Object.assign(item, patch)
+  if (!item) {
+    return
+  }
+  const previousKind = item.kind
+  Object.assign(item, patch)
+
+  if (patch.kind && patch.kind !== previousKind) {
+    const target = kindSections.find((section) => section.kind === patch.kind)
+    const name = item.skill?.trim() || item.quote?.slice(0, 40) || 'Требование'
+    info('Тип изменён', `«${name}» перенесено в «${target?.title ?? patch.kind}»`)
+    highlightedKey.value = key
+    await nextTick()
+    document
+      .querySelector(`[data-requirement-key="${key}"]`)
+      ?.scrollIntoView?.({ behavior: 'smooth', block: 'center' })
+    window.setTimeout(() => {
+      if (highlightedKey.value === key) {
+        highlightedKey.value = null
+      }
+    }, 1800)
   }
 }
 
@@ -351,14 +370,20 @@ onMounted(load)
               <p v-if="requirementsFor(section.kind).length === 0" class="rounded-xl border border-dashed border-slate-300 px-4 py-8 text-center text-sm text-slate-400">
                 {{ section.hint }}
               </p>
-              <RequirementCard
+              <div
                 v-for="item in requirementsFor(section.kind)"
                 :key="item.key"
-                :requirement="item"
-                :duplicate="duplicateKeys.has(normalizedSkill(item.skill))"
-                @update="(patch) => updateRequirement(item.key, patch)"
-                @remove="removeRequirement(item.key)"
-              />
+                :data-requirement-key="item.key"
+                class="rounded-2xl transition-all duration-300"
+                :class="highlightedKey === item.key ? 'ring-2 ring-indigo-300 ring-offset-2' : ''"
+              >
+                <RequirementCard
+                  :requirement="item"
+                  :duplicate="duplicateKeys.has(normalizedSkill(item.skill))"
+                  @update="(patch) => updateRequirement(item.key, patch)"
+                  @remove="removeRequirement(item.key)"
+                />
+              </div>
             </div>
           </div>
 

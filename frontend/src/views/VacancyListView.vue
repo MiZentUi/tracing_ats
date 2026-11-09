@@ -48,6 +48,12 @@ const levels = computed(() =>
 )
 const confirmedCount = computed(() => items.value.filter((item) => item.is_confirmed).length)
 const draftCount = computed(() => items.value.length - confirmedCount.value)
+const confirmedPercent = computed(() =>
+  items.value.length === 0 ? 0 : Math.round((confirmedCount.value / items.value.length) * 100),
+)
+const draftPercent = computed(() =>
+  items.value.length === 0 ? 0 : Math.round((draftCount.value / items.value.length) * 100),
+)
 
 async function load() {
   loading.value = true
@@ -128,7 +134,7 @@ onMounted(load)
         </span>
         <div>
           <p class="text-xs font-medium uppercase tracking-wide text-slate-400">Подтверждено</p>
-          <p class="text-2xl font-semibold text-slate-900">{{ confirmedCount }}</p>
+          <p class="text-2xl font-semibold text-slate-900">{{ confirmedPercent }}%</p>
         </div>
       </div>
       <div class="card flex items-center gap-3 p-4">
@@ -137,7 +143,7 @@ onMounted(load)
         </span>
         <div>
           <p class="text-xs font-medium uppercase tracking-wide text-slate-400">Черновики</p>
-          <p class="text-2xl font-semibold text-slate-900">{{ draftCount }}</p>
+          <p class="text-2xl font-semibold text-slate-900">{{ draftPercent }}%</p>
         </div>
       </div>
     </div>

@@ -25,6 +25,11 @@ describe('RequirementCard', () => {
   it('показывает источник, историю и расхождение с LLM', () => {
     const wrapper = mount(RequirementCard, { props: { requirement: requirement() } })
     expect(wrapper.text()).toContain('История')
+    expect(wrapper.text()).toContain('MUST')
+    expect(wrapper.text()).toContain('80%')
+    expect(wrapper.text()).toContain('NICE')
+    expect(wrapper.text()).toContain('20%')
+    expect(wrapper.text()).not.toContain('OPTIONAL')
     expect(wrapper.text()).toContain('история HR переопределила тип')
     expect(wrapper.text()).toContain('LLM предлагала')
     expect(wrapper.text()).toContain('из словаря')
