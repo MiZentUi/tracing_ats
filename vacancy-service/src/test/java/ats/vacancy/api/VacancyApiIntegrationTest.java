@@ -97,6 +97,7 @@ class VacancyApiIntegrationTest {
     void createsDraftAndSavesTemplateWithStats() throws Exception {
         JsonNode created = createVacancy();
         assertThat(created.path("status").asText()).isEqualTo("DRAFT");
+        assertThat(created.path("source_text").asText()).isEqualTo(TEXT.strip());
         assertThat(created.path("template").path("version").asInt()).isEqualTo(1);
         assertThat(created.path("template").path("is_confirmed").asBoolean()).isFalse();
         assertThat(created.path("template").path("requirements")).hasSize(2);

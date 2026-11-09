@@ -48,6 +48,7 @@ public class ApiMapper {
                 .level(view.level())
                 .title(view.title())
                 .status(VacancyStatus.fromValue(view.status()))
+                .sourceText(view.sourceText())
                 .template(template);
     }
 

@@ -9,6 +9,7 @@ public record VacancyView(
         String level,
         String title,
         String status,
+        String sourceText,
         int version,
         boolean confirmed,
         List<RequirementView> requirements,

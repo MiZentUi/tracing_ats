@@ -692,6 +692,7 @@ erDiagram
   "level": "middle",
   "title": "Backend-разработчик",
   "status": "DRAFT",
+  "source_text": "Backend-разработчик\n\nОбязательно:\n- JS от 3 лет\n...",
   "template": {
     "version": 1,
     "is_confirmed": false,

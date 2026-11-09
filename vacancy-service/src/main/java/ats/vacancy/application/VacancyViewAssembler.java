@@ -104,6 +104,7 @@ public class VacancyViewAssembler {
                 levelCode,
                 vacancy.getTitle(),
                 vacancy.getStatus(),
+                vacancy.getSourceText(),
                 version.getVersionNo(),
                 version.isConfirmed(),
                 mapped,

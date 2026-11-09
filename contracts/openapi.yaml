@@ -402,6 +402,9 @@ components:
           nullable: true
         status:
           $ref: "#/components/schemas/VacancyStatus"
+        source_text:
+          type: string
+          description: Исходный текст вакансии, по которому разбирались требования
         template:
           $ref: "#/components/schemas/VacancyTemplate"
 
