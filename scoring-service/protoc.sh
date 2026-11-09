@@ -1,6 +1,19 @@
 #!sh
-python -m grpc_tools.protoc -I.. \
-    --python_out=src/ \
-    --pyi_out=src/ \
-    --grpc_python_out=src/ \
-    contracts/scoring_service/v1/scoring.proto 
+
+cd ../contracts/proto
+
+OUT=../../scoring-service/src/
+PROTOBUFS="scoring_service/v1/models/features/common.proto \
+    scoring_service/v1/models/features/education.proto \
+    scoring_service/v1/models/features/experience.proto \
+    scoring_service/v1/models/features.proto \
+    scoring_service/v1/models/features/skill.proto \
+    scoring_service/v1/models/messages.proto \
+    scoring_service/v1/scoring.proto"
+
+python -m grpc_tools.protoc -I. \
+    --python_out=$OUT \
+    --pyi_out=$OUT \
+    --grpc_python_out=$OUT \
+    $PROTOBUFS
+    # contracts/scoring_service/v1/scoring.proto 

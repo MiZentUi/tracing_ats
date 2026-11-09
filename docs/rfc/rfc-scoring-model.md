@@ -55,10 +55,11 @@
 3. Свойства класса (структурированная информация об экземпляре,
 которая используется для скоринга и/или принятия решения HR'ом)
 
+
 | Класс              | Общие свойства | Свойства вакансии | Свойства резюме | Свойства синтеза |
 |--------------------|----------------|-------------------|-----------------|------------------|
 | `Skill`            | normalized name, tenure | - | recency | relevance, coverage, evidence  |
-| `Education`        | master         | - | university*, graduation year* | relevance, evidence |
+| `Education`        | master, level         | - | university*, graduation year* | relevance, evidence |
 | `Prior Experience` | tenure, category | - | dates, metrics, position | relevance, coverage |
 | `Unclassified`     | plain text* | - | - | evidence |
 

@@ -25,11 +25,3 @@ message EducationPerResume {
     string university = 1;
     google.type.Date graduation_year = 2;
 }
-
-message SkillRequirement {
-  string             name           = 1;
-  string             normalize_name = 2;
-  string             description    = 3;
-  scoring_service.v1.models.features.FeatureCriticality criticality    = 4;
-  uint32             tenure         = 5;
-}

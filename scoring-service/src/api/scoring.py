@@ -1,17 +1,14 @@
 import grpc
 
-from contracts.scoring_service.v1.scoring_pb2 import (
-    FeatureEvidence,
-    ScoreResumeRequest,
-    ScoreResumeResponse,
-    SkillAssessment,
+from scoring_service.v1.models.messages_pb2 import (
+    
 )
 from contracts.scoring_service.v1.scoring_pb2_grpc import ScoringServiceServicer
 
 
 class ScoringService(ScoringServiceServicer):
     def ScoreResume(
-        self, request: ScoreResumeRequest, context: grpc.ServicerContext
+        self, request: , context: grpc.ServicerContext
     ) -> ScoreResumeResponse:
         return ScoreResumeResponse(
             relevance=0.0,
