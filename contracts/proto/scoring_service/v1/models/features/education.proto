@@ -13,14 +13,24 @@ enum EducationLevel {
   EDUCATION_LEVEL_BACHELOR = 3;
   /// Магистратура
   EDUCATION_LEVEL_MASTER = 4;
+  /// PhD, аспирантура и докторантура
+  EDUCATION_LEVEL_DOCTOR = 5;
+  /// Произвольные курсы, не входящие в традиционную систему 
+  /// образования
+  EDUCATION_LEVEL_COURSES = 6;
 }
 
 message EducationRequirement {
-  string master = 1;
-  EducationLevel level = 2;
+  /// Название специальности или направления
+  string         master = 1;
+  EducationLevel level  = 2;
 }
 
 message EducationPerResume {
-    string university = 1;
-    google.type.Date graduation_year = 2;
+  /// Организация, в которой было получено образование
+  string institution = 1;
+  /// Год выпуска
+  google.type.Date graduation_year = 2;
+  /// Название специальности или направления
+  string master = 3;
 }

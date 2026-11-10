@@ -11,11 +11,17 @@ option java_multiple_files = true;
 option java_outer_classname = "ScoringProto";
 option java_package = "ats.vacancy.proto";
 
+/// Оценка соответствия фичи из резюме фиче из вакансии.
+/// В качестве фичи из резюме выбирается наиболее релевантная
+/// по `c_r`.
 message FeatureAssessment {
+  /// Релевантность (`R_i`)
   double         relevance = 1;
+  /// Покрытие (`c_i`)
   double         coverage  = 2;
+  // Стаж (если известен, `tau`)
   optional int32 tenure    = 4;
-  string         id        = 5;
+  /// Данные по конкретной фиче
   oneof resume {
     scoring_service.v1.models.features.EducationPerResume       education  = 6;
     scoring_service.v1.models.features.SkillPerResume           skill      = 7;
@@ -24,8 +30,9 @@ message FeatureAssessment {
 }
 
 message FeatureRequirement {
-  string id = 1;
+  /// Критичность
   scoring_service.v1.models.features.FeatureCriticality criticality = 2;
+  /// Требование по конкретной фиче
   oneof feature {
     scoring_service.v1.models.features.EducationRequirement       education  = 3;
     scoring_service.v1.models.features.SkillRequirement           skill      = 4;

@@ -15,13 +15,12 @@ def test_score_resume_returns_dummy_result() -> None:
         vacancy=messages_pb2.Vacancy(
             tenure=5,
             text_description="Python backend",
-            requirements=[
-                features_pb2.FeatureRequirement(
-                    id="python",
+            requirements={
+                "python": features_pb2.FeatureRequirement(
                     criticality=common_pb2.FEATURE_CRITICALITY_REQUIRED,
                     skill=skill_pb2.SkillRequirement(name="Python", tenure=3),
                 )
-            ],
+            },
         ),
         resume=messages_pb2.UnprocessedResume(text="Python developer"),
     )
@@ -37,5 +36,4 @@ def test_score_resume_returns_dummy_result() -> None:
     assert response.score_low == 0.4
     assert response.score_high == 0.6
     assert response.tenure == 5
-    assert response.features[0].id == "python"
-    assert response.features[0].coverage == 0.5
+    assert response.features["python"].coverage == 0.5

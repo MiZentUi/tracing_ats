@@ -14,14 +14,13 @@ class ScoringService(scoring_pb2_grpc.ScoringServiceServicer):
         request: messages_pb2.ScoreResumeRequest,
         context: grpc.ServicerContext,
     ) -> messages_pb2.ScoreResumeResponse:
-        features = [
-            features_pb2.FeatureAssessment(
-                id=requirement.id or f"feature-{index}",
+        features = {
+            k: features_pb2.FeatureAssessment(
                 relevance=0.5,
                 coverage=0.5,
             )
-            for index, requirement in enumerate(request.vacancy.requirements)
-        ]
+            for k, requirement in request.vacancy.requirements.items()
+        }
 
         return messages_pb2.ScoreResumeResponse(
             relevance=0.5,

@@ -8,9 +8,13 @@ package scoring_service.v1.models.features;
 /// релевантности и скора.
 enum FeatureCriticality {
   FEATURE_CRITICALITY_UNSPECIFIED = 0;
+  /// Необязательно
   FEATURE_CRITICALITY_OPTIONAL    = 1;
+  /// Желательно
   FEATURE_CRITICALITY_NICE        = 2;
+  /// Требуется
   FEATURE_CRITICALITY_REQUIRED    = 3;
+  /// Критически (возможно применение капа)
   FEATURE_CRITICALITY_CRITICAL    = 4;
 }
 

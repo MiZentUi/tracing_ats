@@ -3,7 +3,7 @@ syntax = "proto3";
 package scoring_service.v1.models;
 import "scoring_service/v1/models/features.proto";
 
-/// Уровень позиции
+/// Уровень должности
 enum JobPositionLevel {
   JOB_POSITION_UNSPECIFIED = 0;
   JOB_POSITION_INTERN      = 1;
@@ -13,30 +13,50 @@ enum JobPositionLevel {
 }
 
 /// Полное описание вакансии. Содержит как общую
-/// информацию о вакансии, так и
+/// информацию о вакансии и требования по конкретным 
+/// фичам.
 message Vacancy {
+  /// Общий требуемы стаж в годах
   uint32                      tenure           = 1;
+  /// Полное текстовое описание вакансии
   string                      text_description = 2;
+  /// Уровень должности
   JobPositionLevel            position         = 3;
+  /// Категория работ
   string                      category         = 4;
-  repeated FeatureRequirement requirements     = 5;
+  /// Структурированные требования. Ключ
+  /// задается клиентом и используется для сопоставления
+  /// ответа с запросом
+  map<string, FeatureRequirement> requirements     = 5;
 }
 
 message UnprocessedResume {
+  /// Обезличенный текст резюме
   string text = 1;
 }
 
+/// Запрос для оценки соответствия резюме вакансии
 message ScoreResumeRequest {
   Vacancy           vacancy = 1;
   UnprocessedResume resume  = 2;
 }
 
+/// Соответствие резюме и вакансии
 message ScoreResumeResponse {
+  /// Общая релевантность резюме (`Rv`)
   double                     relevance  = 1;
+  /// Нижняя граница диапазона скора (`Score_l`)
   double                     score_low  = 2;
+  /// Верхняя граница диапазона скора (`Score_h`)
   double                     score_high = 3;
+  /// Вычисленный скор (`Score`)
   double                     score      = 4;
+  /// Общий стаж работы, если известен
   optional int32             tenure     = 5;
+  /// Рекомендация к дополнительной обработке
   bool                       refine     = 6;
-  repeated FeatureAssessment features   = 7;
+  /// Результаты оценки соответствия требований.
+  /// Ключи соответствуют ключам таблицы `requirements`
+  /// в запросе.
+  map<string, FeatureAssessment> features   = 7;
 }

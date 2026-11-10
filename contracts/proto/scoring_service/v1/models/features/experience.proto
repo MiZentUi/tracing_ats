@@ -5,16 +5,21 @@ import "google/type/date.proto";
 import "scoring_service/v1/models/features/common.proto";
 
 message PriorExperienceRequirement {
-    uint32 tenure = 1;
-    string category = 2;
+    /// Стаж
+  uint32 tenure = 1;
+    /// Категория работ (Scala-разработчик, командир взвода связи)
+  string category = 2;
 }
-
 
 message PriorExperiencePerResume {
-    string category = 1;
-    google.type.Date begin = 2;
-    google.type.Date end = 3;
-    repeated FeatureEvidence metrics = 4;
-    string position = 5;
+    /// Категория работ (Scala-разработчик, командир взвода связи)
+  string category = 1;
+    /// Начало работы
+  google.type.Date begin = 2;
+    /// Конец работы
+  google.type.Date end = 3;
+    /// Возможные метрики
+  repeated FeatureEvidence metrics = 4;
+    /// Должность
+  string position = 5;
 }
-
