@@ -5,6 +5,67 @@ spring:
     hibernate:
       ddl-auto: validate
     open-in-view: false
+    properties:
+      hibernate:
+        jdbc:
+          time_zone: UTC
+  servlet:
+    multipart:
+      max-file-size: 10MB
+      max-request-size: 50MB
 
 server:
-  port: 8081
+  port: ${RESUME_SERVICE_PORT:8081}
+  shutdown: graceful
+
+management:
+  endpoints:
+    web:
+      exposure:
+        include: health,info
+  endpoint:
+    health:
+      probes:
+        enabled: true
+
+ats:
+  storage:
+    # memory — для тестов; s3 — MinIO/S3.
+    type: ${ATS_STORAGE_TYPE:s3}
+    endpoint: ${ATS_S3_ENDPOINT:http://localhost:9000}
+    access-key: ${ATS_S3_ACCESS_KEY:minioadmin}
+    secret-key: ${ATS_S3_SECRET_KEY:minioadmin}
+    bucket: ${ATS_S3_BUCKET:ats-resumes}
+    region: ${ATS_S3_REGION:us-east-1}
+    timeout: 10s
+  pii:
+    # Base64 32-байтного AES-256 ключа. В production обязателен, в коде значения нет.
+    encryption-key: ${ATS_PII_ENCRYPTION_KEY:}
+    key-version: ${ATS_PII_KEY_VERSION:v1}
+    ner:
+      provider: ${ATS_PII_NER_PROVIDER:fake}
+      model-path: ${ATS_PII_NER_MODEL_PATH:models/ner/model.onnx}
+      tokenizer-path: ${ATS_PII_NER_TOKENIZER_PATH:models/ner/tokenizer.json}
+      config-path: ${ATS_PII_NER_CONFIG_PATH:models/ner/config.json}
+      confidence-threshold: ${ATS_PII_NER_THRESHOLD:0.85}
+      # В production true: без локальной NER текст не уходит в скоринг.
+      fail-closed: ${ATS_PII_NER_FAIL_CLOSED:true}
+  vacancy:
+    grpc:
+      target: ${VACANCY_GRPC_TARGET:localhost:9090}
+      deadline: 5s
+  github:
+    enabled: ${ATS_GITHUB_ENABLED:false}
+    token: ${ATS_GITHUB_TOKEN:}
+    base-url: ${ATS_GITHUB_BASE_URL:https://api.github.com}
+    max-repos: ${ATS_GITHUB_MAX_REPOS:5}
+    timeout: 5s
+  screening:
+    worker-threads: ${ATS_SCREENING_WORKERS:2}
+  ingestion:
+    extraction:
+      max-file-size: 10MB
+      max-pdf-pages: 50
+      max-text-chars: 200000
+      timeout: 10s
+      pool-size: 4

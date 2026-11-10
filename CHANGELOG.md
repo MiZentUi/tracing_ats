@@ -43,110 +43,10 @@
   `proxy_read_timeout` nginx 300 с, таймаут axios 310 с.
 
 ### Ветка `feature/vacancy-skill-kinds` — RFC-002
+Первый набор изменений проекта: документация и архитектура, каркас Java-сервисов,
+схема данных и извлечение текста из документов.
 
-#### Breaking changes
-
-- В `vacancy_requirement` удалена колонка `weight` и ограничение
-  `ck_requirement_weight`. Для миграции применить Liquibase changeset `009-014`;
-  клиенты должны перестать читать и отправлять `weight` и `critical`.
-- `kind` требования теперь три значения: `MUST`, `NICE`, `OPTIONAL`. В API вместо
-  весов возвращаются `kind_source`, `llm_kind` и `history`; `critical` остаётся
-  в БД со значением `false`, но в API и UI не отдаётся.
-- Старые версии шаблонов не пересчитываются и не редактируются: любое сохранение
-  создаёт новую версию.
-
-#### Added
-
-- **Шаблон вакансии через LLM.** `POST /api/v1/vacancies` из текста или файла,
-  промпт `vacancy-template.v2`, JSON-схема ответа, повторы, запасные модели и
-  общий дедлайн OpenRouter.
-- **Разбор и очистка требований.** Проверка цитаты как подстроки с нормализацией
-  пробелов, отбрасывание бесполезных требований, лимит 50, дедупликация с
-  приоритетом `MUST > NICE > OPTIONAL`.
-- **Словарь навыков.** `skill_alias`, нормализация `JS → JavaScript`,
-  `C++`, `C#`, `.NET`, `Node.js.`; создание новых навыков только при сохранении.
-- **История типов HR.** `skill_kind_stat` по паре «специализация × уровень ×
-  навык», подсказка типа из истории и её показ в UI.
-- **API управления вакансиями.** Список, чтение, сохранение шаблона, удаление,
-  справочники специализаций и уровней, создание специализации. Ответы содержат
-  исходный текст вакансии `source_text`.
-- **Вакансии без уровня.** Скрытый уровень `none` («Без уровня») для
-  специализаций без деления на грейды; история типов изолирована от грейдов.
-- **Удаление вакансий.** `DELETE /api/v1/vacancies/{id}` с вычитанием вклада
-  последней подтверждённой версии из `skill_kind_stat`.
-- **Frontend вакансий.** Список с поиском, фильтрами и адаптивными карточками;
-  создание через компактный прогресс и drag-and-drop; редактор с тремя секциями,
-  сегментированными типами, историей HR в процентах, sticky-панелью действий,
-  подтверждением черновика, поиском и копированием текста вакансии.
-- **UX-улучшения.** Тосты, модальные подтверждения, скелетоны, пустые состояния;
-  при смене типа и добавлении требования карточка подсвечивается, страница
-  прокручивается к ней, новое требование получает фокус.
-- **Mock-LLM.** `infra/mock-llm` со сценариями `ok`, `fenced`,
-  `rate-limit-once`, `rate-limit-always`, `invalid-json`, `always-invalid`,
-  `truncated`, `slow`, `unauthorized`, `quota`, `bad-quote` и примерами вакансий.
-- **CI.** Добавлена job frontend: генерация клиента docker-образом, `npm ci`, компонентные тесты и сборка без `setup-java`.
-- **Документация.** Обновлены `README.md`, `AGENTS.md`,
-  `docs/vacancy-data-model.md`; добавлен сводный отчёт `003-vacancy-skill-kinds.md`.
-- **Seed навыков.** Changeset `014` добавляет Rust-фреймворки (`Axum`,
-  `Actix Web`, `Rocket`), а также `UNIX`, `LaTeX` и `Typst` с алиасами.
-
-#### Changed
-
-- `vacancy_requirement.kind` расширен до трёх значений; `raw_text` используется
-  как цитата, добавлены `skill_text`, `kind_source`, `llm_kind`.
-- `vacancy_template_version` получила `is_confirmed`, `llm_model` и
-  `dropped_requirements`; версия 1 из LLM не подтверждена, версии из `PUT`
-  подтверждены.
-- Уровень при создании вакансии стал необязательным; `GET /levels` по-прежнему
-  возвращает только `intern/junior/middle/senior`.
-- UI списка и редактора переработан; количество подтверждённых/черновиков и
-  история HR показываются в процентах, прогресс создания — компактной полосой.
-- При недоступной LLM вакансия создаётся с пустым шаблоном по решению RFC-002
-  (вопрос 17.3); `LLM_INVALID_RESPONSE` остаётся `502`.
-- **Сборка frontend.** OpenAPI-клиент генерируется в multi-stage
-  `frontend/Dockerfile` образом `openapi-generator-cli:7.22.0`; JRE из образа
-  убран, CI генерирует клиент через docker без `setup-java`.
-- **Иконки.** `lucide-vue-next` заменён на `@lucide/vue`: старый пакет
-  помечен deprecated, набор иконок тот же.
-- **Маппинг API.** `ApiMapper` разбит на MapStruct-мапперы `VacancyApiMapper`,
-  `RequirementApiMapper`, `ReferenceApiMapper`; запросы в команды собирает
-  `CommandMapper`.
-- **Сущности.** `VacancyEntity`, `TemplateVersionEntity`, `RequirementEntity`
-  и `SpecializationEntity` собираются через Lombok `@Builder`.
-- **Пагинация.** Native query списка вакансий заменён JPQL-фрагментом с точным
-  `offset`; порядок `created_at desc` сохранён.
-- **Счётчики типов.** SQL upsert вынесен в `SkillKindStatRepository`, результат
-  `RETURNING` заменил предварительный `SELECT` при отрицательных дельтах.
-- **Тесты и миграции.** Gradle копирует Liquibase-changelog в test resources;
-  тесты читают его из classpath, а не по относительному пути.
-
-#### Removed
-
-- Колонка `vacancy_requirement.weight` и ограничение `ck_requirement_weight`.
-- Веса, `critical` и профили весов из публичного шаблона вакансии.
-
-#### Fixed
-
-- `vacancy-service/Dockerfile` и `compose.yaml` — сборка с composite build
-  `text-extraction` из корневого контекста, передача `OPENROUTER_API_KEY`.
-- `PUT` с полями `weight` и `critical` игнорирует их и не сохраняет.
-- Смена типа навыка и добавление требования больше не теряют карточку:
-  используется прокрутка, подсветка и фокус.
-
-#### Security
-
-- Ключ OpenRouter читается только из `OPENROUTER_API_KEY`/`.env`, не логируется
-  и не попадает в `toString()`.
-- Профиль `mock-llm` принудительно использует `test-key` и локальный хост
-  заглушки; при внешнем `base-url` приложение не стартует.
-- Текст вакансии передаётся в блоке `<vacancy_text>`, закрывающий тег
-  экранируется без учёта регистра и пробелов.
-- Требование без цитаты-подстроки отбрасывается, текст цитаты не логируется и
-  не раздувает ответ.
-
-### Базовая линия проекта
-
-#### Added
+### Added
 
 - **Документация.** README с описанием идеи, двухфазного скоринга, модели
   `q`/`E`/`D`/`c_r`/`M`/`N`/`F`, весов, контрактов и границ MVP; `AGENTS.md`
@@ -165,32 +65,68 @@
   и предупреждением; BOM обрабатывается.
 - **Dev-эндпоинт.** `POST /api/v1/dev/extraction` в `vacancy-service` для ручной
   проверки извлечения. По умолчанию выключен, включается флагом
-  `ats.dev.extraction-endpoint.enabled`.
+  `ats.dev.extraction-endpoint.enabled`; временный, будет удалён после подключения
+  библиотеки к производственным эндпоинтам.
 - **Схема данных.** Liquibase-миграции для `scoring_weights`, `specialization`,
   `level`, `skill`, `vacancy`, `vacancy_template_version` и
   `vacancy_requirement`: ограничения целостности, триггеры неизменяемости версий
   шаблона и стартовые веса/уровни (0.70/0.15/0.15, λ от 1.0 до 0.5).
+  Схема описана в `docs/vacancy-data-model.md`.
 - **Локальный запуск.** `compose.yaml` с PostgreSQL 18, отдельной джобой
-  `migrations` и Java-сервисами; миграции накатываются до старта приложений.
+  `migrations` и двумя Java-сервисами; миграции накатываются до старта приложений.
 - **Контракты и заготовки.** Публичный REST-контракт вынесен в
-  `contracts/openapi.yaml`; зарезервирован каталог `scoring-service`.
+  `contracts/openapi.yaml`; зарезервирован каталог `scoring-service` под будущий
+  Python-сервис.
 - **Инструменты агента.** Скиллы Conventional Commits, Conventional Branch,
-  code review, frontend и work-report.
+  code review, frontend и work-report; отчёты и RFC по извлечению текста в `docs/`.
 - **CI.** GitHub Actions workflow запускает тесты и `spotlessCheck` для
-  `text-extraction`, `resume-service` и `vacancy-service`, тесты, `ruff` и
-  проверку актуальности сгенерированных gRPC-модулей для `scoring-service`,
-  накатывает Liquibase-миграции на PostgreSQL через `compose.yaml` и проверяет
-  заголовок PR на соответствие Conventional Commits.
+  `text-extraction`, `resume-service` и `vacancy-service`, накатывает
+  Liquibase-миграции на PostgreSQL через `compose.yaml` и проверяет заголовок
+  PR на соответствие Conventional Commits.
+- **Пайплайн резюме.** `resume-service`: загрузка пачки PDF/DOCX/TXT/MD,
+  извлечение текста, маскировка PII, очистка prompt injection, предварительный
+  скор, шорт-лист, GitHub только для отобранных, итоговый скор, рейтинг и отчёт
+  «требование → доказательство → пробел». Схема — в `docs/resume-pipeline.md`.
+- **PII-маскировка.** Regex + `libphonenumber` + локальная ONNX NER
+  (`yqelz/xml-roberta-large-ner-russian`, int8, MIT) без словарей имён и вузов;
+  ORG от NER маскируется только в блоке образования, компании в опыте остаются.
+  PII шифруется AES-256-GCM в `pii_vault`, в `parsed_resume` остаётся только
+  обезличенный текст.
+- **Prompt injection.** Детерминированный санитайзер на 20–30 правил,
+  замена `[REMOVED_INSTRUCTION]`, флаги без исходного текста.
+- **Скоринг MVP.** Порт `ScoringClient` и временный детерминированный
+  `LocalScoringClient` с `ScoreCalculator`: `q`, `E`, `D`, `c_r`, `M`, `N`, `F`,
+  cap и вилка. Заменяется gRPC-адаптером `scoring-service` (ADR 0002).
+- **gRPC vacancy-service.** `contracts/vacancy-internal.proto`: `GetTemplate` и
+  один `DecideScreening` на пачку; политика порога, top-N и borderline — в
+  `vacancy-service`.
+- **GitHub-обогащение.** Только шорт-лист с согласием, `q_gh` по конкретному
+  навыку, антинакрутка флагом и множителем 0.5; отсутствие GitHub не штрафует.
+- **Хранение и аудит.** MinIO для оригиналов, неизменяемые `score_run` с версиями
+  модели/промптов/формулы/весов, `external_evidence`, `audit_event` для reveal.
+  Версия весов приходит из `vacancy-service` (`scoring_weights.version`), а
+  нормализованные факты образования передаются в скоринг отдельно от текста и
+  пока не участвуют в формуле.
+- **Документация и модель.** ADR 0001–0005, `docs/resume-pipeline.md`,
+  `scripts/download-ner.sh`; `models/` и `.ner-venv/` в `.gitignore`.
 
-#### Changed
+### Changed
 
 - **Структура репозитория.** Единый модуль `backend/` разделён на
   `resume-service/` и `vacancy-service/`; общая библиотека `text-extraction`
-  подключена к `vacancy-service` через Gradle composite build.
+  подключена к `vacancy-service` через Gradle composite build. README и `AGENTS.md`
+  обновлены под новую структуру и название `scoring-service`.
 - **Сборка и запуск.** Каждый Java-сервис собирается отдельным Gradle-проектом;
-  `docker-compose.yml` заменён на `compose.yaml`.
+  `docker-compose.yml` заменён на `compose.yaml`. S3-совместимое хранилище
+  переведено с удалённых community-образов MinIO на форк `pgsty/minio` и клиент
+  `pgsty/mc` с закреплёнными версиями.
+- **Docker.** Сборка `resume-service` и `vacancy-service` идёт из корня репозитория:
+  в образ попадают `text-extraction`, `contracts` и каталог сервиса; добавлен
+  общий `.dockerignore`.
+- **Контракты.** `contracts/openapi.yaml` дополнен загрузкой резюме, скринингом,
+  рейтингом, отчётом и reveal; добавлен `contracts/vacancy-internal.proto`.
 
-#### Security
+### Security
 
 - **Проверка загрузок.** Тип файла определяется по сигнатуре, а не по имени или
   `Content-Type`; `.doc` отклоняется, несовпадение расширения и содержимого для
@@ -200,3 +136,13 @@
 - **Логи и доступ.** Тексты документов и имена файлов не логируются;
   dev-эндпоинт по умолчанию отключён и при включении открывает без авторизации
   только `/api/v1/dev/**`.
+- **PII до LLM.** Маскировка выполняется до записи `masked_text` и до любого
+  вызова скоринга/LLM; в `parsed_resume` и отчётах PII нет. Оригиналы доступны
+  только через `reveal` с обязательной причиной и записью в аудит.
+- **NER fail-closed.** В production при недоступной ONNX-модели приложение не
+  стартует, а `NerPiiDetector` при `fail-closed=true` не пропускает текст дальше.
+- **GitHub.** Запросы только для шорт-листа и только при согласии кандидата;
+  логин не логируется, сырые ответы API не сохраняются.
+- **Prompt injection.** Инструкции удаляются детерминированно до скоринга;
+  исходные фрагменты не сохраняются, только идентификатор правила, строка и хеш.
+

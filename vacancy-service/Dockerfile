@@ -1,20 +1,19 @@
 FROM gradle:9.8.2-jdk21 AS build
-WORKDIR /app/vacancy-service
+# Образ Gradle по умолчанию работает не от root; для записи в /workspace нужен root.
+USER root
+WORKDIR /workspace
 
-# Контекст сборки — корень репозитория: нужен composite build ../text-extraction.
-COPY vacancy-service/build.gradle vacancy-service/settings.gradle ./
-COPY vacancy-service/lombok.config ./
-COPY text-extraction /app/text-extraction
-RUN --mount=type=cache,id=vacancy-service-gradle,target=/home/gradle/.gradle \
-    gradle dependencies --no-daemon
+COPY text-extraction ./text-extraction
+COPY contracts ./contracts
+COPY vacancy-service ./vacancy-service
 
-COPY contracts /app/contracts
-COPY vacancy-service/src ./src
+WORKDIR /workspace/vacancy-service
 RUN --mount=type=cache,id=vacancy-service-gradle,target=/home/gradle/.gradle \
     gradle clean build -x test --no-daemon
 
 FROM eclipse-temurin:21-jre-alpine
 RUN apk --no-cache add curl
-EXPOSE 8080
-COPY --from=build /app/vacancy-service/build/libs/*.jar app.jar
-ENTRYPOINT ["java", "-jar", "/app.jar"]
+WORKDIR /app
+EXPOSE 8080 9090
+COPY --from=build /workspace/vacancy-service/build/libs/*.jar app.jar
+ENTRYPOINT ["java", "-jar", "/app/app.jar"]

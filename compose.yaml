@@ -34,19 +34,40 @@ services:
         condition: service_healthy
     restart: "no"
 
-  resume-service:
-    build:
-      context: ./resume-service
+  minio:
+    # MinIO community-образы удалены из Docker Hub/Quay в 2026.
+    # pgsty/minio — API-совместимый форк; клиент — pgsty/mc.
+    image: ${ATS_MINIO_IMAGE:-pgsty/minio:RELEASE.2026-08-04T00-00-00Z}
+    command: ["server", "/data", "--console-address", ":9001"]
     environment:
-      SPRING_DATASOURCE_URL: jdbc:postgresql://postgres:5432/${POSTGRES_DB:-ats}
-      SPRING_DATASOURCE_USERNAME: ${POSTGRES_USER:-ats}
-      SPRING_DATASOURCE_PASSWORD: ${POSTGRES_PASSWORD:-ats}
+      MINIO_ROOT_USER: ${ATS_S3_ACCESS_KEY:-minioadmin}
+      MINIO_ROOT_PASSWORD: ${ATS_S3_SECRET_KEY:-minioadmin}
     ports:
-      - "${RESUME_SERVICE_PORT:-8081}:8081"
+      - "${MINIO_PORT:-9000}:9000"
+      - "${MINIO_CONSOLE_PORT:-9001}:9001"
+    volumes:
+      - ats-minio:/data
+    healthcheck:
+      test: ["CMD-SHELL", "curl -f http://localhost:9000/minio/health/live || exit 1"]
+      interval: 5s
+      timeout: 5s
+      retries: 20
+
+  # Создаёт бакет для оригиналов. Идемпотентно.
+  minio-init:
+    image: ${ATS_MINIO_MC_IMAGE:-pgsty/mc:RELEASE.2026-09-16T00-00-00Z}
+    environment:
+      MINIO_ROOT_USER: ${ATS_S3_ACCESS_KEY:-minioadmin}
+      MINIO_ROOT_PASSWORD: ${ATS_S3_SECRET_KEY:-minioadmin}
+    entrypoint: ["/bin/sh", "-c"]
+    command:
+      - >
+        mc alias set local http://minio:9000 "$$MINIO_ROOT_USER" "$$MINIO_ROOT_PASSWORD"
+        && mc mb --ignore-existing local/${ATS_S3_BUCKET:-ats-resumes}
     depends_on:
-      migrations:
-        condition: service_completed_successfully
-    restart: unless-stopped
+      minio:
+        condition: service_healthy
+    restart: "no"
 
   vacancy-service:
     build:
@@ -56,48 +77,51 @@ services:
       SPRING_DATASOURCE_URL: jdbc:postgresql://postgres:5432/${POSTGRES_DB:-ats}
       SPRING_DATASOURCE_USERNAME: ${POSTGRES_USER:-ats}
       SPRING_DATASOURCE_PASSWORD: ${POSTGRES_PASSWORD:-ats}
-      # Для запуска без ключа: VACANCY_PROFILES=mock-llm
-      SPRING_PROFILES_ACTIVE: ${VACANCY_PROFILES:-}
-      # Compose подставляет значение из корневого .env или окружения хоста.
-      OPENROUTER_API_KEY: ${OPENROUTER_API_KEY:-}
-      MOCK_LLM_URL: http://mock-llm:8089/api/v1
+      VACANCY_GRPC_PORT: 9090
     ports:
       - "${VACANCY_SERVICE_PORT:-8080}:8080"
+      - "${VACANCY_GRPC_PORT:-9090}:9090"
     depends_on:
       migrations:
         condition: service_completed_successfully
     restart: unless-stopped
 
-  # Stateless онлайн-ML: без БД, файлов и внешних источников.
-  scoring-service:
-    build:
-      context: ./scoring-service
-    environment:
-      SCORING_SERVICE_GRPC_HOST: 0.0.0.0
-      SCORING_SERVICE_GRPC_PORT: 8082
-      SCORING_SERVICE_LOG_LEVEL: ${SCORING_SERVICE_LOG_LEVEL:-INFO}
-    ports:
-      - "${SCORING_SERVICE_PORT:-8082}:8082"
-    restart: unless-stopped
-
-  mock-llm:
-    build:
-      context: ./infra/mock-llm
-    ports:
-      - "${MOCK_LLM_PORT:-8089}:8089"
-    restart: unless-stopped
-
-  frontend:
+  resume-service:
     build:
       context: .
-      dockerfile: frontend/Dockerfile
+      dockerfile: resume-service/Dockerfile
     environment:
-      VACANCY_SERVICE_URL: http://vacancy-service:8080
+      SPRING_DATASOURCE_URL: jdbc:postgresql://postgres:5432/${POSTGRES_DB:-ats}
+      SPRING_DATASOURCE_USERNAME: ${POSTGRES_USER:-ats}
+      SPRING_DATASOURCE_PASSWORD: ${POSTGRES_PASSWORD:-ats}
+      ATS_STORAGE_TYPE: s3
+      ATS_S3_ENDPOINT: http://minio:9000
+      ATS_S3_ACCESS_KEY: ${ATS_S3_ACCESS_KEY:-minioadmin}
+      ATS_S3_SECRET_KEY: ${ATS_S3_SECRET_KEY:-minioadmin}
+      ATS_S3_BUCKET: ${ATS_S3_BUCKET:-ats-resumes}
+      # Dev-only ключ. В production задаётся из секрета и не коммитится.
+      ATS_PII_ENCRYPTION_KEY: ${ATS_PII_ENCRYPTION_KEY:-N3EUTRUDDeQVaKtCpzs3IYQTdYw8rQp/CSnETlKL5/U=}
+      ATS_PII_NER_PROVIDER: ${ATS_PII_NER_PROVIDER:-fake}
+      ATS_PII_NER_MODEL_PATH: ${ATS_PII_NER_MODEL_PATH:-/models/ner/model.onnx}
+      ATS_PII_NER_TOKENIZER_PATH: ${ATS_PII_NER_TOKENIZER_PATH:-/models/ner/tokenizer.json}
+      ATS_PII_NER_CONFIG_PATH: ${ATS_PII_NER_CONFIG_PATH:-/models/ner/config.json}
+      VACANCY_GRPC_TARGET: vacancy-service:9090
+      ATS_GITHUB_ENABLED: ${ATS_GITHUB_ENABLED:-false}
+      ATS_GITHUB_TOKEN: ${ATS_GITHUB_TOKEN:-}
+    volumes:
+      # scripts/download-ner.sh кладёт сюда ONNX-модель; для fake-NER каталог не нужен.
+      - ./models:/models:ro
     ports:
-      - "${FRONTEND_PORT:-3000}:80"
+      - "${RESUME_SERVICE_PORT:-8081}:8081"
     depends_on:
-      - vacancy-service
+      migrations:
+        condition: service_completed_successfully
+      minio-init:
+        condition: service_completed_successfully
+      vacancy-service:
+        condition: service_started
     restart: unless-stopped
 
 volumes:
   ats-pgdata:
+  ats-minio:
