@@ -2,6 +2,7 @@ syntax = "proto3";
 
 package scoring_service.v1.models.features;
 import "google/type/date.proto";
+import "scoring_service/v1/models/features/common.proto";
 
 enum EducationLevel {
   EDUCATION_LEVEL_UNSPECIFIED = 0;
@@ -33,4 +34,6 @@ message EducationPerResume {
   google.type.Date graduation_year = 2;
   // Название специальности или направления
   string master = 3;
+  // Ссылка на место в тексте, где описано образование
+  scoring_service.v1.models.features.FeatureEvidence evidence = 4;
 }

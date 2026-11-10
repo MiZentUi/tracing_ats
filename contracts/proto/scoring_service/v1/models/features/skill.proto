@@ -7,7 +7,7 @@ message SkillRequirement {
   // Название навыка
   string name = 1;
   // Нормализованное название
-  string normalize_name = 2;
+  string normalized_name = 2;
   // Описание обязанностей или чего-либо подобного (простой текст)
   string description = 3;
   // Требуемый стаж в годах (0 если не требуется/нерелевантно для конкретного
