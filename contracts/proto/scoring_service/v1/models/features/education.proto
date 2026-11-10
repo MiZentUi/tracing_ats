@@ -5,32 +5,32 @@ import "google/type/date.proto";
 
 enum EducationLevel {
   EDUCATION_LEVEL_UNSPECIFIED = 0;
-  /// Среднее (школа)
+  // Среднее (школа)
   EDUCATION_LEVEL_SECONDARY = 1;
-  /// Среднее специальное
+  // Среднее специальное
   EDUCATION_LEVEL_SECONDARY_SPECIALIZED = 2;
-  /// Бакалавриат
+  // Бакалавриат
   EDUCATION_LEVEL_BACHELOR = 3;
-  /// Магистратура
+  // Магистратура
   EDUCATION_LEVEL_MASTER = 4;
-  /// PhD, аспирантура и докторантура
+  // PhD, аспирантура и докторантура
   EDUCATION_LEVEL_DOCTOR = 5;
-  /// Произвольные курсы, не входящие в традиционную систему 
-  /// образования
+  // Произвольные курсы, не входящие в традиционную систему
+  // образования
   EDUCATION_LEVEL_COURSES = 6;
 }
 
 message EducationRequirement {
-  /// Название специальности или направления
-  string         master = 1;
-  EducationLevel level  = 2;
+  // Название специальности или направления
+  string master = 1;
+  EducationLevel level = 2;
 }
 
 message EducationPerResume {
-  /// Организация, в которой было получено образование
+  // Организация, в которой было получено образование
   string institution = 1;
-  /// Год выпуска
+  // Год выпуска
   google.type.Date graduation_year = 2;
-  /// Название специальности или направления
+  // Название специальности или направления
   string master = 3;
 }

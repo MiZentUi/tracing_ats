@@ -7,8 +7,9 @@ option java_multiple_files = true;
 option java_outer_classname = "ScoringProto";
 option java_package = "ats.vacancy.proto";
 
-/// Сервис оценки соответствия резюме вакансии
+// Сервис оценки соответствия резюме вакансии
 service ScoringService {
-  /// Оценивает соответствие резюме вакансии
-  rpc ScoreResume(scoring_service.v1.models.ScoreResumeRequest) returns (scoring_service.v1.models.ScoreResumeResponse);
+  // Оценивает соответствие резюме вакансии
+  rpc ScoreResume(scoring_service.v1.models.ScoreResumeRequest)
+      returns (scoring_service.v1.models.ScoreResumeResponse);
 }

@@ -1,0 +1,11 @@
+---
+# Global or C++ fallback defaults
+BasedOnStyle: Google
+IndentWidth: 4
+
+---
+# Specific rules for Protobuf files
+Language: Proto
+BasedOnStyle: Google
+ColumnLimit: 100
+IndentWidth: 2

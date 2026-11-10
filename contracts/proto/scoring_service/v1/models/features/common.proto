@@ -2,27 +2,26 @@ syntax = "proto3";
 
 package scoring_service.v1.models.features;
 
-
-/// Критичность и необходимость навыка/фичи для вакансии.
-/// От данного параметра зависим его удельный вес при оценке
-/// релевантности и скора.
+// Критичность и необходимость навыка/фичи для вакансии.
+// От данного параметра зависим его удельный вес при оценке
+// релевантности и скора.
 enum FeatureCriticality {
   FEATURE_CRITICALITY_UNSPECIFIED = 0;
-  /// Необязательно
-  FEATURE_CRITICALITY_OPTIONAL    = 1;
-  /// Желательно
-  FEATURE_CRITICALITY_NICE        = 2;
-  /// Требуется
-  FEATURE_CRITICALITY_REQUIRED    = 3;
-  /// Критически (возможно применение капа)
-  FEATURE_CRITICALITY_CRITICAL    = 4;
+  // Необязательно
+  FEATURE_CRITICALITY_OPTIONAL = 1;
+  // Желательно
+  FEATURE_CRITICALITY_NICE = 2;
+  // Требуется
+  FEATURE_CRITICALITY_REQUIRED = 3;
+  // Критически (возможно применение капа)
+  FEATURE_CRITICALITY_CRITICAL = 4;
 }
 
-/// Текстовое подтверждение наличия фичи.
-/// Содержит ссылки на поддиапазон текста резюме,
-/// откуда взято подтверждение.
+// Текстовое подтверждение наличия фичи.
+// Содержит ссылки на поддиапазон текста резюме,
+// откуда взято подтверждение.
 message FeatureEvidence {
   uint32 start_index = 1;
-  uint32 end_index   = 2;
-  string text        = 3;
+  uint32 end_index = 2;
+  string text = 3;
 }
