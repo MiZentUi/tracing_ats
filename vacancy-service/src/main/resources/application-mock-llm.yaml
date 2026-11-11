@@ -1,0 +1,14 @@
+# Профиль для CI, демо и ручной проверки без реального ключа.
+# Профильный файл перекрывает vacancy.llm.api-key, поэтому переменная
+# OPENROUTER_API_KEY из окружения в этом профиле не используется.
+vacancy:
+  llm:
+    api-key: test-key
+    base-url: ${MOCK_LLM_URL:http://localhost:8089/api/v1}
+    total-timeout: 60s
+    read-timeout: 30s
+    delay: 1s
+  template:
+    kind-history:
+      # Для демонстрации подсказки истории в mock-профиле.
+      min-observations: 1

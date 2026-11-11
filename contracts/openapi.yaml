@@ -61,8 +61,502 @@ paths:
         default:
           $ref: "#/components/responses/default"
 
+  /specializations:
+    get:
+      tags:
+        - Reference
+      summary: Справочник IT-специализаций
+      operationId: listSpecializations
+      responses:
+        "200":
+          description: Список активных специализаций
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/ReferenceItem"
+        default:
+          $ref: "#/components/responses/error"
+    post:
+      tags:
+        - Reference
+      summary: Добавить специализацию
+      operationId: createSpecialization
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/CreateSpecializationRequest"
+      responses:
+        "201":
+          description: Специализация создана
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ReferenceItem"
+        "409":
+          $ref: "#/components/responses/conflict"
+        "422":
+          $ref: "#/components/responses/unprocessable"
+        default:
+          $ref: "#/components/responses/error"
+
+  /levels:
+    get:
+      tags:
+        - Reference
+      summary: Справочник уровней позиции
+      operationId: listLevels
+      responses:
+        "200":
+          description: Список активных уровней
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/ReferenceItem"
+        default:
+          $ref: "#/components/responses/error"
+
+  /vacancies:
+    get:
+      tags:
+        - Vacancies
+      summary: Список вакансий
+      operationId: listVacancies
+      parameters:
+        - name: limit
+          in: query
+          required: false
+          schema:
+            type: integer
+            format: int32
+            minimum: 1
+            maximum: 200
+            default: 50
+        - name: offset
+          in: query
+          required: false
+          schema:
+            type: integer
+            format: int32
+            minimum: 0
+            default: 0
+      responses:
+        "200":
+          description: Страница вакансий
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/VacancyList"
+        default:
+          $ref: "#/components/responses/error"
+    post:
+      tags:
+        - Vacancies
+      summary: Создать вакансию и получить черновик шаблона
+      operationId: createVacancy
+      requestBody:
+        required: true
+        content:
+          multipart/form-data:
+            schema:
+              type: object
+              required:
+                - specialization
+              properties:
+                specialization:
+                  type: string
+                  description: Код специализации из справочника
+                  example: backend
+                level:
+                  type: string
+                  nullable: true
+                  description: Код уровня из справочника; если не указан, используется «Без уровня»
+                  example: middle
+                title:
+                  type: string
+                  nullable: true
+                text:
+                  type: string
+                  nullable: true
+                  description: Текст вакансии, если не передан файл
+                file:
+                  type: string
+                  format: binary
+                  nullable: true
+                  description: PDF, DOCX, TXT или MD, если не передан текст
+      responses:
+        "201":
+          description: Вакансия создана, шаблон в статусе черновика
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Vacancy"
+        "409":
+          $ref: "#/components/responses/conflict"
+        "413":
+          $ref: "#/components/responses/payloadTooLarge"
+        "415":
+          $ref: "#/components/responses/unsupportedMediaType"
+        "422":
+          $ref: "#/components/responses/unprocessable"
+        "502":
+          $ref: "#/components/responses/badGateway"
+        "503":
+          $ref: "#/components/responses/serviceUnavailable"
+        default:
+          $ref: "#/components/responses/error"
+
+  /vacancies/{id}:
+    get:
+      tags:
+        - Vacancies
+      summary: Вакансия с текущей версией шаблона
+      operationId: getVacancy
+      parameters:
+        - $ref: "#/components/parameters/VacancyId"
+      responses:
+        "200":
+          description: Вакансия с текущей версией шаблона
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Vacancy"
+        "404":
+          $ref: "#/components/responses/notFound"
+        default:
+          $ref: "#/components/responses/error"
+    delete:
+      tags:
+        - Vacancies
+      summary: Удалить вакансию и убрать её вклад из истории типов
+      operationId: deleteVacancy
+      parameters:
+        - $ref: "#/components/parameters/VacancyId"
+      responses:
+        "204":
+          description: Вакансия удалена
+        "404":
+          $ref: "#/components/responses/notFound"
+        default:
+          $ref: "#/components/responses/error"
+
+  /vacancies/{id}/template:
+    put:
+      tags:
+        - Vacancies
+      summary: Сохранить шаблон, создать новую версию и обновить статистику
+      operationId: updateVacancyTemplate
+      parameters:
+        - $ref: "#/components/parameters/VacancyId"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/UpdateTemplateRequest"
+      responses:
+        "200":
+          description: Новая подтверждённая версия шаблона
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Vacancy"
+        "404":
+          $ref: "#/components/responses/notFound"
+        "409":
+          $ref: "#/components/responses/conflict"
+        "422":
+          $ref: "#/components/responses/unprocessable"
+        default:
+          $ref: "#/components/responses/error"
+
 components:
+  parameters:
+    VacancyId:
+      name: id
+      in: path
+      required: true
+      schema:
+        type: string
+        format: uuid
+
   schemas:
+    ReferenceItem:
+      type: object
+      required:
+        - code
+        - name
+      properties:
+        code:
+          type: string
+          example: backend
+        name:
+          type: string
+          example: Backend
+
+    CreateSpecializationRequest:
+      type: object
+      required:
+        - name
+      properties:
+        name:
+          type: string
+          example: Аналитика
+        code:
+          type: string
+          nullable: true
+          description: Латинский код; если не указан, генерируется из названия
+          example: analytics
+
+    SkillKind:
+      type: string
+      enum:
+        - MUST
+        - NICE
+        - OPTIONAL
+
+    KindSource:
+      type: string
+      enum:
+        - LLM
+        - HISTORY
+        - HR
+
+    NormalizationStatus:
+      type: string
+      enum:
+        - MATCHED
+        - NEW
+
+    VacancyStatus:
+      type: string
+      enum:
+        - DRAFT
+        - ACTIVE
+        - CLOSED
+        - ARCHIVED
+
+    SkillKindHistory:
+      type: object
+      required:
+        - must
+        - nice
+        - optional
+      properties:
+        must:
+          type: integer
+          format: int32
+        nice:
+          type: integer
+          format: int32
+        optional:
+          type: integer
+          format: int32
+
+    Requirement:
+      type: object
+      required:
+        - id
+        - normalization_status
+        - kind
+        - kind_source
+      properties:
+        id:
+          type: string
+          description: Идентификатор требования в версии шаблона
+        skill:
+          type: string
+          nullable: true
+        skill_id:
+          type: string
+          format: uuid
+          nullable: true
+        normalization_status:
+          $ref: "#/components/schemas/NormalizationStatus"
+        kind:
+          $ref: "#/components/schemas/SkillKind"
+        kind_source:
+          $ref: "#/components/schemas/KindSource"
+        llm_kind:
+          allOf:
+            - $ref: "#/components/schemas/SkillKind"
+          nullable: true
+        years_required:
+          type: number
+          format: double
+          nullable: true
+        quote:
+          type: string
+          nullable: true
+        clarity_warning:
+          type: string
+          nullable: true
+        history:
+          allOf:
+            - $ref: "#/components/schemas/SkillKindHistory"
+          nullable: true
+
+    TemplateMeta:
+      type: object
+      properties:
+        model:
+          type: string
+          nullable: true
+        prompt_version:
+          type: string
+          nullable: true
+        dropped_requirements:
+          type: integer
+          format: int32
+
+    VacancyTemplate:
+      type: object
+      required:
+        - version
+        - is_confirmed
+        - requirements
+      properties:
+        version:
+          type: integer
+          format: int32
+        is_confirmed:
+          type: boolean
+        requirements:
+          type: array
+          items:
+            $ref: "#/components/schemas/Requirement"
+        meta:
+          $ref: "#/components/schemas/TemplateMeta"
+
+    Vacancy:
+      type: object
+      required:
+        - vacancy_id
+        - specialization
+        - level
+        - status
+        - template
+      properties:
+        vacancy_id:
+          type: string
+          format: uuid
+        specialization:
+          type: string
+        level:
+          type: string
+        title:
+          type: string
+          nullable: true
+        status:
+          $ref: "#/components/schemas/VacancyStatus"
+        source_text:
+          type: string
+          description: Исходный текст вакансии, по которому разбирались требования
+        template:
+          $ref: "#/components/schemas/VacancyTemplate"
+
+    VacancySummary:
+      type: object
+      required:
+        - id
+        - title
+        - specialization
+        - level
+        - status
+        - version
+        - is_confirmed
+        - requirements_count
+        - created_at
+      properties:
+        id:
+          type: string
+          format: uuid
+        title:
+          type: string
+        specialization:
+          type: string
+        level:
+          type: string
+        status:
+          $ref: "#/components/schemas/VacancyStatus"
+        version:
+          type: integer
+          format: int32
+        is_confirmed:
+          type: boolean
+        requirements_count:
+          type: integer
+          format: int32
+        created_at:
+          type: string
+          format: date-time
+
+    VacancyList:
+      type: object
+      required:
+        - items
+        - total
+      properties:
+        items:
+          type: array
+          items:
+            $ref: "#/components/schemas/VacancySummary"
+        total:
+          type: integer
+          format: int64
+
+    UpdateRequirement:
+      type: object
+      required:
+        - kind
+      properties:
+        id:
+          type: string
+          nullable: true
+        skill:
+          type: string
+          nullable: true
+        kind:
+          $ref: "#/components/schemas/SkillKind"
+        years_required:
+          type: number
+          format: double
+          nullable: true
+        quote:
+          type: string
+          nullable: true
+        clarity_warning:
+          type: string
+          nullable: true
+
+    UpdateTemplateRequest:
+      type: object
+      required:
+        - base_version
+        - requirements
+      properties:
+        base_version:
+          type: integer
+          format: int32
+        specialization:
+          type: string
+          nullable: true
+        level:
+          type: string
+          nullable: true
+        title:
+          type: string
+          nullable: true
+        requirements:
+          type: array
+          items:
+            $ref: "#/components/schemas/UpdateRequirement"
+
     AuthRequest:
       type: object
       required:
@@ -106,6 +600,54 @@ components:
       bearerFormat: JWT
 
   responses:
+    error:
+      description: Ошибка в формате ApiStatusResponse
+      content:
+        application/json:
+          schema:
+            $ref: "#/components/schemas/ApiStatusResponse"
+    notFound:
+      description: Объект не найден
+      content:
+        application/json:
+          schema:
+            $ref: "#/components/schemas/ApiStatusResponse"
+    conflict:
+      description: Конфликт версии или нет активного профиля весов
+      content:
+        application/json:
+          schema:
+            $ref: "#/components/schemas/ApiStatusResponse"
+    payloadTooLarge:
+      description: Файл слишком большой
+      content:
+        application/json:
+          schema:
+            $ref: "#/components/schemas/ApiStatusResponse"
+    unsupportedMediaType:
+      description: Неподдерживаемый тип файла
+      content:
+        application/json:
+          schema:
+            $ref: "#/components/schemas/ApiStatusResponse"
+    unprocessable:
+      description: Ошибка валидации запроса
+      content:
+        application/json:
+          schema:
+            $ref: "#/components/schemas/ApiStatusResponse"
+    badGateway:
+      description: LLM вернула некорректный или обрезанный ответ
+      content:
+        application/json:
+          schema:
+            $ref: "#/components/schemas/ApiStatusResponse"
+    serviceUnavailable:
+      description: LLM не настроена или недоступна
+      content:
+        application/json:
+          schema:
+            $ref: "#/components/schemas/ApiStatusResponse"
     auth:
       description: Auth response with token
       headers:
