@@ -209,9 +209,9 @@ vacancy:
     # OPENROUTER_API_KEY или строку OPENROUTER_API_KEY=... в файле .env
     api-key: ${OPENROUTER_API_KEY:}
     model: dots-studio/dots-3-note-preview:free
-    fallback-models:
-      - google/gemma-4-31b-it:free
-      - google/gemma-4-26b-a4b-it:free
+    # Запасные модели отключены: free-модели Google отдают 429 из общего пула.
+    # Либо отвечает основная модель, либо возвращается LLM_UNAVAILABLE.
+    fallback-models: []
     temperature: 0
     max-tokens: 20000       # рассуждающая модель: при 6000 токенов reasoning съедает весь лимит, content пустой
     connect-timeout: 5s
