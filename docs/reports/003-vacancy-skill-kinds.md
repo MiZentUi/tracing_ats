@@ -7,6 +7,7 @@
 | **Ветка** | `feature/vacancy-skill-kinds` от `main` (`d5155a5`) |
 | **Контур** | `vacancy-service`, `frontend`, `migrations`, `contracts`, `infra/mock-llm` |
 | **Статус** | MVP реализован; реальная LLM проверена вручную, качество требует доработки промпта |
+| **Правки по ревью** | 2026-11-11, 8 коммитов |
 
 ## 1. Что сделано
 
@@ -18,7 +19,8 @@
 - `011-skill-kind-stat.sql` — счётчики `MUST`/`NICE`/`OPTIONAL` по паре «специализация × уровень × навык».
 - `012-seed-specializations.sql` — стартовые IT-специализации.
 - `013-optional-level.sql` — скрытый уровень `none` («Без уровня»).
-- Новые changeset `009–013` добавлены в `db.changelog-master.xml`; старые не редактировались. Всего в проекте 14 changeset.
+- `014-seed-more-skills.sql` — пропущенные навыки: Rust-фреймворки `Axum`, `Actix Web`, `Rocket`, а также `UNIX`, `LaTeX`, `Typst` с алиасами.
+- Новые changeset `009–014` добавлены в `db.changelog-master.xml`; старые не редактировались. Всего в проекте 15 changeset.
 
 ### 1.2. vacancy-service
 
@@ -26,7 +28,10 @@
 - `prompts/vacancy-template.v2.txt` и JSON-схема ответа; текст вакансии передаётся как данные, закрывающий тег экранируется.
 - `strip`, снятие markdown-ограждения, строгая проверка схемы, очистка цитат, дедупликация `MUST > NICE > OPTIONAL`, лимит 50 требований.
 - `SkillNormalizer` и `SkillCatalog` — точная нормализация по словарю без LLM.
-- `KindHistoryService` и `SkillKindStatWriter` — подсказка типа из истории и атомарное обновление счётчиков.
+- `KindHistoryService` и `SkillKindStatWriter` — подсказка типа из истории и атомарное обновление счётчиков через `SkillKindStatRepository` (`INSERT ... ON CONFLICT ... RETURNING`).
+- Маппинг API разбит на MapStruct-мапперы `VacancyApiMapper`, `RequirementApiMapper`, `ReferenceApiMapper`; `CommandMapper` собирает доменные команды из запроса.
+- Сущности `VacancyEntity`, `TemplateVersionEntity`, `RequirementEntity`, `SpecializationEntity` собираются через Lombok `@Builder`.
+- Список вакансий читается JPQL-фрагментом `VacancyPageRepositoryImpl` с точным `offset`, без native query.
 - Эндпоинты: `GET/POST /specializations`, `GET /levels`, `GET/POST /vacancies`, `GET/DELETE /vacancies/{id}`, `PUT /vacancies/{id}/template`.
 - Создание специализации: код необязателен и генерируется транслитерацией из названия.
 - Удаление вакансии вычитает вклад последней подтверждённой версии из `skill_kind_stat`.
@@ -42,12 +47,14 @@
 - При смене типа и добавлении требования карточка подсвечивается, страница прокручивается к ней, новый навык получает фокус.
 - Добавлены тосты, модальные подтверждения, скелетоны, пустые состояния и адаптивность.
 - Клиент генерируется из OpenAPI; каталог `src/api/generated` не коммитится.
+- Иконки переведены с deprecated `lucide-vue-next` на `@lucide/vue`.
 
 ### 1.4. Инфраструктура и документация
 
 - `infra/mock-llm` — детерминированная OpenAI-совместимая заглушка со сценариями `ok`, `fenced`, `rate-limit-once`, `rate-limit-always`, `invalid-json`, `always-invalid`, `truncated`, `slow`, `unauthorized`, `quota`, `bad-quote`.
 - `compose.yaml` — профиль `mock-llm`, сервисы `mock-llm` и `frontend`, передача `OPENROUTER_API_KEY`, исправлен контекст сборки `vacancy-service`.
-- CI — добавлена job frontend (`npm ci`, тесты, сборка).
+- CI — добавлена job frontend: генерация клиента docker-образом `openapi-generator-cli:7.22.0`, `npm ci`, компонентные тесты и сборка без `setup-java`.
+- `frontend/Dockerfile` — multi-stage: генератор OpenAPI, сборка на Node 24 и раздача через nginx; JRE в образе не нужен.
 - Обновлены `README.md`, `AGENTS.md`, `docs/vacancy-data-model.md`, `CHANGELOG.md`.
 
 ## 2. Проверка
@@ -56,8 +63,10 @@
 - `text-extraction`: `gradle test spotlessCheck` → успешно.
 - `frontend`: `npm test` → 13 тестов, 0 failures.
 - `frontend`: `npm run build` → `vue-tsc` и Vite-сборка проходят.
-- Liquibase: 14 changeset накатаны на PostgreSQL 18 через `compose`.
+- Liquibase: 15 changeset накатаны на PostgreSQL 18 через `compose`.
 - `docker compose config --quiet` → успешно; образы `vacancy-service` и `frontend` собираются.
+- `frontend`: сборка образа `docker build -f frontend/Dockerfile .` → успешно; `npm ci --ignore-scripts && npm test --ignore-scripts` в `node:24-alpine` → 13 тестов.
+- `vacancy-service`: changelog для тестов копируется Gradle в test resources и читается из classpath; путь не зависит от рабочей директории.
 - Сценарий на `mock-llm`: создание, правка типов, подтверждение, повторное сохранение, вторая вакансия с подсказкой истории, удаление, вакансия без уровня, добавление специализации.
 - Ручная проверка реальной LLM: получен ответ OpenRouter с моделью `dots-studio/dots-3-note-preview:free`. На синтетической вакансии модель вернула 3 требования из 5 ожидаемых: Kafka попала в обязательные, Docker и расплывчатая формулировка отсутствовали.
 
@@ -80,7 +89,22 @@
 - Нет авторизации, серверной пагинации, экрана истории версий и управления уровнями.
 - Реальная LLM не проверяется автоматическими тестами; ручная оценка качества остаётся за человеком.
 
-## 5. Требует решения пользователя
+## 5. Правки по ревью
+
+| Замечание | Что сделано |
+|---|---|
+| В seed нет веб-фреймворка на Rust | Changeset `014`: `Axum`, `Actix Web`, `Rocket` и алиасы (`axum`, `actix`, `actix-web`, `rocket`) |
+| В seed нет `UNIX`, `LaTeX`, `Typst` | Там же: навыки и алиасы (`unix`, `latex`, `tex`, `typst`) |
+| Зачем JDK для OpenAPI-генератора | `frontend/Dockerfile` — multi-stage с `openapi-generator-cli:7.22.0`, JRE убран; CI генерирует клиент docker-образом, `setup-java` удалён; версия в `openapitools.json` — 7.22.0 |
+| `lucide-vue-next` deprecated | Заменён на `@lucide/vue@^1.72.0`; все используемые иконки в пакете есть |
+| `ApiMapper` разбить, использовать MapStruct | `VacancyApiMapper`, `RequirementApiMapper`, `ReferenceApiMapper`; `CommandMapper` — явные команды (`base_version` → -1) |
+| Добавить `@Builder` на сущности | `@Builder` + `@AllArgsConstructor` на четырёх сущностях, конструкции переведены на билдеры |
+| Есть ли библиотека транслитерации | Оставлена своя таблица: 33 символа, детерминированно, без зависимости. ICU4J (`Russian-Latin/BGN`) — вариант при мультиязычности, но это ~14 МБ |
+| Native query в `VacancyRepository` | Заменён JPQL-фрагментом `VacancyPageRepositoryImpl` с `setFirstResult/setMaxResults`: API задаёт `offset`, `Pageable` изменил бы выборку |
+| Почему `JdbcTemplate`, если есть JPA | Атомарный `INSERT ... ON CONFLICT ... DO UPDATE ... RETURNING` не выражается в JPA; SQL вынесен в `SkillKindStatRepository` с комментарием, лишний `SELECT` убран |
+| Liquibase в тестах через миграции уровня compose | Приложение не зависит от compose-джобы: тесты поднимают Postgres в Testcontainers и применяют тот же changelog; Gradle копирует его в test resources, чтение — `classpath:db/changelog/...` без привязки к рабочей директории |
+
+## 6. Требует решения пользователя
 
 - Выпускать ли `vacancy-template.v3` с исправлением разбора списков и `OPTIONAL`.
 - Показывать ли `dropped_requirements` в UI и добавлять экран истории версий.

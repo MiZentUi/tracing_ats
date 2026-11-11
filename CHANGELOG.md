@@ -49,9 +49,11 @@
 - **Mock-LLM.** `infra/mock-llm` со сценариями `ok`, `fenced`,
   `rate-limit-once`, `rate-limit-always`, `invalid-json`, `always-invalid`,
   `truncated`, `slow`, `unauthorized`, `quota`, `bad-quote` и примерами вакансий.
-- **CI.** Добавлена job frontend: `npm ci`, компонентные тесты и сборка.
+- **CI.** Добавлена job frontend: генерация клиента docker-образом, `npm ci`, компонентные тесты и сборка без `setup-java`.
 - **Документация.** Обновлены `README.md`, `AGENTS.md`,
   `docs/vacancy-data-model.md`; добавлен сводный отчёт `003-vacancy-skill-kinds.md`.
+- **Seed навыков.** Changeset `014` добавляет Rust-фреймворки (`Axum`,
+  `Actix Web`, `Rocket`), а также `UNIX`, `LaTeX` и `Typst` с алиасами.
 
 #### Changed
 
@@ -66,6 +68,22 @@
   история HR показываются в процентах, прогресс создания — компактной полосой.
 - При недоступной LLM вакансия создаётся с пустым шаблоном по решению RFC-002
   (вопрос 17.3); `LLM_INVALID_RESPONSE` остаётся `502`.
+- **Сборка frontend.** OpenAPI-клиент генерируется в multi-stage
+  `frontend/Dockerfile` образом `openapi-generator-cli:7.22.0`; JRE из образа
+  убран, CI генерирует клиент через docker без `setup-java`.
+- **Иконки.** `lucide-vue-next` заменён на `@lucide/vue`: старый пакет
+  помечен deprecated, набор иконок тот же.
+- **Маппинг API.** `ApiMapper` разбит на MapStruct-мапперы `VacancyApiMapper`,
+  `RequirementApiMapper`, `ReferenceApiMapper`; запросы в команды собирает
+  `CommandMapper`.
+- **Сущности.** `VacancyEntity`, `TemplateVersionEntity`, `RequirementEntity`
+  и `SpecializationEntity` собираются через Lombok `@Builder`.
+- **Пагинация.** Native query списка вакансий заменён JPQL-фрагментом с точным
+  `offset`; порядок `created_at desc` сохранён.
+- **Счётчики типов.** SQL upsert вынесен в `SkillKindStatRepository`, результат
+  `RETURNING` заменил предварительный `SELECT` при отрицательных дельтах.
+- **Тесты и миграции.** Gradle копирует Liquibase-changelog в test resources;
+  тесты читают его из classpath, а не по относительному пути.
 
 #### Removed
 
