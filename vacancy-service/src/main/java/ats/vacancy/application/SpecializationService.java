@@ -94,12 +94,14 @@ public class SpecializationService {
         }
 
         Instant now = Instant.now();
-        SpecializationEntity entity = new SpecializationEntity();
-        entity.setCode(code);
-        entity.setName(name);
-        entity.setActive(true);
-        entity.setCreatedAt(now);
-        entity.setUpdatedAt(now);
+        SpecializationEntity entity =
+                SpecializationEntity.builder()
+                        .code(code)
+                        .name(name)
+                        .active(true)
+                        .createdAt(now)
+                        .updatedAt(now)
+                        .build();
         repository.save(entity);
         return new ReferenceItem(code, name);
     }

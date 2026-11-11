@@ -63,29 +63,33 @@ public class VacancyStore {
         ScoringWeightsEntity weights = activeWeights();
         Instant now = Instant.now();
 
-        VacancyEntity vacancy = new VacancyEntity();
-        vacancy.setTitle(trimTitle(title));
-        vacancy.setStatus("DRAFT");
-        vacancy.setSourceType(sourceType);
-        vacancy.setSourceRef(sourceRef);
-        vacancy.setSourceText(text);
-        vacancy.setCurrentVersion(1);
-        vacancy.setCreatedAt(now);
-        vacancy.setUpdatedAt(now);
+        VacancyEntity vacancy =
+                VacancyEntity.builder()
+                        .title(trimTitle(title))
+                        .status("DRAFT")
+                        .sourceType(sourceType)
+                        .sourceRef(sourceRef)
+                        .sourceText(text)
+                        .currentVersion(1)
+                        .createdAt(now)
+                        .updatedAt(now)
+                        .build();
         vacancyRepository.save(vacancy);
 
-        TemplateVersionEntity version = new TemplateVersionEntity();
-        version.setVacancyId(vacancy.getId());
-        version.setVersionNo(1);
-        version.setSpecializationId(specialization.getId());
-        version.setLevelId(level.getId());
-        version.setGithubWeight(level.getGithubWeight());
-        version.setScoringWeightsId(weights.getId());
-        version.setLlmPromptVersion(extracted.promptVersion());
-        version.setLlmModel(extracted.model());
-        version.setDroppedRequirements(extracted.droppedRequirements());
-        version.setConfirmed(false);
-        version.setCreatedAt(now);
+        TemplateVersionEntity version =
+                TemplateVersionEntity.builder()
+                        .vacancyId(vacancy.getId())
+                        .versionNo(1)
+                        .specializationId(specialization.getId())
+                        .levelId(level.getId())
+                        .githubWeight(level.getGithubWeight())
+                        .scoringWeightsId(weights.getId())
+                        .llmPromptVersion(extracted.promptVersion())
+                        .llmModel(extracted.model())
+                        .droppedRequirements(extracted.droppedRequirements())
+                        .confirmed(false)
+                        .createdAt(now)
+                        .build();
         versionRepository.save(version);
 
         saveRequirements(version, extracted.requirements());
@@ -144,34 +148,38 @@ public class VacancyStore {
         vacancy.setStatus("ACTIVE");
         vacancy.setUpdatedAt(now);
 
-        TemplateVersionEntity version = new TemplateVersionEntity();
-        version.setVacancyId(vacancyId);
-        version.setVersionNo(previous.getVersionNo() + 1);
-        version.setSpecializationId(specialization.getId());
-        version.setLevelId(level.getId());
-        version.setGithubWeight(level.getGithubWeight());
-        version.setScoringWeightsId(weights.getId());
-        version.setLlmPromptVersion(previous.getLlmPromptVersion());
-        version.setLlmModel(previous.getLlmModel());
-        version.setDroppedRequirements(previous.getDroppedRequirements());
-        version.setConfirmed(true);
-        version.setCreatedAt(now);
+        TemplateVersionEntity version =
+                TemplateVersionEntity.builder()
+                        .vacancyId(vacancyId)
+                        .versionNo(previous.getVersionNo() + 1)
+                        .specializationId(specialization.getId())
+                        .levelId(level.getId())
+                        .githubWeight(level.getGithubWeight())
+                        .scoringWeightsId(weights.getId())
+                        .llmPromptVersion(previous.getLlmPromptVersion())
+                        .llmModel(previous.getLlmModel())
+                        .droppedRequirements(previous.getDroppedRequirements())
+                        .confirmed(true)
+                        .createdAt(now)
+                        .build();
         versionRepository.save(version);
 
         for (int index = 0; index < prepared.size(); index++) {
             PreparedRequirement item = prepared.get(index);
-            RequirementEntity entity = new RequirementEntity();
-            entity.setTemplateVersionId(version.getId());
-            entity.setPosition((short) (index + 1));
-            entity.setSkillId(item.resolved().skillId());
-            entity.setSkillText(item.displaySkill());
-            entity.setRawText(item.quote());
-            entity.setKind(item.kind().name());
-            entity.setKindSource(item.kindSource().name());
-            entity.setLlmKind(item.llmKind() == null ? null : item.llmKind().name());
-            entity.setCritical(false);
-            entity.setYearsRequired(item.yearsRequired());
-            entity.setClarityWarning(item.clarityWarning());
+            RequirementEntity entity =
+                    RequirementEntity.builder()
+                            .templateVersionId(version.getId())
+                            .position((short) (index + 1))
+                            .skillId(item.resolved().skillId())
+                            .skillText(item.displaySkill())
+                            .rawText(item.quote())
+                            .kind(item.kind().name())
+                            .kindSource(item.kindSource().name())
+                            .llmKind(item.llmKind() == null ? null : item.llmKind().name())
+                            .critical(false)
+                            .yearsRequired(item.yearsRequired())
+                            .clarityWarning(item.clarityWarning())
+                            .build();
             requirementRepository.save(entity);
         }
 
@@ -377,19 +385,23 @@ public class VacancyStore {
             TemplateVersionEntity version, List<DraftRequirement> requirements) {
         for (int index = 0; index < requirements.size(); index++) {
             DraftRequirement draft = requirements.get(index);
-            RequirementEntity entity = new RequirementEntity();
-            entity.setTemplateVersionId(version.getId());
-            entity.setPosition((short) (index + 1));
-            entity.setSkillId(draft.skillId());
-            entity.setSkillText(draft.skill());
-            entity.setRawText(draft.quote());
-            entity.setKind(draft.kind().name());
-            entity.setKindSource(draft.kindSource().name());
-            entity.setLlmKind(draft.llmKind() == null ? null : draft.llmKind().name());
-            entity.setCritical(false);
-            entity.setYearsRequired(
-                    draft.yearsRequired() == null ? BigDecimal.ZERO : draft.yearsRequired());
-            entity.setClarityWarning(draft.clarityWarning());
+            RequirementEntity entity =
+                    RequirementEntity.builder()
+                            .templateVersionId(version.getId())
+                            .position((short) (index + 1))
+                            .skillId(draft.skillId())
+                            .skillText(draft.skill())
+                            .rawText(draft.quote())
+                            .kind(draft.kind().name())
+                            .kindSource(draft.kindSource().name())
+                            .llmKind(draft.llmKind() == null ? null : draft.llmKind().name())
+                            .critical(false)
+                            .yearsRequired(
+                                    draft.yearsRequired() == null
+                                            ? BigDecimal.ZERO
+                                            : draft.yearsRequired())
+                            .clarityWarning(draft.clarityWarning())
+                            .build();
             requirementRepository.save(entity);
         }
     }
