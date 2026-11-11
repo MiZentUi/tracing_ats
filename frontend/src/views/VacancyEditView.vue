@@ -13,7 +13,7 @@ import {
   Sparkles,
   Trash2,
 } from '@lucide/vue'
-import type { ReferenceItem, SkillKind, Vacancy } from '@/api/generated'
+import type { ReferenceItem, SkillKind, Specialization, Vacancy } from '@/api/generated'
 import { apiErrorCode, apiErrorMessage, referenceApi, vacanciesApi } from '@/api'
 import ConfirmDialog from '@/components/ConfirmDialog.vue'
 import RequirementCard from '@/components/RequirementCard.vue'
@@ -29,8 +29,13 @@ const requirements = ref<EditableRequirement[]>([])
 const title = ref('')
 const specialization = ref('')
 const level = ref('none')
-const specializations = ref<ReferenceItem[]>([])
+const specializations = ref<Specialization[]>([])
 const levels = ref<ReferenceItem[]>([])
+
+// Грейд запрашивается только у IT-специализаций; у остальных уровень фиксирован как «none».
+const needsLevel = computed(
+  () => specializations.value.find((item) => item.code === specialization.value)?.it === true,
+)
 const snapshot = ref('')
 const loading = ref(true)
 const saving = ref(false)
@@ -204,7 +209,7 @@ async function save() {
       updateTemplateRequest: {
         base_version: vacancy.value.template.version,
         specialization: specialization.value,
-        level: level.value,
+        level: needsLevel.value ? level.value : undefined,
         title: title.value.trim() || null,
         requirements: requirements.value.map((item) => ({
           id: item.id,
@@ -353,11 +358,13 @@ onMounted(load)
                 </select>
               </div>
               <div>
-                <label class="label" for="editor-level">Уровень</label>
-                <select id="editor-level" v-model="level" class="input">
-                  <option value="none">Без уровня</option>
+                <label class="label" for="editor-level">Уровень <span v-if="needsLevel" class="font-normal text-slate-400">(обязательно)</span></label>
+                <select v-if="needsLevel" id="editor-level" v-model="level" class="input">
                   <option v-for="item in levels" :key="item.code" :value="item.code">{{ item.name }}</option>
                 </select>
+                <p v-else class="flex h-[38px] items-center rounded-xl border border-dashed border-slate-300 bg-slate-50 px-3 text-sm text-slate-500">
+                  Не требуется: специализация не IT
+                </p>
               </div>
             </div>
           </div>

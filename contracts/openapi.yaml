@@ -65,7 +65,7 @@ paths:
     get:
       tags:
         - Reference
-      summary: Справочник IT-специализаций
+      summary: Справочник специализаций
       operationId: listSpecializations
       responses:
         "200":
@@ -75,7 +75,7 @@ paths:
               schema:
                 type: array
                 items:
-                  $ref: "#/components/schemas/ReferenceItem"
+                  $ref: "#/components/schemas/Specialization"
         default:
           $ref: "#/components/responses/error"
     post:
@@ -95,7 +95,7 @@ paths:
           content:
             application/json:
               schema:
-                $ref: "#/components/schemas/ReferenceItem"
+                $ref: "#/components/schemas/Specialization"
         "409":
           $ref: "#/components/responses/conflict"
         "422":
@@ -175,7 +175,9 @@ paths:
                 level:
                   type: string
                   nullable: true
-                  description: Код уровня из справочника; если не указан, используется «Без уровня»
+                  description: >-
+                    Код уровня из справочника. Обязателен для IT-специализации;
+                    для не-IT специализаций игнорируется и подставляется «Без уровня».
                   example: middle
                 title:
                   type: string
@@ -299,10 +301,31 @@ components:
           type: string
           example: Backend
 
+    Specialization:
+      type: object
+      required:
+        - code
+        - name
+        - it
+      properties:
+        code:
+          type: string
+          example: backend
+        name:
+          type: string
+          example: Backend
+        it:
+          type: boolean
+          description: >-
+            IT-специализация. Для IT обязателен уровень (грейд), для остальных
+            специализаций грейд не запрашивается.
+          example: true
+
     CreateSpecializationRequest:
       type: object
       required:
         - name
+        - it
       properties:
         name:
           type: string
@@ -312,6 +335,10 @@ components:
           nullable: true
           description: Латинский код; если не указан, генерируется из названия
           example: analytics
+        it:
+          type: boolean
+          description: IT-специализация или нет; обязательное поле
+          example: false
 
     SkillKind:
       type: string

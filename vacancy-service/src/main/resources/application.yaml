@@ -20,6 +20,11 @@ spring:
 server:
   port: 8080
 
+logging:
+  pattern:
+    # Один идентификатор запроса в каждой строке: по нему видно всю цепочку вызова в логах.
+    level: "%5p [req:%X{requestId:--}]"
+
 ats:
   dev:
     extraction-endpoint:
@@ -43,8 +48,8 @@ vacancy:
     temperature: 0
     max-tokens: 6000
     connect-timeout: 5s
-    read-timeout: 120s
-    total-timeout: 170s
+    read-timeout: 180s
+    total-timeout: 300s
     max-attempts: 3
     delay: 5s
     multiplier: 2

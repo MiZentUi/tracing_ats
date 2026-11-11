@@ -10,6 +10,7 @@ import ats.vacancy.application.CreateVacancyCommand;
 import ats.vacancy.application.VacancyService;
 import java.util.UUID;
 import lombok.RequiredArgsConstructor;
+import lombok.extern.slf4j.Slf4j;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.RequestMapping;
@@ -19,6 +20,7 @@ import org.springframework.web.multipart.MultipartFile;
 @RestController
 @RequiredArgsConstructor
 @RequestMapping("/api/v1")
+@Slf4j
 public class VacancyController implements VacanciesApi {
 
     private final VacancyService vacancyService;
@@ -28,6 +30,14 @@ public class VacancyController implements VacanciesApi {
     @Override
     public ResponseEntity<Vacancy> createVacancy(
             String specialization, String level, String title, String text, MultipartFile file) {
+        log.info(
+                "Create vacancy: specialization={}, level={}, titleProvided={}, textChars={},"
+                        + " fileBytes={}",
+                specialization,
+                level,
+                title != null && !title.isBlank(),
+                text == null ? 0 : text.length(),
+                file == null ? 0 : file.getSize());
         return ResponseEntity.status(HttpStatus.CREATED)
                 .body(
                         vacancyMapper.toVacancy(

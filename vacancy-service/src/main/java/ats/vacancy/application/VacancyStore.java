@@ -40,6 +40,8 @@ import org.springframework.transaction.annotation.Transactional;
 @RequiredArgsConstructor
 public class VacancyStore {
 
+    private static final String HIDDEN_LEVEL = "none";
+
     private final VacancyRepository vacancyRepository;
     private final TemplateVersionRepository versionRepository;
     private final RequirementRepository requirementRepository;
@@ -122,7 +124,8 @@ public class VacancyStore {
                 resolveSpecialization(
                         command.specialization() == null ? null : command.specialization(),
                         previous.getSpecializationId());
-        LevelEntity level = resolveLevel(command.level(), previous.getLevelId());
+        LevelEntity level =
+                resolveLevel(command.level(), previous.getLevelId(), specialization.isIt());
         ScoringWeightsEntity weights = activeWeights();
 
         if (command.requirements() == null || command.requirements().isEmpty()) {
@@ -431,17 +434,21 @@ public class VacancyStore {
                                         "Unknown specialization: " + code));
     }
 
-    private LevelEntity resolveLevel(String code, UUID fallbackId) {
+    private LevelEntity resolveLevel(String code, UUID fallbackId, boolean it) {
+        if (!it) {
+            return levelRepository
+                    .findByCode(HIDDEN_LEVEL)
+                    .orElseThrow(
+                            () -> new IllegalStateException("Hidden level 'none' is not seeded"));
+        }
         if (code == null || code.isBlank()) {
             return levelRepository
                     .findById(fallbackId)
                     .orElseThrow(() -> ApiException.notFound("Level not found"));
         }
-        if ("none".equals(code)) {
-            return levelRepository
-                    .findByCode("none")
-                    .orElseThrow(
-                            () -> new IllegalStateException("Hidden level 'none' is not seeded"));
+        if (HIDDEN_LEVEL.equals(code)) {
+            throw ApiException.unprocessable(
+                    "LEVEL_REQUIRED", "level is required for IT specialization");
         }
         return levelRepository
                 .findByCodeAndActiveTrue(code)

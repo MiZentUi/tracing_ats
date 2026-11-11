@@ -2,7 +2,8 @@
 
 Схема соответствует Liquibase-миграциям `migrations/changes/001-vacancy-schema.sql`,
 `009-requirement-skills-and-kinds.sql`, `010-skill-alias-and-seed.sql`,
-`011-skill-kind-stat.sql` и `012-seed-specializations.sql`.
+`011-skill-kind-stat.sql`, `012-seed-specializations.sql`, `013-optional-level.sql`,
+`014-seed-more-skills.sql` и `015-specialization-it.sql`.
 Корневой changelog Liquibase — `migrations/db.changelog-master.xml`; его накатывает не
 приложение, а отдельная джоба `migrations` из корневого `compose.yaml` (см. `migrations/Dockerfile`).
 
@@ -25,6 +26,7 @@ erDiagram
         uuid id PK
         varchar code UK "slug, backend"
         varchar name UK "без учёта регистра"
+        boolean is_it "IT-специализация: грейд обязателен"
         boolean is_active "false вместо удаления"
         timestamptz created_at
         timestamptz updated_at
@@ -164,11 +166,17 @@ erDiagram
 
 ## Уровень «Без уровня»
 
-Для специализаций без деления на грейды в `level` заведена скрытая запись
-`code = 'none'`, `name = 'Без уровня'`, `is_active = false`. Она не попадает в
-`GET /levels`, но используется в `vacancy_template_version.level_id` и в ключе
-`skill_kind_stat`, если уровень не указан. История типов для таких вакансий
-изолирована от `junior/middle/senior`.
+Признак `specialization.is_it` определяет, запрашивается ли грейд:
+
+- для IT-специализации (`is_it = true`) уровень обязателен в `POST /api/v1/vacancies`;
+  без него API отвечает `422 LEVEL_REQUIRED`, значение `none` не принимается;
+- для не-IT специализации (`is_it = false`) грейда нет: переданный уровень
+  игнорируется, а в `vacancy_template_version.level_id` подставляется скрытая запись
+  `code = 'none'`, `name = 'Без уровня'`, `is_active = false`.
+
+Скрытый уровень не попадает в `GET /levels`, но используется в
+`vacancy_template_version.level_id` и в ключе `skill_kind_stat`, если уровень не указан.
+История типов для таких вакансий изолирована от `junior/middle/senior`.
 
 ## Отличия от прежней схемы
 

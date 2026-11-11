@@ -6,9 +6,11 @@ import java.time.Instant;
 import java.util.Locale;
 import java.util.Map;
 import lombok.RequiredArgsConstructor;
+import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
+@Slf4j
 @Service
 @RequiredArgsConstructor
 public class SpecializationService {
@@ -55,10 +57,14 @@ public class SpecializationService {
     private final SpecializationRepository repository;
 
     @Transactional
-    public ReferenceItem create(String rawName, String requestedCode) {
+    public SpecializationItem create(String rawName, String requestedCode, Boolean it) {
         String name = rawName == null ? "" : rawName.strip();
         if (name.isEmpty()) {
             throw ApiException.unprocessable("SPECIALIZATION_NAME_REQUIRED", "name is required");
+        }
+        if (it == null) {
+            throw ApiException.unprocessable(
+                    "SPECIALIZATION_IT_REQUIRED", "it is required: true for IT, false otherwise");
         }
         if (name.length() > MAX_NAME_LENGTH) {
             throw ApiException.unprocessable(
@@ -99,11 +105,13 @@ public class SpecializationService {
                         .code(code)
                         .name(name)
                         .active(true)
+                        .it(it)
                         .createdAt(now)
                         .updatedAt(now)
                         .build();
         repository.save(entity);
-        return new ReferenceItem(code, name);
+        log.info("Specialization created: code={}, it={}, nameChars={}", code, it, name.length());
+        return new SpecializationItem(code, name, it);
     }
 
     static String slug(String name) {

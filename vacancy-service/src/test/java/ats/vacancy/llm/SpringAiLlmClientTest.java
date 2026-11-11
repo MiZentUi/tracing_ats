@@ -15,6 +15,7 @@ import java.time.Duration;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.concurrent.CopyOnWriteArrayList;
+import java.util.concurrent.Executors;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.function.Function;
 import org.junit.jupiter.api.AfterEach;
@@ -156,8 +157,75 @@ class SpringAiLlmClientTest {
                 .isInstanceOf(LlmTruncatedException.class);
     }
 
+    @Test
+    void reportsUnavailableWhenResponseCannotBeRead() throws Exception {
+        // Оборванный ответ раньше вылетал OpenAIInvalidDataException мимо клиента и давал 500.
+        String baseUrl = server(body -> new MockResponse(200, "{\"choices\": ["));
+        assertThatThrownBy(() -> new SpringAiLlmClient(properties(baseUrl)).complete(request()))
+                .isInstanceOf(LlmUnavailableException.class);
+    }
+
+    @Test
+    void switchesToFallbackWhenPrimaryAnswerIsUnreadable() throws Exception {
+        List<String> models = new CopyOnWriteArrayList<>();
+        String baseUrl =
+                server(
+                        body -> {
+                            try {
+                                String model = MAPPER.readTree(body).path("model").asText();
+                                models.add(model);
+                                if (model.equals("primary/model")) {
+                                    return new MockResponse(200, "not-json");
+                                }
+                                return new MockResponse(200, success("fallback"));
+                            } catch (Exception e) {
+                                return new MockResponse(500, error("broken"));
+                            }
+                        });
+        VacancyLlmProperties properties = properties(baseUrl);
+        properties.setMaxAttempts(1);
+
+        LlmResponse response = new SpringAiLlmClient(properties).complete(request());
+
+        assertThat(response.content()).isEqualTo("fallback");
+        assertThat(models).containsExactly("primary/model", "fallback/model");
+    }
+
+    @Test
+    void switchesToFallbackWhenPrimaryTimesOut() throws Exception {
+        List<String> models = new CopyOnWriteArrayList<>();
+        String baseUrl =
+                server(
+                        body -> {
+                            try {
+                                String model = MAPPER.readTree(body).path("model").asText();
+                                models.add(model);
+                                if (model.equals("primary/model")) {
+                                    Thread.sleep(1_500);
+                                }
+                                return new MockResponse(200, success("ok"));
+                            } catch (InterruptedException e) {
+                                Thread.currentThread().interrupt();
+                                return new MockResponse(500, error("interrupted"));
+                            } catch (Exception e) {
+                                return new MockResponse(500, error("broken"));
+                            }
+                        });
+        VacancyLlmProperties properties = properties(baseUrl);
+        properties.setMaxAttempts(1);
+        properties.setReadTimeout(Duration.ofMillis(300));
+
+        LlmResponse response = new SpringAiLlmClient(properties).complete(request());
+
+        assertThat(response.content()).isEqualTo("ok");
+        assertThat(models).containsExactly("primary/model", "fallback/model");
+    }
+
     private String server(Function<String, MockResponse> handler) throws IOException {
         HttpServer server = HttpServer.create(new InetSocketAddress("127.0.0.1", 0), 0);
+        // Виртуальные потоки: тест с таймаутом отправляет запрос к запасной модели,
+        // пока обработчик основной ещё спит.
+        server.setExecutor(Executors.newVirtualThreadPerTaskExecutor());
         server.createContext("/api/v1/chat/completions", exchange -> handle(exchange, handler));
         server.start();
         closeables.add(() -> server.stop(0));

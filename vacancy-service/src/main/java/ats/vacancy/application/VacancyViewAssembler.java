@@ -177,9 +177,9 @@ public class VacancyViewAssembler {
     }
 
     @Transactional(readOnly = true)
-    public List<ReferenceItem> listSpecializations() {
+    public List<SpecializationItem> listSpecializations() {
         return specializationRepository.findAllByActiveTrueOrderByName().stream()
-                .map(item -> new ReferenceItem(item.getCode(), item.getName()))
+                .map(item -> new SpecializationItem(item.getCode(), item.getName(), item.isIt()))
                 .toList();
     }
 
