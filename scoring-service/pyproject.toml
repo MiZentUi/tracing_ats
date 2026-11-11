@@ -9,6 +9,7 @@ dependencies = [
     "googleapis-common-protos>=1.76.0",
     "grpcio>=1.85.1",
     "grpcio-health-checking>=1.85.1",
+    "openai>=3.49.0",
     "pydantic>=2.14.3",
     "pydantic-settings>=2.16.2",
 ]
@@ -39,3 +40,11 @@ exclude = [
 
 [tool.ruff.lint]
 select = ["E", "F", "I", "UP", "B", "SIM", "RUF"]
+
+[tool.ruff.lint.per-file-ignores]
+# Русский текст в промптах и синтетических данных — намеренный.
+"src/api/prompts/*" = ["RUF001", "RUF002", "RUF003"]
+"src/api/llm/mock.py" = ["RUF001", "RUF002", "RUF003"]
+"src/api/extraction/quotes.py" = ["RUF002"]
+"src/api/scoring/similarity.py" = ["RUF002"]
+"tests/*" = ["RUF001", "RUF002", "RUF003"]

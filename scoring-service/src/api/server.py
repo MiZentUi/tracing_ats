@@ -10,6 +10,8 @@ from grpc_health.v1 import health, health_pb2, health_pb2_grpc
 import scoring_service.v1.scoring_pb2_grpc as scoring_pb2_grpc
 
 from .config import Settings, get_settings
+from .extraction.extractor import ResumeExtractor
+from .llm import build_llm_client
 from .scoring import ScoringService
 
 logger = logging.getLogger(__name__)
@@ -22,7 +24,10 @@ class ServerHandle:
     port: int
 
 
-def create_server(settings: Settings | None = None) -> ServerHandle:
+def create_server(
+    settings: Settings | None = None,
+    extractor: ResumeExtractor | None = None,
+) -> ServerHandle:
     """Create a gRPC server with the health and scoring services."""
     settings = settings or get_settings()
     server = grpc.server(futures.ThreadPoolExecutor(max_workers=settings.max_workers))
@@ -35,7 +40,7 @@ def create_server(settings: Settings | None = None) -> ServerHandle:
         health_pb2.HealthCheckResponse.SERVING,
     )
 
-    scoring_servicer = ScoringService()
+    scoring_servicer = ScoringService(extractor or ResumeExtractor(build_llm_client(settings)))
     scoring_pb2_grpc.add_ScoringServiceServicer_to_server(scoring_servicer, server)
 
     address = f"{settings.grpc_host}:{settings.grpc_port}"
