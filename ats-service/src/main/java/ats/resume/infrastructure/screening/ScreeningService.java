@@ -4,6 +4,7 @@ import ats.resume.infrastructure.persistence.entity.ApplicationEntity;
 import ats.resume.infrastructure.persistence.entity.ScreeningBatchEntity;
 import ats.resume.infrastructure.persistence.repository.ApplicationRepository;
 import ats.resume.infrastructure.persistence.repository.ScreeningBatchRepository;
+import ats.support.logging.RequestIds;
 import java.time.Instant;
 import java.util.List;
 import java.util.UUID;
@@ -46,7 +47,16 @@ public class ScreeningService {
         if (!applications.isEmpty()) {
             List<UUID> ids = applications.stream().map(ApplicationEntity::getId).toList();
             UUID batchId = batch.getId();
-            executor.execute(() -> worker.run(batchId, vacancyId, ids));
+            String requestId = RequestIds.current();
+            executor.execute(
+                    () -> {
+                        RequestIds.put(requestId == null ? RequestIds.generate() : requestId);
+                        try {
+                            worker.run(batchId, vacancyId, ids);
+                        } finally {
+                            RequestIds.clear();
+                        }
+                    });
         }
         return new StartedBatch(batch.getId(), batch.getStatus());
     }

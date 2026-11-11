@@ -1,4 +1,5 @@
 import axios from 'axios'
+import { logger } from '@/lib/logger'
 import { Configuration, ReferenceApi, VacanciesApi } from './generated'
 import type { ApiStatusResponse } from './generated'
 
@@ -6,6 +7,22 @@ const basePath = import.meta.env.VITE_API_URL ?? '/api/v1'
 
 // Сервер может отвечать до total-timeout (300 с), а nginx ждёт 300 с: клиент ждёт дольше обоих.
 axios.defaults.timeout = 310_000
+
+// Ошибки API логируем без тел запросов и PII: только метод, статус и request_id.
+axios.interceptors.response.use(
+  (response) => response,
+  (error: unknown) => {
+    if (axios.isAxiosError(error)) {
+      logger.warn(
+        'api_request_failed',
+        `method=${error.config?.method?.toUpperCase() ?? '-'}`,
+        `status=${error.response?.status ?? 'network'}`,
+        `request_id=${(error.response?.headers?.['x-request-id'] as string | undefined) ?? '-'}`,
+      )
+    }
+    return Promise.reject(error)
+  },
+)
 
 const configuration = new Configuration({ basePath })
 

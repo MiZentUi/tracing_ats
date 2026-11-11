@@ -1,6 +1,7 @@
 package ats.resume.infrastructure.scoring;
 
 import ats.resume.domain.ingestion.ResumeMaskedEvent;
+import ats.support.logging.RequestIds;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Qualifier;
@@ -25,13 +26,23 @@ public class PreliminaryScoringListener {
 
     @TransactionalEventListener(phase = TransactionPhase.AFTER_COMMIT)
     public void onResumeMasked(ResumeMaskedEvent event) {
+        String requestId = RequestIds.current();
         try {
-            executor.execute(() -> preliminaryScoringService.scoreOnUpload(event.applicationId()));
+            executor.execute(
+                    () -> {
+                        // Фоновая задача продолжает цепочку загрузки: сохраняем её request_id.
+                        RequestIds.put(requestId == null ? RequestIds.generate() : requestId);
+                        try {
+                            preliminaryScoringService.scoreOnUpload(event.applicationId());
+                        } finally {
+                            RequestIds.clear();
+                        }
+                    });
         } catch (RuntimeException e) {
             // Отклик не должен остаться в MASKED: иначе скрининг молча его пропустит.
             preliminaryScoringService.markFailed(event.applicationId());
             log.warn(
-                    "Preliminary scoring task rejected: applicationId={}, error={}",
+                    "preliminary_scoring_rejected application_id={} error={}",
                     event.applicationId(),
                     e.getClass().getSimpleName());
         }

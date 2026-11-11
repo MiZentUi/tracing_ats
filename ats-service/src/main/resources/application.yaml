@@ -42,7 +42,7 @@ management:
 logging:
   pattern:
     # Один идентификатор запроса в каждой строке: по нему видно всю цепочку вызова в логах.
-    level: "%5p [req:%X{requestId:--}]"
+    level: "%5p [req:%X{request_id:--}]"
 
 ats:
   dev:

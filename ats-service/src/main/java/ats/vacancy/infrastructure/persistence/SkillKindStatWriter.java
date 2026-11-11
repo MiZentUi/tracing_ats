@@ -32,7 +32,7 @@ public class SkillKindStatWriter {
 
         if (delta < 0 && (counts[0] == 0 || counts[1] == 0 || counts[2] == 0)) {
             log.warn(
-                    "skill_kind_stat clamped at zero: specialization={}, level={}, skill={}, kind={}",
+                    "skill_kind_stat_clamped specialization_id={} level_id={} skill_id={} kind={}",
                     specializationId,
                     levelId,
                     skillId,

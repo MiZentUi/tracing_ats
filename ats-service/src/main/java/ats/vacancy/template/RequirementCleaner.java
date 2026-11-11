@@ -1,7 +1,6 @@
 package ats.vacancy.template;
 
 import ats.vacancy.config.VacancyLlmProperties;
-import ats.vacancy.support.LogSupport;
 import java.math.BigDecimal;
 import java.util.ArrayList;
 import java.util.LinkedHashMap;
@@ -36,10 +35,8 @@ public class RequirementCleaner {
                 dropped++;
                 droppedQuote++;
                 log.debug(
-                        "Requirement dropped (quote is not a substring): skill={}, quote=\"{}\"",
-                        raw.skill(),
-                        LogSupport.excerpt(quote, 120));
-                addExample(dropExamples, "quote", raw.skill(), quote);
+                        "template_requirement_dropped reason=quote_mismatch skill={}", raw.skill());
+                addExample(dropExamples, "quote_mismatch", raw.skill());
                 continue;
             }
 
@@ -54,10 +51,8 @@ public class RequirementCleaner {
             if (skill == null && clarity == null) {
                 dropped++;
                 droppedNoSubject++;
-                log.debug(
-                        "Requirement dropped (no skill and no clarity warning): quote=\"{}\"",
-                        LogSupport.excerpt(quote, 120));
-                addExample(dropExamples, "no-skill", skill, quote);
+                log.debug("template_requirement_dropped reason=no_subject skill={}", skill);
+                addExample(dropExamples, "no_subject", skill);
                 continue;
             }
 
@@ -86,10 +81,7 @@ public class RequirementCleaner {
             } else {
                 dropped++;
                 droppedDuplicate++;
-                log.debug(
-                        "Requirement dropped (duplicate): skill={}, quote=\"{}\"",
-                        draft.skill(),
-                        LogSupport.excerpt(draft.quote(), 120));
+                log.debug("template_requirement_dropped reason=duplicate skill={}", draft.skill());
                 if (priority(draft.kind()) > priority(existing.kind())) {
                     // Цитата и срок остаются у первого вхождения, тип берём сильнейший.
                     byKey.put(
@@ -113,8 +105,8 @@ public class RequirementCleaner {
         }
         if (result.isEmpty() && !payload.requirements().isEmpty()) {
             log.warn(
-                    "Template cleaner dropped all requirements: total={}, quoteMismatch={},"
-                            + " noSubject={}, duplicates={}, limit={}, examples={}",
+                    "template_requirements_all_dropped total={} quote_mismatch={}"
+                            + " no_subject={} duplicates={} limit={} examples={}",
                     payload.requirements().size(),
                     droppedQuote,
                     droppedNoSubject,
@@ -125,13 +117,11 @@ public class RequirementCleaner {
         return new CleanedTemplate(title, List.copyOf(result), dropped);
     }
 
-    private static void addExample(
-            List<String> examples, String reason, String skill, String quote) {
+    private static void addExample(List<String> examples, String reason, String skill) {
         if (examples.size() >= 3) {
             return;
         }
-        examples.add(
-                reason + " skill=" + skill + " quote=\"" + LogSupport.excerpt(quote, 100) + "\"");
+        examples.add(reason + " skill=" + skill);
     }
 
     private static BigDecimal normalizeYears(BigDecimal years) {

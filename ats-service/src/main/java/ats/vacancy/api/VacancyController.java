@@ -31,8 +31,8 @@ public class VacancyController implements VacanciesApi {
     public ResponseEntity<Vacancy> createVacancy(
             String specialization, String level, String title, String text, MultipartFile file) {
         log.info(
-                "Create vacancy: specialization={}, level={}, titleProvided={}, textChars={},"
-                        + " fileBytes={}",
+                "vacancy_create_requested specialization={} level={} title_provided={}"
+                        + " text_chars={} file_bytes={}",
                 specialization,
                 level,
                 title != null && !title.isBlank(),

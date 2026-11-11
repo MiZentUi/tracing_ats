@@ -4,6 +4,9 @@ import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
 import ats.vacancy.config.VacancyLlmProperties;
+import ch.qos.logback.classic.Logger;
+import ch.qos.logback.classic.spi.ILoggingEvent;
+import ch.qos.logback.core.read.ListAppender;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.sun.net.httpserver.HttpExchange;
@@ -20,6 +23,7 @@ import java.util.concurrent.atomic.AtomicInteger;
 import java.util.function.Function;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.Test;
+import org.slf4j.LoggerFactory;
 
 class SpringAiLlmClientTest {
 
@@ -155,6 +159,30 @@ class SpringAiLlmClientTest {
         String baseUrl = server(body -> new MockResponse(200, completion("", "length")));
         assertThatThrownBy(() -> new SpringAiLlmClient(properties(baseUrl)).complete(request()))
                 .isInstanceOf(LlmTruncatedException.class);
+    }
+
+    @Test
+    void logsRequestWithoutPromptContent() throws Exception {
+        String baseUrl = server(body -> new MockResponse(200, success("ok")));
+        Logger logger = (Logger) LoggerFactory.getLogger(SpringAiLlmClient.class);
+        ListAppender<ILoggingEvent> appender = new ListAppender<>();
+        appender.start();
+        logger.addAppender(appender);
+        try {
+            new SpringAiLlmClient(properties(baseUrl))
+                    .complete(
+                            new LlmRequest(
+                                    "system", "СЕКРЕТНЫЙ ТЕКСТ РЕЗЮМЕ <vacancy_text>", null));
+        } finally {
+            logger.detachAppender(appender);
+        }
+
+        assertThat(appender.list)
+                .extracting(ILoggingEvent::getFormattedMessage)
+                .anyMatch(m -> m.startsWith("llm_request_sent"));
+        assertThat(appender.list)
+                .extracting(ILoggingEvent::getFormattedMessage)
+                .noneMatch(m -> m.contains("СЕКРЕТНЫЙ ТЕКСТ"));
     }
 
     @Test

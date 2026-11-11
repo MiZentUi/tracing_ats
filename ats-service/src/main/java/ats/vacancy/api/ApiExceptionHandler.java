@@ -22,7 +22,7 @@ public class ApiExceptionHandler {
     @ExceptionHandler(ApiException.class)
     public ResponseEntity<ApiStatusResponse> handleApi(ApiException exception) {
         log.info(
-                "Request rejected: status={}, code={}, detail={}",
+                "api_request_rejected status={} code={} detail={}",
                 exception.status().value(),
                 exception.code(),
                 exception.getMessage());
@@ -32,7 +32,7 @@ public class ApiExceptionHandler {
     @ExceptionHandler(LlmException.class)
     public ResponseEntity<ApiStatusResponse> handleLlm(LlmException exception) {
         log.warn(
-                "LLM call failed: httpStatus={}, code={}, cause={}",
+                "llm_call_failed http_status={} code={} error={}",
                 exception.httpStatus(),
                 exception.errorCode(),
                 LogSupport.describe(exception));
@@ -45,7 +45,7 @@ public class ApiExceptionHandler {
     @ExceptionHandler(ExtractionException.class)
     public ResponseEntity<ApiStatusResponse> handleExtraction(ExtractionException exception) {
         log.warn(
-                "Text extraction failed: code={}, cause={}",
+                "text_extraction_failed code={} error={}",
                 exception.errorCode(),
                 LogSupport.describe(exception));
         return response(
@@ -61,14 +61,14 @@ public class ApiExceptionHandler {
         HttpMessageNotReadableException.class
     })
     public ResponseEntity<ApiStatusResponse> handleValidation(Exception exception) {
-        log.warn("Request validation failed: cause={}", LogSupport.describe(exception));
+        log.warn("request_validation_failed error={}", LogSupport.describe(exception));
         return response(
                 HttpStatus.UNPROCESSABLE_ENTITY, "VALIDATION_ERROR", "Invalid request body");
     }
 
     @ExceptionHandler(Exception.class)
     public ResponseEntity<ApiStatusResponse> handleUnexpected(Exception exception) {
-        log.error("Unexpected API error", exception);
+        log.error("api_error_unexpected", exception);
         return response(
                 HttpStatus.INTERNAL_SERVER_ERROR, "INTERNAL_ERROR", "Internal server error");
     }

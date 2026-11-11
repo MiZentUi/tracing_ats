@@ -49,7 +49,7 @@ public class SpringAiLlmClient implements LlmClient {
     @Override
     public LlmResponse complete(LlmRequest request) {
         if (properties.getApiKey() == null || properties.getApiKey().isBlank()) {
-            log.warn("LLM is not configured: vacancy.llm.api-key is empty");
+            log.warn("llm_not_configured api_key=absent");
             throw new LlmNotConfiguredException();
         }
 
@@ -59,7 +59,7 @@ public class SpringAiLlmClient implements LlmClient {
         models.add(properties.getModel());
         models.addAll(properties.getFallbackModels());
         log.info(
-                "LLM chain started: models={}, promptChars={}, hasJsonSchema={}, totalTimeout={}",
+                "llm_chain_started models={} prompt_chars={} json_schema={} total_timeout={}",
                 models,
                 request.userPrompt() == null ? 0 : request.userPrompt().length(),
                 request.jsonSchema() != null,
@@ -69,7 +69,7 @@ public class SpringAiLlmClient implements LlmClient {
             LlmResponse response = tryModel(model, request, deadline);
             if (response != null) {
                 log.info(
-                        "LLM chain succeeded: model={}, elapsedMs={}, attemptsBudget={}",
+                        "llm_chain_succeeded model={} elapsed_ms={} attempts_budget={}",
                         model,
                         elapsedMs(startedAt),
                         properties.getMaxAttempts());
@@ -77,7 +77,7 @@ public class SpringAiLlmClient implements LlmClient {
             }
         }
         log.error(
-                "LLM chain exhausted: models={}, elapsedMs={}, cause={}",
+                "llm_chain_exhausted models={} elapsed_ms={} error={}",
                 models,
                 elapsedMs(startedAt),
                 "all models returned no usable response or the total timeout expired");
@@ -93,7 +93,7 @@ public class SpringAiLlmClient implements LlmClient {
         while (true) {
             if (System.nanoTime() >= deadline) {
                 log.warn(
-                        "LLM total timeout expired before attempt: model={}, attempt={}, format={}",
+                        "llm_total_timeout model={} attempt={} format={}",
                         model,
                         attempt + 1,
                         format);
@@ -102,7 +102,7 @@ public class SpringAiLlmClient implements LlmClient {
             attempt++;
             long attemptStartedAt = System.nanoTime();
             log.info(
-                    "LLM attempt started: model={}, attempt={}, format={}, promptChars={}",
+                    "llm_request_sent model={} attempt={} format={} prompt_chars={}",
                     model,
                     attempt,
                     format,
@@ -111,9 +111,9 @@ public class SpringAiLlmClient implements LlmClient {
                 ChatResponse response = callOnce(model, request, format, deadline);
                 LlmResponse mapped = toResponse(response, model);
                 log.info(
-                        "LLM attempt succeeded: model={}, attempt={}, format={}, elapsedMs={},"
-                                + " contentChars={}, promptTokens={}, completionTokens={},"
-                                + " finishReason={}",
+                        "llm_response_received model={} attempt={} format={} elapsed_ms={}"
+                                + " content_chars={} prompt_tokens={} completion_tokens={}"
+                                + " finish_reason={}",
                         model,
                         attempt,
                         format,
@@ -125,7 +125,7 @@ public class SpringAiLlmClient implements LlmClient {
                 return mapped;
             } catch (UnauthorizedException | PermissionDeniedException e) {
                 log.warn(
-                        "LLM rejected the API key: model={}, attempt={}, elapsedMs={}, cause={}",
+                        "llm_auth_rejected model={} attempt={} elapsed_ms={} error={}",
                         model,
                         attempt,
                         elapsedMs(attemptStartedAt),
@@ -135,8 +135,8 @@ public class SpringAiLlmClient implements LlmClient {
                 format = degrade(format);
                 if (format == null) {
                     log.warn(
-                            "LLM rejected the request in every format, trying next model:"
-                                    + " model={}, attempt={}, elapsedMs={}, cause={}",
+                            "llm_request_failed model={} attempt={} elapsed_ms={} status=bad_request"
+                                    + " error={}",
                             model,
                             attempt,
                             elapsedMs(attemptStartedAt),
@@ -144,22 +144,21 @@ public class SpringAiLlmClient implements LlmClient {
                     return null;
                 }
                 log.warn(
-                        "LLM rejected response format, degrading: model={}, attempt={},"
-                                + " nextFormat={}, cause={}",
+                        "llm_format_degraded model={} attempt={} next_format={} error={}",
                         model,
                         attempt,
                         format,
                         LogSupport.describe(e));
             } catch (NotFoundException e) {
                 log.warn(
-                        "LLM model not found, trying next model: model={}, attempt={}, cause={}",
+                        "llm_model_not_found model={} attempt={} error={}",
                         model,
                         attempt,
                         LogSupport.describe(e));
                 return null;
             } catch (RateLimitException e) {
                 log.warn(
-                        "LLM rate limited: model={}, attempt={}, elapsedMs={}, cause={}",
+                        "llm_rate_limited model={} attempt={} elapsed_ms={} error={}",
                         model,
                         attempt,
                         elapsedMs(attemptStartedAt),
@@ -170,7 +169,7 @@ public class SpringAiLlmClient implements LlmClient {
             } catch (OpenAIServiceException e) {
                 if (e.statusCode() == 402) {
                     log.warn(
-                            "LLM quota exhausted: model={}, attempt={}, status={}",
+                            "llm_quota_exhausted model={} attempt={} http_status={}",
                             model,
                             attempt,
                             e.statusCode());
@@ -178,7 +177,7 @@ public class SpringAiLlmClient implements LlmClient {
                 }
                 if (e.statusCode() == 401 || e.statusCode() == 403) {
                     log.warn(
-                            "LLM rejected the API key: model={}, attempt={}, status={}",
+                            "llm_auth_rejected model={} attempt={} http_status={}",
                             model,
                             attempt,
                             e.statusCode());
@@ -186,8 +185,8 @@ public class SpringAiLlmClient implements LlmClient {
                 }
                 if (e.statusCode() >= 500) {
                     log.warn(
-                            "LLM server error: model={}, attempt={}, status={}, elapsedMs={},"
-                                    + " cause={}",
+                            "llm_request_failed model={} attempt={} http_status={} elapsed_ms={}"
+                                    + " error={}",
                             model,
                             attempt,
                             e.statusCode(),
@@ -198,8 +197,7 @@ public class SpringAiLlmClient implements LlmClient {
                     }
                 } else {
                     log.warn(
-                            "LLM returned HTTP {}, trying next model: model={}, attempt={},"
-                                    + " cause={}",
+                            "llm_request_failed model={} attempt={} http_status={} error={}",
                             e.statusCode(),
                             model,
                             attempt,
@@ -208,7 +206,7 @@ public class SpringAiLlmClient implements LlmClient {
                 }
             } catch (OpenAIIoException e) {
                 log.warn(
-                        "LLM transport error: model={}, attempt={}, elapsedMs={}, cause={}",
+                        "llm_transport_error model={} attempt={} elapsed_ms={} error={}",
                         model,
                         attempt,
                         elapsedMs(attemptStartedAt),
@@ -221,8 +219,7 @@ public class SpringAiLlmClient implements LlmClient {
                 // Повторять ту же медленную модель бессмысленно, сразу идём к следующей.
                 if (isTimeout(e)) {
                     log.warn(
-                            "LLM timed out mid-response, trying next model: model={},"
-                                    + " attempt={}, elapsedMs={}, readTimeout={}, cause={}",
+                            "llm_timeout model={} attempt={} elapsed_ms={} read_timeout={} error={}",
                             model,
                             attempt,
                             elapsedMs(attemptStartedAt),
@@ -231,8 +228,7 @@ public class SpringAiLlmClient implements LlmClient {
                     return null;
                 }
                 log.warn(
-                        "LLM response cannot be read: model={}, attempt={}, elapsedMs={},"
-                                + " cause={}",
+                        "llm_response_unreadable model={} attempt={} elapsed_ms={} error={}",
                         model,
                         attempt,
                         elapsedMs(attemptStartedAt),
@@ -244,7 +240,7 @@ public class SpringAiLlmClient implements LlmClient {
                 // Прочие ошибки SDK не должны вылетать наружу: по RFC-002 истёкшая
                 // цепочка — это LlmUnavailableException, а не 500 для клиента.
                 log.warn(
-                        "LLM SDK error: model={}, attempt={}, elapsedMs={}, cause={}",
+                        "llm_request_failed model={} attempt={} elapsed_ms={} error={}",
                         model,
                         attempt,
                         elapsedMs(attemptStartedAt),
@@ -370,7 +366,7 @@ public class SpringAiLlmClient implements LlmClient {
     private boolean sleepBeforeRetry(String model, int attempt, long deadline, Exception cause) {
         if (attempt >= properties.getMaxAttempts()) {
             log.warn(
-                    "LLM model exhausted: model={}, attempts={}, maxAttempts={}, cause={}",
+                    "llm_model_exhausted model={} attempts={} max_attempts={} error={}",
                     model,
                     attempt,
                     properties.getMaxAttempts(),
@@ -383,15 +379,14 @@ public class SpringAiLlmClient implements LlmClient {
                                 * Math.pow(properties.getMultiplier(), attempt - 1));
         if (System.nanoTime() + Duration.ofMillis(delayMillis).toNanos() >= deadline) {
             log.warn(
-                    "LLM retry skipped, total timeout would expire: model={}, attempt={},"
-                            + " delayMs={}",
+                    "llm_retry_skipped model={} attempt={} delay_ms={} reason=total_timeout",
                     model,
                     attempt,
                     delayMillis);
             return false;
         }
         log.info(
-                "LLM retry scheduled: model={}, attempt={}, delayMs={}, cause={}",
+                "llm_retry_scheduled model={} attempt={} delay_ms={} error={}",
                 model,
                 attempt,
                 delayMillis,
@@ -400,7 +395,7 @@ public class SpringAiLlmClient implements LlmClient {
             Thread.sleep(delayMillis);
         } catch (InterruptedException e) {
             Thread.currentThread().interrupt();
-            log.warn("LLM retry was interrupted: model={}, attempt={}", model, attempt);
+            log.warn("llm_retry_interrupted model={} attempt={}", model, attempt);
             throw new LlmUnavailableException("LLM call was interrupted", e);
         }
         return true;

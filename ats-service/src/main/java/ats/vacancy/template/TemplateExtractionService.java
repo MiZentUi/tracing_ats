@@ -5,7 +5,6 @@ import ats.vacancy.llm.LlmClient;
 import ats.vacancy.llm.LlmInvalidResponseException;
 import ats.vacancy.llm.LlmRequest;
 import ats.vacancy.llm.LlmResponse;
-import ats.vacancy.support.LogSupport;
 import java.time.Duration;
 import java.util.UUID;
 import java.util.regex.Pattern;
@@ -35,8 +34,8 @@ public class TemplateExtractionService {
             String vacancyText, UUID specializationId, UUID levelId, String modelHint) {
         long startedAt = System.nanoTime();
         log.info(
-                "Template extraction started: textChars={}, specializationId={}, levelId={},"
-                        + " modelHint={}, promptVersion={}",
+                "template_extraction_started text_chars={} specialization_id={} level_id={}"
+                        + " model={} prompt_version={}",
                 vacancyText.length(),
                 specializationId,
                 levelId,
@@ -51,8 +50,8 @@ public class TemplateExtractionService {
 
         LlmResponse response = llmClient.complete(request);
         log.info(
-                "Template extraction got LLM response: model={}, contentChars={}, finishReason={},"
-                        + " elapsedMs={}",
+                "template_response_received model={} content_chars={} finish_reason={}"
+                        + " elapsed_ms={}",
                 response.model(),
                 response.content() == null ? 0 : response.content().length(),
                 response.finishReason(),
@@ -63,11 +62,9 @@ public class TemplateExtractionService {
             payload = responseParser.parse(response.content());
         } catch (TemplateParseException firstFailure) {
             log.warn(
-                    "LLM template response is invalid, retrying once: reason={}, contentChars={},"
-                            + " excerpt=\"{}\"",
-                    LogSupport.describe(firstFailure),
-                    response.content() == null ? 0 : response.content().length(),
-                    LogSupport.excerpt(response.content(), 300));
+                    "template_response_invalid attempt=1 reason={} content_chars={}",
+                    firstFailure.getMessage(),
+                    response.content() == null ? 0 : response.content().length());
             LlmRequest retry =
                     new LlmRequest(
                             request.systemPrompt(),
@@ -79,11 +76,11 @@ public class TemplateExtractionService {
                 response = retryResponse;
             } catch (TemplateParseException secondFailure) {
                 log.error(
-                        "LLM template response is invalid after retry: first={}, second={},"
-                                + " excerpt=\"{}\"",
-                        LogSupport.describe(firstFailure),
-                        LogSupport.describe(secondFailure),
-                        LogSupport.excerpt(retryResponse.content(), 300));
+                        "template_response_invalid attempt=2 reason={} first_reason={}"
+                                + " content_chars={}",
+                        secondFailure.getMessage(),
+                        firstFailure.getMessage(),
+                        retryResponse.content() == null ? 0 : retryResponse.content().length());
                 throw new LlmInvalidResponseException(
                         "LLM returned an invalid template response after retry", secondFailure);
             }
@@ -92,8 +89,8 @@ public class TemplateExtractionService {
         CleanedTemplate cleaned = cleaner.clean(payload, vacancyText);
         var withHistory = historyService.apply(cleaned.requirements(), specializationId, levelId);
         log.info(
-                "Template extraction finished: model={}, requirements={}, dropped={},"
-                        + " title={}, elapsedMs={}",
+                "template_extraction_finished model={} requirements={} dropped={}"
+                        + " title_present={} elapsed_ms={}",
                 response.model() == null || response.model().isBlank()
                         ? modelHint
                         : response.model(),

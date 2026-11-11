@@ -45,7 +45,7 @@ public class GitHubEnricher {
             profile = gitHubClient.fetch(username);
         } catch (RuntimeException e) {
             // Внешний источник не должен ронять пакет и не должен уменьшать балл.
-            log.warn("GitHub enrichment skipped: source unavailable");
+            log.warn("github_enrichment_skipped reason=source_unavailable");
             return List.of();
         }
         if (profile == null || profile.repositories().isEmpty()) {

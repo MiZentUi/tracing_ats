@@ -34,7 +34,7 @@ public class NerPiiDetector implements PiiDetector {
             if (properties.getNer().isFailClosed()) {
                 throw new PiiMaskingException("Local NER is unavailable", e);
             }
-            log.warn("Local NER is unavailable, continuing with deterministic detectors only");
+            log.warn("ner_unavailable fallback=deterministic");
             return List.of();
         }
 

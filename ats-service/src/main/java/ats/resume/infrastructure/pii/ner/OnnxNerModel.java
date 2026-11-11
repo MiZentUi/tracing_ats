@@ -64,7 +64,7 @@ public class OnnxNerModel implements NerModel {
             this.modelName = properties.getModelPath().getFileName().toString();
             this.modelHash = sha256(properties.getModelPath());
             log.info(
-                    "Local NER model loaded: name={}, hash={}, labels={}",
+                    "ner_model_loaded name={} hash={} labels={}",
                     modelName,
                     modelHash,
                     labels.size());
@@ -102,7 +102,7 @@ public class OnnxNerModel implements NerModel {
             session.close();
             sessionOptions.close();
         } catch (OrtException e) {
-            log.warn("Cannot close ONNX session", e);
+            log.warn("ner_model_close_failed error={}", e.getClass().getSimpleName());
         }
     }
 

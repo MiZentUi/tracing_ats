@@ -100,6 +100,14 @@ public class ResumeIngestionService {
             resume.setWarnings(jsonCodec.write(List.of(e.errorCode().name())));
             resumeRepository.save(resume);
             createApplication(vacancyId, resumeId, candidateId, consentGithub, status);
+            log.info(
+                    "resume_ingested resume_id={} status={} file_type={} size_bytes={}"
+                            + " warnings={}",
+                    resumeId,
+                    status,
+                    fileType,
+                    content.length,
+                    e.errorCode().name());
             return new UploadOutcome(
                     resumeId, UploadOutcome.Status.valueOf(status), List.of(e.errorCode().name()));
         }
@@ -117,7 +125,12 @@ public class ResumeIngestionService {
                     candidateId,
                     consentGithub,
                     UploadOutcome.Status.MASKING_FAILED.name());
-            log.warn("PII masking failed for resumeId={}", resumeId);
+            log.warn("pii_masking_failed resume_id={}", resumeId);
+            log.info(
+                    "resume_ingested resume_id={} status=MASKING_FAILED file_type={} size_bytes={}",
+                    resumeId,
+                    fileType,
+                    content.length);
             return new UploadOutcome(
                     resumeId, UploadOutcome.Status.MASKING_FAILED, List.of("PII_MASKING_FAILED"));
         }
@@ -159,6 +172,15 @@ public class ResumeIngestionService {
                         consentGithub,
                         UploadOutcome.Status.MASKED.name());
         eventPublisher.publishEvent(new ResumeMaskedEvent(application.getId()));
+        log.info(
+                "resume_ingested resume_id={} application_id={} status=MASKED file_type={}"
+                        + " size_bytes={} text_chars={} warnings={}",
+                resumeId,
+                application.getId(),
+                fileType,
+                content.length,
+                extracted.text().length(),
+                extracted.warnings().size());
 
         return new UploadOutcome(
                 resumeId,

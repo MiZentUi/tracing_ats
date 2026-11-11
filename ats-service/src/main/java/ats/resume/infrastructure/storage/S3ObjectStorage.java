@@ -57,12 +57,12 @@ public class S3ObjectStorage implements ObjectStorage {
         } catch (NoSuchBucketException e) {
             client.createBucket(
                     CreateBucketRequest.builder().bucket(properties.getBucket()).build());
-            log.info("Object storage bucket created: {}", properties.getBucket());
+            log.info("object_storage_bucket_created bucket={}", properties.getBucket());
         } catch (S3Exception e) {
             if (e.statusCode() == 404) {
                 client.createBucket(
                         CreateBucketRequest.builder().bucket(properties.getBucket()).build());
-                log.info("Object storage bucket created: {}", properties.getBucket());
+                log.info("object_storage_bucket_created bucket={}", properties.getBucket());
             } else {
                 throw e;
             }

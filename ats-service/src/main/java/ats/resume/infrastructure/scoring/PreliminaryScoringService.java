@@ -39,12 +39,14 @@ public class PreliminaryScoringService {
         if (application == null) {
             return;
         }
+        long startedAt = System.nanoTime();
+        log.info("preliminary_scoring_started application_id={}", applicationId);
         VacancyTemplate template;
         try {
             template = vacancyClient.getTemplate(application.getVacancyId());
         } catch (RuntimeException e) {
             log.warn(
-                    "Preliminary scoring template fetch failed: applicationId={}, error={}",
+                    "vacancy_template_fetch_failed application_id={} error={}",
                     applicationId,
                     e.getClass().getSimpleName());
             fail(applicationId);
@@ -52,9 +54,13 @@ public class PreliminaryScoringService {
         }
         try {
             score(applicationId, template);
+            log.info(
+                    "preliminary_scoring_finished application_id={} elapsed_ms={}",
+                    applicationId,
+                    (System.nanoTime() - startedAt) / 1_000_000);
         } catch (RuntimeException e) {
             log.warn(
-                    "Preliminary scoring failed: applicationId={}, error={}",
+                    "preliminary_scoring_failed application_id={} error={}",
                     applicationId,
                     e.getClass().getSimpleName());
         }
@@ -132,7 +138,8 @@ public class PreliminaryScoringService {
                     status -> applicationRepository.updateStatus(applicationId, "SCORING_FAILED"));
         } catch (RuntimeException e) {
             log.warn(
-                    "Failed to mark scoring failure: applicationId={}, error={}",
+                    "application_status_update_failed application_id={} target_status=SCORING_FAILED"
+                            + " error={}",
                     applicationId,
                     e.getClass().getSimpleName());
         }

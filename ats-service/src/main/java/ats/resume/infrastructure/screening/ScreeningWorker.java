@@ -66,6 +66,12 @@ public class ScreeningWorker {
         batch.setStatus("RUNNING");
         batch.setStartedAt(Instant.now());
         batchRepository.save(batch);
+        long startedAt = System.nanoTime();
+        log.info(
+                "screening_batch_started batch_id={} vacancy_id={} applications={}",
+                batchId,
+                vacancyId,
+                applicationIds.size());
 
         int processed = 0;
         int failed = 0;
@@ -86,7 +92,7 @@ public class ScreeningWorker {
                     failed++;
                     markFailed(applicationId);
                     log.warn(
-                            "Screening preparation failed: applicationId={}, error={}",
+                            "screening_application_failed application_id={} error={}",
                             applicationId,
                             e.getClass().getSimpleName());
                 }
@@ -107,6 +113,14 @@ public class ScreeningWorker {
                             : "COMPLETED");
             batch.setFinishedAt(Instant.now());
             batchRepository.save(batch);
+            log.info(
+                    "screening_batch_finished batch_id={} status={} processed={} failed={}"
+                            + " elapsed_ms={}",
+                    batchId,
+                    batch.getStatus(),
+                    processed,
+                    failed,
+                    (System.nanoTime() - startedAt) / 1_000_000);
         } catch (RuntimeException e) {
             batch.setStatus("FAILED");
             batch.setErrorMessage("screening failed");
@@ -115,9 +129,11 @@ public class ScreeningWorker {
             batch.setFinishedAt(Instant.now());
             batchRepository.save(batch);
             log.error(
-                    "Screening batch failed: batchId={}, error={}",
+                    "screening_batch_failed batch_id={} processed={} failed={}",
                     batchId,
-                    e.getClass().getSimpleName());
+                    processed,
+                    failed,
+                    e);
         }
     }
 
@@ -156,7 +172,7 @@ public class ScreeningWorker {
             if (!Instant.now().isBefore(deadline)) {
                 application.setStatus("FAILED");
                 applicationRepository.save(application);
-                log.warn("Scoring wait timed out: applicationId={}", applicationId);
+                log.warn("scoring_wait_timed_out application_id={}", applicationId);
                 return application;
             }
             sleep(screeningProperties.getScoringPoll());
@@ -261,7 +277,7 @@ public class ScreeningWorker {
             return enrich(application, template, now);
         } catch (RuntimeException e) {
             log.warn(
-                    "GitHub enrichment failed: applicationId={}, error={}",
+                    "github_enrichment_failed application_id={} error={}",
                     application.getId(),
                     e.getClass().getSimpleName());
             return Map.of();

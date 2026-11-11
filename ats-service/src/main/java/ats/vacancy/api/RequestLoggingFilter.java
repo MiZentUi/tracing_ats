@@ -1,27 +1,25 @@
 package ats.vacancy.api;
 
+import ats.support.logging.RequestIds;
 import jakarta.servlet.FilterChain;
 import jakarta.servlet.ServletException;
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.servlet.http.HttpServletResponse;
 import java.io.IOException;
-import java.util.UUID;
 import lombok.extern.slf4j.Slf4j;
-import org.slf4j.MDC;
+import org.springframework.core.Ordered;
+import org.springframework.core.annotation.Order;
 import org.springframework.stereotype.Component;
 import org.springframework.web.filter.OncePerRequestFilter;
 
 /**
- * Единый идентификатор запроса в MDC: все строки лога одного HTTP-вызова связаны между собой,
- * включая логи LLM-клиента. Полный текст запроса и PII не логируются.
+ * Граница входящего HTTP: выдаёт request_id, кладёт его в MDC и заголовок ответа, логирует ровно
+ * два события — приём запроса и отправку ответа. Тела запросов и PII не логируются.
  */
 @Slf4j
 @Component
+@Order(Ordered.HIGHEST_PRECEDENCE)
 public class RequestLoggingFilter extends OncePerRequestFilter {
-
-    public static final String REQUEST_ID_KEY = "requestId";
-
-    private static final String INCOMING_HEADER = "X-Request-Id";
 
     @Override
     protected boolean shouldNotFilter(HttpServletRequest request) {
@@ -35,32 +33,24 @@ public class RequestLoggingFilter extends OncePerRequestFilter {
     protected void doFilterInternal(
             HttpServletRequest request, HttpServletResponse response, FilterChain chain)
             throws ServletException, IOException {
-        String requestId = resolveRequestId(request);
-        MDC.put(REQUEST_ID_KEY, requestId);
+        String requestId = RequestIds.sanitize(request.getHeader(RequestIds.HTTP_HEADER));
+        RequestIds.put(requestId);
+        response.setHeader(RequestIds.RESPONSE_HEADER, requestId);
         long startedAt = System.nanoTime();
+        log.info(
+                "inbound_request_received method={} path={}",
+                request.getMethod(),
+                request.getRequestURI());
         try {
-            log.debug(
-                    "HTTP request started: method={}, path={}, query={}",
-                    request.getMethod(),
-                    request.getRequestURI(),
-                    request.getQueryString() == null ? "-" : request.getQueryString());
             chain.doFilter(request, response);
         } finally {
             log.info(
-                    "HTTP request completed: method={}, path={}, status={}, elapsedMs={}",
+                    "inbound_response_sent method={} path={} status={} elapsed_ms={}",
                     request.getMethod(),
                     request.getRequestURI(),
                     response.getStatus(),
                     (System.nanoTime() - startedAt) / 1_000_000);
-            MDC.remove(REQUEST_ID_KEY);
+            RequestIds.clear();
         }
-    }
-
-    private static String resolveRequestId(HttpServletRequest request) {
-        String header = request.getHeader(INCOMING_HEADER);
-        if (header != null && !header.isBlank() && header.length() <= 64) {
-            return header.strip();
-        }
-        return UUID.randomUUID().toString().substring(0, 8);
     }
 }

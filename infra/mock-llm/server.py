@@ -7,9 +7,9 @@
 from __future__ import annotations
 
 import json
+import logging
 import os
 import re
-import sys
 import time
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from typing import Any
@@ -46,6 +46,7 @@ SKILLS = [
 SKILLS_SORTED = sorted(SKILLS, key=len, reverse=True)
 
 STATE: dict[str, int] = {}
+logger = logging.getLogger("mock_llm")
 
 
 def scenario_of(text: str) -> str:
@@ -159,7 +160,15 @@ class Handler(BaseHTTPRequestHandler):
     server_version = "mock-llm/1.0"
 
     def do_POST(self) -> None:  # noqa: N802
+        started_at = time.perf_counter()
+        self._started_at = started_at
+        self._scenario = "unknown"
         if not self.path.rstrip("/").endswith("/chat/completions"):
+            logger.info(
+                "mock_llm_request method=POST path=%s status=404 scenario=unknown elapsed_ms=%.1f",
+                self.path,
+                (time.perf_counter() - started_at) * 1000,
+            )
             self.send_error(404, "not found")
             return
         length = int(self.headers.get("Content-Length", "0"))
@@ -172,6 +181,7 @@ class Handler(BaseHTTPRequestHandler):
 
         text = extract_vacancy_text(body)
         scenario = scenario_of(text)
+        self._scenario = scenario
         key = scenario
         STATE[key] = STATE.get(key, 0) + 1
         attempt = STATE[key]
@@ -217,6 +227,13 @@ class Handler(BaseHTTPRequestHandler):
         self.json_response(200, completion(content))
 
     def json_response(self, status: int, body: dict[str, Any]) -> None:
+        logger.info(
+            "mock_llm_request method=POST path=%s status=%s scenario=%s elapsed_ms=%.1f",
+            self.path,
+            status,
+            getattr(self, "_scenario", "unknown"),
+            (time.perf_counter() - getattr(self, "_started_at", time.perf_counter())) * 1000,
+        )
         encoded = json.dumps(body, ensure_ascii=False).encode("utf-8")
         self.send_response(status)
         self.send_header("Content-Type", "application/json; charset=utf-8")
@@ -225,13 +242,17 @@ class Handler(BaseHTTPRequestHandler):
         self.wfile.write(encoded)
 
     def log_message(self, fmt: str, *args: Any) -> None:
-        sys.stderr.write("mock-llm %s\n" % (fmt % args))
+        logger.debug("mock_llm_http %s", fmt % args)
 
 
 def main() -> None:
     port = int(os.environ.get("MOCK_LLM_PORT", "8089"))
+    logging.basicConfig(
+        level=logging.INFO,
+        format="%(asctime)s %(levelname)s %(name)s %(message)s",
+    )
     server = ThreadingHTTPServer(("0.0.0.0", port), Handler)
-    print(f"mock-llm listening on :{port}", flush=True)
+    logger.info("mock_llm_started port=%s", port)
     server.serve_forever()
 
 

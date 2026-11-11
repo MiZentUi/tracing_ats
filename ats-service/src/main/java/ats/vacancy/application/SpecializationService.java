@@ -110,7 +110,7 @@ public class SpecializationService {
                         .updatedAt(now)
                         .build();
         repository.save(entity);
-        log.info("Specialization created: code={}, it={}, nameChars={}", code, it, name.length());
+        log.info("specialization_created code={} it={} name_chars={}", code, it, name.length());
         return new SpecializationItem(code, name, it);
     }
 

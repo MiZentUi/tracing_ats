@@ -94,8 +94,8 @@ public class VacancyService {
             sourceType = "FILE";
             sourceRef = fileName;
             log.info(
-                    "Vacancy source file extracted: bytes={}, type={}, pages={}, warnings={},"
-                            + " textChars={}",
+                    "vacancy_source_extracted bytes={} type={} pages={} warnings={}"
+                            + " text_chars={}",
                     content.length,
                     extracted.type(),
                     extracted.pageCount(),
@@ -125,8 +125,8 @@ public class VacancyService {
             // Решение команды (RFC-002, вопрос 17.3): если LLM недоступна, вакансия
             // создаётся с пустым шаблоном, HR заполняет требования вручную.
             log.warn(
-                    "LLM is unavailable, vacancy will be created with an empty template:"
-                            + " code={}, textChars={}, sourceType={}, cause={}",
+                    "llm_unavailable_empty_template code={} text_chars={} source_type={}"
+                            + " error={}",
                     e.errorCode(),
                     text.length(),
                     sourceType,
@@ -136,8 +136,7 @@ public class VacancyService {
                             null, List.of(), null, llmProperties.getPromptVersion(), 0);
         } catch (LlmInvalidResponseException | LlmTruncatedException e) {
             log.warn(
-                    "LLM returned unusable response, vacancy is not created: code={},"
-                            + " textChars={}, cause={}",
+                    "llm_response_unusable code={} text_chars={} error={}",
                     e.errorCode(),
                     text.length(),
                     LogSupport.describe(e));
@@ -149,8 +148,8 @@ public class VacancyService {
             title = extracted.title();
         }
         log.info(
-                "Vacancy create resolved: specialization={}, level={}, sourceType={},"
-                        + " textChars={}, requirements={}, dropped={}, model={}",
+                "vacancy_create_resolved specialization={} level={} source_type={}"
+                        + " text_chars={} requirements={} dropped={} model={}",
                 specialization.getCode(),
                 level.getCode(),
                 sourceType,
@@ -161,7 +160,8 @@ public class VacancyService {
         VacancyView view =
                 store.create(text, sourceType, sourceRef, title, specialization, level, extracted);
         log.info(
-                "Vacancy created: id={}, version={}, status={}, requirements={}, textChars={}",
+                "vacancy_created vacancy_id={} version={} status={} requirements={}"
+                        + " text_chars={}",
                 view.id(),
                 view.version(),
                 view.status(),
@@ -203,7 +203,7 @@ public class VacancyService {
                         .orElseThrow(() -> ApiException.notFound("Vacancy not found"));
         VacancyView view = assembler.assemble(vacancy);
         log.debug(
-                "Vacancy read: id={}, status={}, version={}, requirements={}",
+                "vacancy_read vacancy_id={} status={} version={} requirements={}",
                 view.id(),
                 view.status(),
                 view.version(),
@@ -216,7 +216,7 @@ public class VacancyService {
         int safeOffset = offset == null ? 0 : Math.max(0, offset);
         VacancyPage page = assembler.list(safeLimit, safeOffset);
         log.debug(
-                "Vacancies listed: limit={}, offset={}, returned={}, total={}",
+                "vacancies_listed limit={} offset={} returned={} total={}",
                 safeLimit,
                 safeOffset,
                 page.items().size(),
@@ -226,8 +226,8 @@ public class VacancyService {
 
     public VacancyView update(UUID id, UpdateTemplateCommand command) {
         log.info(
-                "Vacancy template update requested: id={}, baseVersion={}, specialization={},"
-                        + " level={}, requirements={}",
+                "vacancy_template_update_requested vacancy_id={} base_version={}"
+                        + " specialization={} level={} requirements={}",
                 id,
                 command.baseVersion(),
                 command.specialization(),
@@ -235,7 +235,7 @@ public class VacancyService {
                 command.requirements() == null ? 0 : command.requirements().size());
         VacancyView view = store.update(id, command);
         log.info(
-                "Vacancy template updated: id={}, version={}, status={}, confirmed={},"
+                "vacancy_template_updated vacancy_id={} version={} status={} confirmed={}"
                         + " requirements={}",
                 view.id(),
                 view.version(),
@@ -247,7 +247,7 @@ public class VacancyService {
 
     public void delete(UUID id) {
         store.delete(id);
-        log.info("Vacancy deleted: id={}", id);
+        log.info("vacancy_deleted vacancy_id={}", id);
     }
 
     public List<SpecializationItem> specializations() {

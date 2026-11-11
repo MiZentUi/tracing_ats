@@ -7,6 +7,38 @@
 
 ## [Unreleased]
 
+### Ветка `feature/unified-ats-service` — event logging
+
+#### Added
+
+- Единый `request_id` для HTTP, gRPC и фоновых задач: MDC `request_id`, заголовок ответа
+  `X-Request-Id`, metadata `x-request-id` при исходящих gRPC-вызовах.
+- `GrpcServerLoggingInterceptor` и `GrpcClientLoggingInterceptor`: парные события
+  `inbound_request_received`/`inbound_response_sent` и `outbound_request_sent`/
+  `outbound_response_received`/`outbound_request_failed`, health/reflection исключены.
+- События LLM и шаблона в стабильном формате `event_name key=value`: `llm_chain_started`,
+  `llm_request_sent`, `llm_response_received`, `llm_rate_limited`, `llm_timeout`,
+  `llm_model_exhausted`, `template_extraction_started/finished`,
+  `template_requirements_all_dropped`.
+- Фоновые задачи: `screening_batch_started/finished/failed`,
+  `preliminary_scoring_started/finished/failed`, `scoring_wait_timed_out`,
+  `github_enrichment_failed/skipped`.
+- `resume_ingested` в `ResumeIngestionService`: статус, тип файла, размер, предупреждения.
+- `request_id` переносится в фоновые задачи (`PreliminaryScoringListener`, `ScreeningService`),
+  поэтому скоринг и скрининг связаны с исходным HTTP-запросом.
+- `scoring-service`: gRPC interceptor с теми же событиями и `score_resume_completed`.
+- Frontend: модуль `src/lib/logger.ts`, логирование ошибок API с `method`, `status`,
+  `request_id`; глобальные обработчики `ui_error` и `ui_unhandled_rejection`.
+- `infra/mock-llm`: событие `mock_llm_request method= path= status= scenario= elapsed_ms=`
+  без тел запросов.
+
+#### Changed
+
+- События переведены с фраз на snake_case; `requestId` в MDC переименован в `request_id`.
+- Из логов убраны фрагменты ответа LLM и цитаты требований: остаются только причины,
+  счётчики и длины.
+
+
 ### Ветка `feature/unified-ats-service` — единый Java-сервис
 
 #### Breaking changes

@@ -27,32 +27,39 @@ docker compose up -d --build ats-service
 
 ## Логирование
 
-Каждый HTTP-запрос получает идентификатор (входящий `X-Request-Id` или сгенерированные 8
-символов), он попадает в MDC и печатается в каждой строке как `[req:xxxxxxxx]`. По нему видно
-всю цепочку одного вызова: контроллер → разбор → LLM-клиент → сохранение.
+Один `request_id` на вызов: входящий `X-Request-Id` или 8 символов UUID. Он попадает в MDC,
+печатается как `[req:xxxxxxxx]`, возвращается в заголовке ответа и передаётся в gRPC через
+metadata `x-request-id`. По нему видно всю цепочку: HTTP → бизнес-операция → gRPC → LLM.
 
-Что искать при неудачном разборе (в порядке появления):
+События (стабильное имя + `key=value`, тела запросов и ответов не логируются):
 
-| Событие | Уровень | Что означает |
+| Событие | Уровень | Сторона / слой |
 |---|---|---|
-| `Create vacancy: specialization=..., textChars=...` | INFO | Параметры запроса до валидации |
-| `Vacancy source file extracted: ...` | INFO | Экстракт файла: размер, страницы, предупреждения |
-| `Template extraction started` | INFO | Начало разбора: длина текста, специализация, уровень, модель |
-| `LLM chain started` / `LLM attempt started` | INFO | Какая модель и какая попытка пошла в сеть |
-| `LLM attempt succeeded` | INFO | Успех: `elapsedMs`, токены, `finishReason` |
-| `LLM rate limited` / `LLM server error` / `LLM transport error` | WARN | Ошибка провайдера, повтор или переход к следующей модели |
-| `LLM timed out mid-response` | WARN | Сработал `read-timeout`, повтор той же модели не делается |
-| `LLM model exhausted` | WARN | У модели кончились попытки, берётся следующая |
-| `LLM chain exhausted` | ERROR | Все модели исчерпаны или истёк `total-timeout` |
-| `LLM is unavailable, vacancy will be created with an empty template` | WARN | Деградация по RFC-002: вакансия создаётся без требований |
-| `LLM template response is invalid, retrying once` | WARN | Невалидный JSON/схема: причина и первые 300 символов ответа |
-| `Vacancy created` | INFO | Итог: id, версия, статус, число требований |
-| `HTTP request completed` | INFO | Метод, путь, статус, длительность запроса |
+| `inbound_request_received`, `inbound_response_sent` | INFO | HTTP-фильтр, gRPC server interceptor |
+| `outbound_request_sent`, `outbound_response_received` | INFO | gRPC client interceptor |
+| `outbound_request_failed` | WARN | gRPC client: `UNAVAILABLE`/`DEADLINE_EXCEEDED` |
+| `inbound_request_failed` | ERROR | gRPC server: обработчик упал до ответа |
+| `llm_request_sent`, `llm_response_received` | INFO | клиент LLM: модель, попытка, формат, `elapsed_ms`, токены, `finish_reason` |
+| `llm_rate_limited`, `llm_timeout`, `llm_transport_error`, `llm_request_failed` | WARN | внешний провайдер: повтор или следующая модель |
+| `llm_model_exhausted`, `llm_chain_exhausted` | WARN/ERROR | исчерпание попыток/цепочки |
+| `template_extraction_started/finished`, `template_response_invalid` | INFO/WARN | разбор шаблона; причина без содержимого ответа |
+| `template_requirements_all_dropped` | WARN | все требования отброшены: счётчики причин и примеры |
+| `vacancy_created`, `vacancy_template_updated`, `vacancy_deleted` | INFO | бизнес-итог операции |
+| `screening_batch_started/finished`, `screening_batch_failed` | INFO/ERROR | фоновая задача скрининга |
+| `preliminary_scoring_started/finished/failed` | INFO/WARN | предварительный скор при загрузке |
+| `api_request_rejected`, `api_error_unexpected` | INFO/ERROR | граница ошибок HTTP |
 
-Полный текст вакансии, промпта, резюме и ответа LLM в логи не пишется: только длины, причины и
-короткие фрагменты ответа при ошибке разбора. PII в логи не попадает.
+Не логируются: тела запросов и ответов, промпты и ответы LLM, текст резюме и вакансии, цитаты,
+PII, токены и `Authorization`. Ошибку со stack trace пишет только граница, которая превращает её
+в ответ.
 
-Для подробностей по CRUD-операциям включи DEBUG для пакета:
+Диагностика по одному запросу:
+
+```bash
+docker compose logs ats-service | grep '\[req:xxxxxxxx\]'
+```
+
+Для подробностей по CRUD включи DEBUG для пакета:
 
 ```bash
 docker run -e LOGGING_LEVEL_ATS=DEBUG ...
