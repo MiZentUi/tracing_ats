@@ -12,9 +12,12 @@ import ats.vacancy.infrastructure.persistence.SpecializationRepository;
 import ats.vacancy.infrastructure.persistence.VacancyEntity;
 import ats.vacancy.infrastructure.persistence.VacancyRepository;
 import ats.vacancy.llm.LlmAuthException;
+import ats.vacancy.llm.LlmInvalidResponseException;
 import ats.vacancy.llm.LlmNotConfiguredException;
 import ats.vacancy.llm.LlmQuotaException;
+import ats.vacancy.llm.LlmTruncatedException;
 import ats.vacancy.llm.LlmUnavailableException;
+import ats.vacancy.support.LogSupport;
 import ats.vacancy.template.ExtractedTemplate;
 import ats.vacancy.template.TemplateExtractionService;
 import java.io.IOException;
@@ -90,6 +93,14 @@ public class VacancyService {
             text = extracted.text();
             sourceType = "FILE";
             sourceRef = fileName;
+            log.info(
+                    "Vacancy source file extracted: bytes={}, type={}, pages={}, warnings={},"
+                            + " textChars={}",
+                    content.length,
+                    extracted.type(),
+                    extracted.pageCount(),
+                    extracted.warnings().size(),
+                    extracted.text().length());
         } else {
             text = command.text().strip();
             sourceType = "TEXT";
@@ -114,18 +125,49 @@ public class VacancyService {
             // Решение команды (RFC-002, вопрос 17.3): если LLM недоступна, вакансия
             // создаётся с пустым шаблоном, HR заполняет требования вручную.
             log.warn(
-                    "LLM is unavailable, creating vacancy with an empty template: {}",
-                    e.errorCode());
+                    "LLM is unavailable, vacancy will be created with an empty template:"
+                            + " code={}, textChars={}, sourceType={}, cause={}",
+                    e.errorCode(),
+                    text.length(),
+                    sourceType,
+                    LogSupport.describe(e));
             extracted =
                     new ExtractedTemplate(
                             null, List.of(), null, llmProperties.getPromptVersion(), 0);
+        } catch (LlmInvalidResponseException | LlmTruncatedException e) {
+            log.warn(
+                    "LLM returned unusable response, vacancy is not created: code={},"
+                            + " textChars={}, cause={}",
+                    e.errorCode(),
+                    text.length(),
+                    LogSupport.describe(e));
+            throw e;
         }
 
         String title = command.title();
         if (title == null || title.isBlank()) {
             title = extracted.title();
         }
-        return store.create(text, sourceType, sourceRef, title, specialization, level, extracted);
+        log.info(
+                "Vacancy create resolved: specialization={}, level={}, sourceType={},"
+                        + " textChars={}, requirements={}, dropped={}, model={}",
+                specialization.getCode(),
+                level.getCode(),
+                sourceType,
+                text.length(),
+                extracted.requirements().size(),
+                extracted.droppedRequirements(),
+                extracted.model());
+        VacancyView view =
+                store.create(text, sourceType, sourceRef, title, specialization, level, extracted);
+        log.info(
+                "Vacancy created: id={}, version={}, status={}, requirements={}, textChars={}",
+                view.id(),
+                view.version(),
+                view.status(),
+                view.requirements().size(),
+                text.length());
+        return view;
     }
 
     /**
@@ -159,21 +201,53 @@ public class VacancyService {
                 vacancyRepository
                         .findById(id)
                         .orElseThrow(() -> ApiException.notFound("Vacancy not found"));
-        return assembler.assemble(vacancy);
+        VacancyView view = assembler.assemble(vacancy);
+        log.debug(
+                "Vacancy read: id={}, status={}, version={}, requirements={}",
+                view.id(),
+                view.status(),
+                view.version(),
+                view.requirements().size());
+        return view;
     }
 
     public VacancyPage list(Integer limit, Integer offset) {
         int safeLimit = limit == null ? 50 : Math.max(1, Math.min(200, limit));
         int safeOffset = offset == null ? 0 : Math.max(0, offset);
-        return assembler.list(safeLimit, safeOffset);
+        VacancyPage page = assembler.list(safeLimit, safeOffset);
+        log.debug(
+                "Vacancies listed: limit={}, offset={}, returned={}, total={}",
+                safeLimit,
+                safeOffset,
+                page.items().size(),
+                page.total());
+        return page;
     }
 
     public VacancyView update(UUID id, UpdateTemplateCommand command) {
-        return store.update(id, command);
+        log.info(
+                "Vacancy template update requested: id={}, baseVersion={}, specialization={},"
+                        + " level={}, requirements={}",
+                id,
+                command.baseVersion(),
+                command.specialization(),
+                command.level(),
+                command.requirements() == null ? 0 : command.requirements().size());
+        VacancyView view = store.update(id, command);
+        log.info(
+                "Vacancy template updated: id={}, version={}, status={}, confirmed={},"
+                        + " requirements={}",
+                view.id(),
+                view.version(),
+                view.status(),
+                view.confirmed(),
+                view.requirements().size());
+        return view;
     }
 
     public void delete(UUID id) {
         store.delete(id);
+        log.info("Vacancy deleted: id={}", id);
     }
 
     public List<SpecializationItem> specializations() {

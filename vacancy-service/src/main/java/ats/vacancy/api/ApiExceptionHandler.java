@@ -4,6 +4,7 @@ import ats.extraction.domain.error.ExtractionException;
 import ats.gateway.model.ApiStatusResponse;
 import ats.vacancy.application.ApiException;
 import ats.vacancy.llm.LlmException;
+import ats.vacancy.support.LogSupport;
 import jakarta.validation.ConstraintViolationException;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.http.HttpStatus;
@@ -20,12 +21,21 @@ public class ApiExceptionHandler {
 
     @ExceptionHandler(ApiException.class)
     public ResponseEntity<ApiStatusResponse> handleApi(ApiException exception) {
+        log.info(
+                "Request rejected: status={}, code={}, detail={}",
+                exception.status().value(),
+                exception.code(),
+                exception.getMessage());
         return response(exception.status(), exception.code(), exception.getMessage());
     }
 
     @ExceptionHandler(LlmException.class)
     public ResponseEntity<ApiStatusResponse> handleLlm(LlmException exception) {
-        log.warn("LLM error: code={}", exception.errorCode());
+        log.warn(
+                "LLM call failed: httpStatus={}, code={}, cause={}",
+                exception.httpStatus(),
+                exception.errorCode(),
+                LogSupport.describe(exception));
         return response(
                 HttpStatus.valueOf(exception.httpStatus()),
                 exception.errorCode(),
@@ -34,6 +44,10 @@ public class ApiExceptionHandler {
 
     @ExceptionHandler(ExtractionException.class)
     public ResponseEntity<ApiStatusResponse> handleExtraction(ExtractionException exception) {
+        log.warn(
+                "Text extraction failed: code={}, cause={}",
+                exception.errorCode(),
+                LogSupport.describe(exception));
         return response(
                 HttpStatus.valueOf(exception.errorCode().httpStatus()),
                 exception.errorCode().name(),
@@ -47,6 +61,7 @@ public class ApiExceptionHandler {
         HttpMessageNotReadableException.class
     })
     public ResponseEntity<ApiStatusResponse> handleValidation(Exception exception) {
+        log.warn("Request validation failed: cause={}", LogSupport.describe(exception));
         return response(
                 HttpStatus.UNPROCESSABLE_ENTITY, "VALIDATION_ERROR", "Invalid request body");
     }

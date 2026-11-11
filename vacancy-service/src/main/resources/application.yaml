@@ -20,6 +20,11 @@ spring:
 server:
   port: 8080
 
+logging:
+  pattern:
+    # Один идентификатор запроса в каждой строке: по нему видно всю цепочку вызова в логах.
+    level: "%5p [req:%X{requestId:--}]"
+
 ats:
   dev:
     extraction-endpoint:
