@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import { onBeforeUnmount, watch } from 'vue'
-import { X } from 'lucide-vue-next'
+import { X } from '@lucide/vue'
 
 const props = defineProps<{
   open: boolean

@@ -10,7 +10,7 @@ import {
   Sparkles,
   UploadCloud,
   X,
-} from 'lucide-vue-next'
+} from '@lucide/vue'
 import type { ReferenceItem } from '@/api/generated'
 import { apiErrorMessage, referenceApi, vacanciesApi } from '@/api'
 import AppModal from '@/components/AppModal.vue'

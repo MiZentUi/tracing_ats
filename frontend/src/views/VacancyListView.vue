@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import { computed, onMounted, ref } from 'vue'
-import { CheckCircle2, Clock3, FileText, Plus, Search, Trash2 } from 'lucide-vue-next'
+import { CheckCircle2, Clock3, FileText, Plus, Search, Trash2 } from '@lucide/vue'
 import type { VacancyList, VacancySummary } from '@/api/generated'
 import { apiErrorMessage, vacanciesApi } from '@/api'
 import ConfirmDialog from '@/components/ConfirmDialog.vue'

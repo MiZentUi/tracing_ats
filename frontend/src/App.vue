@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { BriefcaseBusiness, Sparkles } from 'lucide-vue-next'
+import { BriefcaseBusiness, Sparkles } from '@lucide/vue'
 import ToastHost from '@/components/ToastHost.vue'
 </script>
 

@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import { computed } from 'vue'
-import { History, Quote, Trash2 } from 'lucide-vue-next'
+import { History, Quote, Trash2 } from '@lucide/vue'
 import type { SkillKind } from '@/api/generated'
 import type { EditableRequirement } from '@/types'
 

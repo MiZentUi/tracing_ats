@@ -12,7 +12,7 @@ import {
   Search,
   Sparkles,
   Trash2,
-} from 'lucide-vue-next'
+} from '@lucide/vue'
 import type { ReferenceItem, SkillKind, Vacancy } from '@/api/generated'
 import { apiErrorCode, apiErrorMessage, referenceApi, vacanciesApi } from '@/api'
 import ConfirmDialog from '@/components/ConfirmDialog.vue'
