@@ -15,6 +15,8 @@ import ats.vacancy.TestcontainersConfiguration;
 import ats.vacancy.llm.LlmClient;
 import ats.vacancy.llm.LlmResponse;
 import ats.vacancy.llm.LlmUnavailableException;
+import ats.vacancy.template.VacancyTemplateData;
+import ats.vacancy.template.VacancyTemplateQuery;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import java.nio.charset.StandardCharsets;
@@ -64,6 +66,7 @@ class VacancyApiIntegrationTest {
     @Autowired private MockMvc mockMvc;
     @Autowired private ObjectMapper objectMapper;
     @Autowired private JdbcTemplate jdbcTemplate;
+    @Autowired private VacancyTemplateQuery vacancyTemplateQuery;
     @MockitoBean private LlmClient llmClient;
 
     private static Map<String, Object> requirement(
@@ -506,6 +509,22 @@ class VacancyApiIntegrationTest {
         assertThat(created.path("status").asText()).isEqualTo("DRAFT");
         assertThat(created.path("template").path("requirements")).isEmpty();
         assertThat(created.path("template").path("is_confirmed").asBoolean()).isFalse();
+    }
+
+    @Test
+    void readsDemoTemplateForInternalGrpc() {
+        // Регресс: gRPC-фасад читает шаблон SQL-запросом. После 009 у требования нет
+        // колонки weight, и запрос должен выводить вес из kind, а не падать.
+        VacancyTemplateData template =
+                vacancyTemplateQuery
+                        .findCurrent(
+                                java.util.UUID.fromString("00000000-0000-0000-0000-000000000001"))
+                        .orElseThrow();
+
+        assertThat(template.requirements()).hasSize(6);
+        assertThat(template.requirements())
+                .extracting(VacancyTemplateData.RequirementData::weight)
+                .containsExactly(3, 3, 3, 2, 2, 1);
     }
 
     @Test

@@ -34,7 +34,9 @@ public class VacancyTemplateQuery {
             """
             SELECT r.id, COALESCE(s.name, r.raw_text) AS requirement_text,
                    COALESCE(s.name, '') AS skill_name,
-                   r.kind, r.weight, r.critical,
+                   -- Числового weight в схеме больше нет (009): важность задаёт kind.
+                   CASE r.kind WHEN 'MUST' THEN 3 WHEN 'NICE' THEN 2 ELSE 1 END AS weight,
+                   r.kind, r.critical,
                    r.years_required, COALESCE(r.half_life_years, 0) AS half_life_years
             FROM vacancy_requirement r
             LEFT JOIN skill s ON s.id = r.skill_id
