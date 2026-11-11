@@ -72,8 +72,9 @@ services:
   # Stateless онлайн-ML: без БД, файлов и внешних источников.
   scoring-service:
     build:
-      context: ./scoring-service
-      dockerfile: Dockerfile
+      # Контекст — корень: образу нужны contracts/proto.
+      context: .
+      dockerfile: scoring-service/Dockerfile
     environment:
       SCORING_SERVICE_GRPC_HOST: 0.0.0.0
       SCORING_SERVICE_GRPC_PORT: 8082

@@ -47,13 +47,21 @@
 - `./gradlew spotlessCheck` → `BUILD SUCCESSFUL` после `spotlessApply` для двух тестовых файлов.
 - `docker compose config --quiet` → валидно.
 - `docker compose build ats-service` → `Image tracing-ats-ats-service Built`.
-- `docker compose -p ats-unified-test up` (профиль `mock-llm`): `GET /specializations` → 200,
-  `POST /vacancies` → 201 (1 требование от mock-LLM), `POST /resumes` → 202 со статусом
-  `MASKED`, `GET /vacancies/{id}/ranking` → 200. Внешняя LLM не вызывалась.
-- Проверка вскрыла две проблемы окружения, не связанные с merge: `scoring-service` в образе
-  падает с `ModuleNotFoundError: scoring_service.v1` (сгенерированные protobuf-модули не
-  собираются в Dockerfile), а MinIO отдаёт 507 при заполненном диске; на `memory`-storage
-  загрузка резюме проходит.
+- Полный стек (`docker compose up`, профиль `mock-llm`, `tracing-ats`):
+  frontend `http://localhost:3000` → 200, `GET /api/v1/specializations` → 200.
+- Сквозной сценарий резюме через nginx-прокси: `POST /vacancies` → 201, `POST /resumes` → 202,
+  application `SCORED` (gRPC `GetTemplate` + `scoring-service`), `POST /vacancies/{id}/screen`
+  → 202, батч `COMPLETED`, `GET /ranking?phase=FINAL` → 200 (1 кандидат, `SHORTLISTED`),
+  `GET /applications/{id}/report` → 200 (`blind=true`, матрица требований),
+  `POST /applications/{id}/reveal` → 200 (email, телефон, GitHub из vault).
+- Маскировка: в `parsed_resume.masked_text` нет email/телефона/GitHub, вместо них
+  `[PII_EMAIL_1]`, `[PII_PHONE_1]`, `[PII_GITHUB_1]`. Имя не маскируется при
+  `ATS_PII_NER_PROVIDER=fake` — ожидаемо для заглушки NER.
+- Исправлен баг, найденный проверкой: `VacancyTemplateQuery` выбирал удалённую в 009 колонку
+  `vacancy_requirement.weight`; теперь вес выводится из `kind` (MUST=3, NICE=2, OPTIONAL=1),
+  добавлен регресс-тест `readsDemoTemplateForInternalGrpc`.
+- `scoring-service/Dockerfile` собирает protobuf-модули в образе (раньше контейнер падал с
+  `ModuleNotFoundError: scoring_service.v1`); compose использует корень репозитория как контекст.
 
 ### Не сделано / проблемы
 

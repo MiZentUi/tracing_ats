@@ -33,6 +33,16 @@
   навыки берутся из справочника).
 - В CI одна Java-джоба `ats-service` вместо двух; frontend ходит в `ats-service`.
 
+#### Fixed
+
+- `VacancyTemplateQuery` больше не читает удалённую в `009` колонку `weight`: вес требования
+  выводится из `kind` (MUST=3, NICE=2, OPTIONAL=1). Из-за этого gRPC `GetTemplate` падал,
+  и предварительный скоринг резюме оставался в `SCORING_FAILED`.
+- `scoring-service/Dockerfile` генерирует protobuf-модули при сборке; контейнер больше не
+  падает с `ModuleNotFoundError: scoring_service.v1`.
+- `compose.yaml`: `ATS_STORAGE_TYPE` можно переопределить из окружения (например, `memory`
+  без MinIO); сборка `scoring-service` идёт из корня репозитория.
+
 
 ### Ветка `feature/specialization-it-flag`
 

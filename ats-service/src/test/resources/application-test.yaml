@@ -1,4 +1,9 @@
 spring:
+  # Тесты поднимают несколько контекстов: gRPC-сервер должен брать свободный порт,
+  # а не конфликтовать с запущенным ats-service на 9090.
+  grpc:
+    server:
+      port: 0
   liquibase:
     enabled: true
     change-log: classpath:db/changelog/db.changelog-master.xml

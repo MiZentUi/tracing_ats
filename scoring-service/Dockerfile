@@ -12,11 +12,29 @@ COPY --from=uv /uv /uvx /bin/
 
 WORKDIR /app
 
-COPY pyproject.toml uv.lock README.md ./
+# Контекст сборки — корень репозитория: нужны contracts/proto.
+COPY scoring-service/pyproject.toml scoring-service/uv.lock scoring-service/README.md ./
 RUN --mount=type=cache,target=/root/.cache/uv \
-    uv sync --locked --no-dev --no-install-project
+    uv sync --locked --no-install-project
 
-COPY src ./src
+COPY scoring-service/src ./src
+COPY contracts/proto /contracts/proto
+
+# Сгенерированные protobuf-модули не коммитятся: собираем их в образе.
+RUN --mount=type=cache,target=/root/.cache/uv \
+    cd /contracts/proto \
+    && python -m grpc_tools.protoc -I. \
+        --python_out=/app/src \
+        --pyi_out=/app/src \
+        --grpc_python_out=/app/src \
+        scoring_service/v1/models/features/common.proto \
+        scoring_service/v1/models/features/education.proto \
+        scoring_service/v1/models/features/experience.proto \
+        scoring_service/v1/models/features.proto \
+        scoring_service/v1/models/features/skill.proto \
+        scoring_service/v1/models/messages.proto \
+        scoring_service/v1/scoring.proto
+
 RUN --mount=type=cache,target=/root/.cache/uv \
     uv sync --locked --no-dev
 
