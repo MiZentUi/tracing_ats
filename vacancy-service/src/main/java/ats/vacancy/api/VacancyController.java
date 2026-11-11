@@ -4,6 +4,8 @@ import ats.api.VacanciesApi;
 import ats.gateway.model.UpdateTemplateRequest;
 import ats.gateway.model.Vacancy;
 import ats.gateway.model.VacancyList;
+import ats.vacancy.api.mapping.CommandMapper;
+import ats.vacancy.api.mapping.VacancyApiMapper;
 import ats.vacancy.application.CreateVacancyCommand;
 import ats.vacancy.application.VacancyService;
 import java.util.UUID;
@@ -20,14 +22,15 @@ import org.springframework.web.multipart.MultipartFile;
 public class VacancyController implements VacanciesApi {
 
     private final VacancyService vacancyService;
-    private final ApiMapper mapper;
+    private final VacancyApiMapper vacancyMapper;
+    private final CommandMapper commandMapper;
 
     @Override
     public ResponseEntity<Vacancy> createVacancy(
             String specialization, String level, String title, String text, MultipartFile file) {
         return ResponseEntity.status(HttpStatus.CREATED)
                 .body(
-                        mapper.toVacancy(
+                        vacancyMapper.toVacancy(
                                 vacancyService.create(
                                         new CreateVacancyCommand(
                                                 specialization, level, title, text, file))));
@@ -35,20 +38,20 @@ public class VacancyController implements VacanciesApi {
 
     @Override
     public ResponseEntity<Vacancy> getVacancy(UUID id) {
-        return ResponseEntity.ok(mapper.toVacancy(vacancyService.get(id)));
+        return ResponseEntity.ok(vacancyMapper.toVacancy(vacancyService.get(id)));
     }
 
     @Override
     public ResponseEntity<VacancyList> listVacancies(Integer limit, Integer offset) {
-        return ResponseEntity.ok(mapper.toVacancyList(vacancyService.list(limit, offset)));
+        return ResponseEntity.ok(vacancyMapper.toVacancyList(vacancyService.list(limit, offset)));
     }
 
     @Override
     public ResponseEntity<Vacancy> updateVacancyTemplate(
             UUID id, UpdateTemplateRequest updateTemplateRequest) {
         return ResponseEntity.ok(
-                mapper.toVacancy(
-                        vacancyService.update(id, mapper.toCommand(updateTemplateRequest))));
+                vacancyMapper.toVacancy(
+                        vacancyService.update(id, commandMapper.toCommand(updateTemplateRequest))));
     }
 
     @Override

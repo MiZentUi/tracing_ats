@@ -3,6 +3,7 @@ package ats.vacancy.api;
 import ats.api.ReferenceApi;
 import ats.gateway.model.CreateSpecializationRequest;
 import ats.gateway.model.ReferenceItem;
+import ats.vacancy.api.mapping.ReferenceApiMapper;
 import ats.vacancy.application.SpecializationService;
 import ats.vacancy.application.VacancyService;
 import java.util.List;
@@ -19,14 +20,14 @@ public class ReferenceController implements ReferenceApi {
 
     private final VacancyService vacancyService;
     private final SpecializationService specializationService;
-    private final ApiMapper mapper;
+    private final ReferenceApiMapper referenceMapper;
 
     @Override
     public ResponseEntity<ReferenceItem> createSpecialization(
             CreateSpecializationRequest createSpecializationRequest) {
         return ResponseEntity.status(HttpStatus.CREATED)
                 .body(
-                        mapper.toReferenceItem(
+                        referenceMapper.toReferenceItem(
                                 specializationService.create(
                                         createSpecializationRequest.getName(),
                                         createSpecializationRequest.getCode())));
@@ -35,12 +36,14 @@ public class ReferenceController implements ReferenceApi {
     @Override
     public ResponseEntity<List<ReferenceItem>> listLevels() {
         return ResponseEntity.ok(
-                vacancyService.levels().stream().map(mapper::toReferenceItem).toList());
+                vacancyService.levels().stream().map(referenceMapper::toReferenceItem).toList());
     }
 
     @Override
     public ResponseEntity<List<ReferenceItem>> listSpecializations() {
         return ResponseEntity.ok(
-                vacancyService.specializations().stream().map(mapper::toReferenceItem).toList());
+                vacancyService.specializations().stream()
+                        .map(referenceMapper::toReferenceItem)
+                        .toList());
     }
 }
