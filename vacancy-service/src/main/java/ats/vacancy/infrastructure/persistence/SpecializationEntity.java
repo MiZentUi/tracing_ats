@@ -36,6 +36,9 @@ public class SpecializationEntity {
     @Column(name = "is_active", nullable = false)
     private boolean active;
 
+    @Column(name = "is_it", nullable = false)
+    private boolean it;
+
     @Column(name = "created_at", nullable = false)
     private Instant createdAt;
 

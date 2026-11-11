@@ -30,6 +30,8 @@ import org.springframework.stereotype.Service;
 @RequiredArgsConstructor
 public class VacancyService {
 
+    private static final String HIDDEN_LEVEL = "none";
+
     private final VacancyRepository vacancyRepository;
     private final SpecializationRepository specializationRepository;
     private final LevelRepository levelRepository;
@@ -54,25 +56,7 @@ public class VacancyService {
                                                 "UNKNOWN_SPECIALIZATION",
                                                 "Unknown specialization: "
                                                         + command.specialization()));
-        LevelEntity level;
-        if (command.level() == null || command.level().isBlank()) {
-            level =
-                    levelRepository
-                            .findByCode("none")
-                            .orElseThrow(
-                                    () ->
-                                            new IllegalStateException(
-                                                    "Hidden level 'none' is not seeded"));
-        } else {
-            level =
-                    levelRepository
-                            .findByCodeAndActiveTrue(command.level())
-                            .orElseThrow(
-                                    () ->
-                                            ApiException.unprocessable(
-                                                    "UNKNOWN_LEVEL",
-                                                    "Unknown level: " + command.level()));
-        }
+        LevelEntity level = resolveLevel(specialization, command.level());
 
         boolean hasText = command.text() != null && !command.text().isBlank();
         boolean hasFile = command.file() != null && !command.file().isEmpty();
@@ -144,6 +128,32 @@ public class VacancyService {
         return store.create(text, sourceType, sourceRef, title, specialization, level, extracted);
     }
 
+    /**
+     * Для IT-специализации уровень обязателен: грейд определяет стартовые гиперпараметры. Для
+     * остальных специализаций грейда нет, переданный уровень игнорируется.
+     */
+    private LevelEntity resolveLevel(SpecializationEntity specialization, String code) {
+        if (!specialization.isIt()) {
+            return hiddenLevel();
+        }
+        if (code == null || code.isBlank() || HIDDEN_LEVEL.equals(code)) {
+            throw ApiException.unprocessable(
+                    "LEVEL_REQUIRED", "level is required for IT specialization");
+        }
+        return levelRepository
+                .findByCodeAndActiveTrue(code)
+                .orElseThrow(
+                        () ->
+                                ApiException.unprocessable(
+                                        "UNKNOWN_LEVEL", "Unknown level: " + code));
+    }
+
+    private LevelEntity hiddenLevel() {
+        return levelRepository
+                .findByCode(HIDDEN_LEVEL)
+                .orElseThrow(() -> new IllegalStateException("Hidden level 'none' is not seeded"));
+    }
+
     public VacancyView get(UUID id) {
         VacancyEntity vacancy =
                 vacancyRepository
@@ -166,7 +176,7 @@ public class VacancyService {
         store.delete(id);
     }
 
-    public List<ReferenceItem> specializations() {
+    public List<SpecializationItem> specializations() {
         return assembler.listSpecializations();
     }
 

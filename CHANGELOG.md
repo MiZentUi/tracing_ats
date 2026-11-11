@@ -7,6 +7,25 @@
 
 ## [Unreleased]
 
+### Ветка `feature/specialization-it-flag`
+
+#### Breaking changes
+
+- `POST /api/v1/specializations` требует поле `it`: `true` для IT-специализации,
+  `false` для остальных. Без него API отвечает `422 VALIDATION_ERROR`.
+- `GET /api/v1/specializations` и ответ создания специализации возвращают
+  `Specialization` (`code`, `name`, `it`) вместо `ReferenceItem`.
+- Для IT-специализации грейд обязателен: `POST /api/v1/vacancies` без `level`
+  отвечает `422 LEVEL_REQUIRED`, значение `none` не принимается.
+  Для не-IT специализаций уровень игнорируется и подставляется скрытый `none`.
+
+#### Added
+
+- Колонка `specialization.is_it` (changeset `015-specialization-it`); засеянные
+  IT-направления помечены `true`, пользовательские специализации остаются `false`.
+- В форме создания вакансии селект грейда показывается только для IT-специализаций,
+  в модалке создания специализации появился чекбокс «IT-специализация».
+
 ### Ветка `feature/vacancy-skill-kinds` — RFC-002
 
 #### Breaking changes

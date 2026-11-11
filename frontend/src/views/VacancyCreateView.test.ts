@@ -11,7 +11,13 @@ vi.mock('@/api', () => ({
     createVacancy: (...args: unknown[]) => createVacancy(...args),
   },
   referenceApi: {
-    listSpecializations: () => Promise.resolve({ data: [{ code: 'backend', name: 'Backend' }] }),
+    listSpecializations: () =>
+      Promise.resolve({
+        data: [
+          { code: 'analitika', name: 'Аналитика', it: false },
+          { code: 'backend', name: 'Backend', it: true },
+        ],
+      }),
     listLevels: () => Promise.resolve({ data: [{ code: 'middle', name: 'Middle' }] }),
     createSpecialization: (...args: unknown[]) => createSpecialization(...args),
   },
@@ -59,7 +65,9 @@ describe('VacancyCreateView', () => {
   })
 
   it('добавляет специализацию и выбирает её', async () => {
-    createSpecialization.mockResolvedValue({ data: { code: 'analitika', name: 'Аналитика' } })
+    createSpecialization.mockResolvedValue({
+      data: { code: 'analitika', name: 'Аналитика', it: false },
+    })
     const wrapper = await mountCreate()
 
     await wrapper.get('button[title="Добавить специализацию"]').trigger('click')
@@ -72,21 +80,34 @@ describe('VacancyCreateView', () => {
     await flushPromises()
 
     expect(createSpecialization).toHaveBeenCalledWith({
-      createSpecializationRequest: { name: 'Аналитика', code: null },
+      createSpecializationRequest: { name: 'Аналитика', code: null, it: true },
     })
     expect((wrapper.findAll('select')[0].element as HTMLSelectElement).value).toBe('analitika')
   })
 
-  it('позволяет создать вакансию без уровня', async () => {
-    createVacancy.mockResolvedValue({ data: { vacancy_id: 'vacancy-1' } })
+  it('требует грейд для IT-специализации', async () => {
     const wrapper = await mountCreate()
     await wrapper.findAll('select')[0].setValue('backend')
     await wrapper.get('textarea').setValue('Java')
+    expect(wrapper.text()).toContain('Для IT-специализации грейд обязателен')
+    expect(wrapper.get('button[type="submit"]').attributes('disabled')).toBeDefined()
+
+    await wrapper.findAll('select')[1].setValue('middle')
+    expect(wrapper.get('button[type="submit"]').attributes('disabled')).toBeUndefined()
+  })
+
+  it('не запрашивает грейд для не-IT специализации', async () => {
+    createVacancy.mockResolvedValue({ data: { vacancy_id: 'vacancy-1' } })
+    const wrapper = await mountCreate()
+    await wrapper.findAll('select')[0].setValue('analitika')
+    await wrapper.get('textarea').setValue('Аналитика рынка')
+    expect(wrapper.text()).toContain('Не требуется: специализация не IT')
+    expect(wrapper.findAll('select')).toHaveLength(1)
     expect(wrapper.get('button[type="submit"]').attributes('disabled')).toBeUndefined()
     await wrapper.get('form').trigger('submit')
     await flushPromises()
     expect(createVacancy).toHaveBeenCalledWith(
-      expect.objectContaining({ level: 'none', specialization: 'backend' }),
+      expect.objectContaining({ specialization: 'analitika', level: undefined }),
     )
   })
 

@@ -8,6 +8,7 @@ import static org.springframework.test.web.servlet.request.MockMvcRequestBuilder
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.multipart;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.put;
+import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
 import ats.vacancy.TestcontainersConfiguration;
@@ -321,11 +322,47 @@ class VacancyApiIntegrationTest {
     }
 
     @Test
-    void createsVacancyWithoutLevel() throws Exception {
+    void requiresLevelForItSpecialization() throws Exception {
+        mockMvc.perform(
+                        multipart("/api/v1/vacancies")
+                                .param("specialization", "backend")
+                                .param("text", TEXT))
+                .andExpect(status().isUnprocessableEntity())
+                .andExpect(jsonPath("$.status").value("LEVEL_REQUIRED"));
+    }
+
+    @Test
+    void createsNonItVacancyWithoutLevel() throws Exception {
+        mockMvc.perform(
+                        post("/api/v1/specializations")
+                                .contentType(MediaType.APPLICATION_JSON)
+                                .content("{\"name\":\"Аналитика\",\"it\":false}"))
+                .andExpect(status().isCreated());
+
         MvcResult result =
                 mockMvc.perform(
                                 multipart("/api/v1/vacancies")
-                                        .param("specialization", "backend")
+                                        .param("specialization", "analitika")
+                                        .param("text", TEXT))
+                        .andExpect(status().isCreated())
+                        .andReturn();
+        JsonNode created = objectMapper.readTree(result.getResponse().getContentAsString());
+        assertThat(created.path("level").asText()).isEqualTo("none");
+    }
+
+    @Test
+    void ignoresLevelForNonItSpecialization() throws Exception {
+        mockMvc.perform(
+                        post("/api/v1/specializations")
+                                .contentType(MediaType.APPLICATION_JSON)
+                                .content("{\"name\":\"Аналитика\",\"it\":false}"))
+                .andExpect(status().isCreated());
+
+        MvcResult result =
+                mockMvc.perform(
+                                multipart("/api/v1/vacancies")
+                                        .param("specialization", "analitika")
+                                        .param("level", "senior")
                                         .param("text", TEXT))
                         .andExpect(status().isCreated())
                         .andReturn();
@@ -384,18 +421,30 @@ class VacancyApiIntegrationTest {
                 mockMvc.perform(
                                 post("/api/v1/specializations")
                                         .contentType(MediaType.APPLICATION_JSON)
-                                        .content("{\"name\":\"Аналитика\"}"))
+                                        .content("{\"name\":\"Аналитика\",\"it\":false}"))
                         .andExpect(status().isCreated())
                         .andReturn();
         JsonNode created = objectMapper.readTree(result.getResponse().getContentAsString());
         assertThat(created.path("code").asText()).isEqualTo("analitika");
         assertThat(created.path("name").asText()).isEqualTo("Аналитика");
+        assertThat(created.path("it").asBoolean()).isFalse();
 
         mockMvc.perform(
                         post("/api/v1/specializations")
                                 .contentType(MediaType.APPLICATION_JSON)
-                                .content("{\"name\":\"Аналитика\"}"))
+                                .content("{\"name\":\"Аналитика\",\"it\":false}"))
                 .andExpect(status().isConflict());
+    }
+
+    @Test
+    void rejectsSpecializationWithoutItFlag() throws Exception {
+        // Поле it помечено required в контракте, поэтому срабатывает @NotNull-валидация DTO.
+        mockMvc.perform(
+                        post("/api/v1/specializations")
+                                .contentType(MediaType.APPLICATION_JSON)
+                                .content("{\"name\":\"Аналитика\"}"))
+                .andExpect(status().isUnprocessableEntity())
+                .andExpect(jsonPath("$.status").value("VALIDATION_ERROR"));
     }
 
     @Test

@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { computed, onMounted, ref } from 'vue'
+import { computed, onMounted, ref, watch } from 'vue'
 import { useRouter } from 'vue-router'
 import {
   ArrowLeft,
@@ -11,7 +11,7 @@ import {
   UploadCloud,
   X,
 } from '@lucide/vue'
-import type { ReferenceItem } from '@/api/generated'
+import type { ReferenceItem, Specialization } from '@/api/generated'
 import { apiErrorMessage, referenceApi, vacanciesApi } from '@/api'
 import AppModal from '@/components/AppModal.vue'
 import { useToast } from '@/composables/useToast'
@@ -19,10 +19,10 @@ import { useToast } from '@/composables/useToast'
 const router = useRouter()
 const { success, error: toastError } = useToast()
 
-const specializations = ref<ReferenceItem[]>([])
+const specializations = ref<Specialization[]>([])
 const levels = ref<ReferenceItem[]>([])
 const specialization = ref('')
-const level = ref('none')
+const level = ref('')
 const title = ref('')
 const mode = ref<'text' | 'file'>('text')
 const text = ref('')
@@ -33,13 +33,26 @@ const error = ref('')
 const showSpecializationModal = ref(false)
 const newSpecializationName = ref('')
 const newSpecializationCode = ref('')
+const newSpecializationIt = ref(true)
 const addingSpecialization = ref(false)
 const specializationError = ref('')
+
+const selectedSpecialization = computed(
+  () => specializations.value.find((item) => item.code === specialization.value) ?? null,
+)
+
+// Грейд нужен только IT-специализациям: для остальных уровень не запрашивается.
+const needsLevel = computed(() => selectedSpecialization.value?.it === true)
+
+watch(needsLevel, () => {
+  level.value = ''
+})
 
 const canSubmit = computed(
   () =>
     !loading.value &&
     specialization.value !== '' &&
+    (!needsLevel.value || level.value !== '') &&
     (mode.value === 'text' ? text.value.trim() !== '' : file.value !== null),
 )
 
@@ -51,7 +64,7 @@ const currentStep = computed(() => {
 })
 
 const steps = [
-  { number: 1, title: 'Параметры', hint: 'Специализация и уровень' },
+  { number: 1, title: 'Параметры', hint: 'Специализация и грейд' },
   { number: 2, title: 'Источник', hint: 'Текст или файл' },
   { number: 3, title: 'Разбор', hint: 'LLM и проверка' },
 ]
@@ -93,6 +106,7 @@ function openSpecializationModal() {
   specializationError.value = ''
   newSpecializationName.value = ''
   newSpecializationCode.value = ''
+  newSpecializationIt.value = true
   showSpecializationModal.value = true
 }
 
@@ -108,14 +122,19 @@ async function addSpecialization() {
       createSpecializationRequest: {
         name: newSpecializationName.value.trim(),
         code: newSpecializationCode.value.trim() || null,
+        it: newSpecializationIt.value,
       },
     })
     specializations.value = [...specializations.value, response.data].sort((left, right) =>
       left.name.localeCompare(right.name, 'ru'),
     )
     specialization.value = response.data.code
+    level.value = ''
     showSpecializationModal.value = false
-    success('Специализация добавлена', `${response.data.name} · ${response.data.code}`)
+    success(
+      'Специализация добавлена',
+      `${response.data.name} · ${response.data.it ? 'IT, грейд обязателен' : 'без грейдов'}`,
+    )
   } catch (e) {
     specializationError.value = apiErrorMessage(e)
   } finally {
@@ -132,7 +151,7 @@ async function submit() {
   try {
     const response = await vacanciesApi.createVacancy({
       specialization: specialization.value,
-      level: level.value || undefined,
+      level: needsLevel.value ? level.value : undefined,
       title: title.value.trim() || undefined,
       text: mode.value === 'text' ? text.value : undefined,
       file: mode.value === 'file' ? file.value : undefined,
@@ -188,7 +207,7 @@ async function submit() {
             </span>
             <div>
               <h2 class="text-base font-semibold text-slate-900">Параметры позиции</h2>
-              <p class="text-sm text-slate-500">Специализация обязательна, уровень можно не указывать.</p>
+              <p class="text-sm text-slate-500">Специализация обязательна. Грейд нужен только для IT-специализаций.</p>
             </div>
           </div>
 
@@ -210,14 +229,19 @@ async function submit() {
               <p class="hint">Нет нужной? Добавьте её рядом с полем.</p>
             </div>
             <div>
-              <label class="label" for="level">Уровень</label>
-              <select id="level" v-model="level" class="input">
-                <option value="none">Без уровня</option>
+              <label class="label" for="level">Уровень <span v-if="needsLevel" class="font-normal text-slate-400">(обязательно)</span></label>
+              <select v-if="needsLevel" id="level" v-model="level" class="input" required>
+                <option value="" disabled>Выберите грейд</option>
                 <option v-for="item in levels" :key="item.code" :value="item.code">
                   {{ item.name }}
                 </option>
               </select>
-              <p class="hint">Для специализаций без грейдов оставьте «Без уровня».</p>
+              <p v-else class="flex h-[38px] items-center rounded-xl border border-dashed border-slate-300 bg-slate-50 px-3 text-sm text-slate-500">
+                Не требуется: специализация не IT
+              </p>
+              <p class="hint">
+                {{ needsLevel ? 'Для IT-специализации грейд обязателен.' : 'Грейд запрашивается только у IT-специализаций.' }}
+              </p>
             </div>
           </div>
 
@@ -309,7 +333,7 @@ async function submit() {
           <div class="flex items-start justify-between gap-3">
             <dt class="text-slate-500">Уровень</dt>
             <dd class="text-right font-medium text-slate-900">
-              {{ level === 'none' ? 'Без уровня' : levels.find((item) => item.code === level)?.name ?? level }}
+              {{ needsLevel ? levels.find((item) => item.code === level)?.name ?? '—' : 'Без уровня' }}
             </dd>
           </div>
           <div class="flex items-start justify-between gap-3">
@@ -350,6 +374,15 @@ async function submit() {
           <input id="new-specialization-code" v-model="newSpecializationCode" class="input" placeholder="analytics" />
           <p class="hint">Латиница, цифры и дефисы. Например, `data-engineering`.</p>
         </div>
+        <label class="flex cursor-pointer items-start gap-3 rounded-xl border border-slate-200 p-3">
+          <input v-model="newSpecializationIt" type="checkbox" class="mt-0.5 h-4 w-4 accent-indigo-600" />
+          <span class="text-sm">
+            <span class="font-medium text-slate-900">IT-специализация</span>
+            <span class="block text-xs text-slate-500">
+              Если включено, при создании вакансии нужно выбрать грейд. Для остальных специализаций грейд не запрашивается.
+            </span>
+          </span>
+        </label>
         <div class="flex justify-end gap-2 pt-1">
           <button type="button" class="btn-secondary" @click="showSpecializationModal = false">Отмена</button>
           <button type="button" class="btn-primary" :disabled="addingSpecialization" @click="addSpecialization">

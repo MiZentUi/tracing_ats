@@ -14,7 +14,8 @@ vi.mock('@/api', () => ({
     updateVacancyTemplate: (...args: unknown[]) => updateVacancyTemplate(...args),
   },
   referenceApi: {
-    listSpecializations: () => Promise.resolve({ data: [{ code: 'backend', name: 'Backend' }] }),
+    listSpecializations: () =>
+      Promise.resolve({ data: [{ code: 'backend', name: 'Backend', it: true }] }),
     listLevels: () => Promise.resolve({ data: [{ code: 'middle', name: 'Middle' }] }),
   },
   apiErrorMessage: () => 'Шаблон изменён в другом месте. Перезагрузите данные',
