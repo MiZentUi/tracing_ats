@@ -6,11 +6,14 @@ from dataclasses import dataclass
 
 import grpc
 from grpc_health.v1 import health, health_pb2, health_pb2_grpc
+from grpc_reflection.v1alpha import reflection
 
 import scoring_service.v1.scoring_pb2_grpc as scoring_pb2_grpc
+from scoring_service.v1 import scoring_pb2
 
 from .config import Settings, get_settings
 from .extraction.extractor import ResumeExtractor
+from .interceptors import RequestLoggingInterceptor
 from .llm import build_llm_client
 from .scoring import ScoringService
 
@@ -30,7 +33,10 @@ def create_server(
 ) -> ServerHandle:
     """Create a gRPC server with the health and scoring services."""
     settings = settings or get_settings()
-    server = grpc.server(futures.ThreadPoolExecutor(max_workers=settings.max_workers))
+    server = grpc.server(
+        futures.ThreadPoolExecutor(max_workers=settings.max_workers),
+        interceptors=[RequestLoggingInterceptor()],
+    )
     health_servicer = health.HealthServicer()
     health_pb2_grpc.add_HealthServicer_to_server(health_servicer, server)
 
@@ -42,6 +48,17 @@ def create_server(
 
     scoring_servicer = ScoringService(extractor or ResumeExtractor(build_llm_client(settings)))
     scoring_pb2_grpc.add_ScoringServiceServicer_to_server(scoring_servicer, server)
+
+    GRPC_SERVICES = [
+        *[
+            x.full_name
+            for x in scoring_pb2.DESCRIPTOR.services_by_name.values()
+        ],
+        *[x.full_name for x in health_pb2.DESCRIPTOR.services_by_name.values()],
+        reflection.SERVICE_NAME,
+    ]
+
+    reflection.enable_server_reflection(GRPC_SERVICES, server)
 
     address = f"{settings.grpc_host}:{settings.grpc_port}"
     bound_port = server.add_insecure_port(address)

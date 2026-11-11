@@ -90,6 +90,19 @@ wheels = [
 ]
 
 [[package]]
+name = "grpcio-reflection"
+version = "1.85.1"
+source = { registry = "https://pypi.org/simple" }
+dependencies = [
+    { name = "grpcio" },
+    { name = "protobuf" },
+]
+sdist = { url = "https://files.pythonhosted.org/packages/3d/57/6dd3f295af8c5b0516ae58b252fad8f07eb18c13b6e81db04b3537740574/grpcio_reflection-1.85.1.tar.gz", hash = "sha256:a3257f35cc817e372cfe330ba3411fc0c61f23b09a94dd2d8f91185955c5533c", size = 19286, upload-time = "2026-10-30T16:05:24.857Z" }
+wheels = [
+    { url = "https://files.pythonhosted.org/packages/d5/08/5dc0713f8b4250d4c2b01eace5572b89d6a3a8ec398cfb4834979d22c222/grpcio_reflection-1.85.1-py3-none-any.whl", hash = "sha256:476f98ec652a5d69f837781ef44c9ff65ebc116e58a6c1dc7712526ac071262a", size = 22987, upload-time = "2026-10-30T16:05:10.067Z" },
+]
+
+[[package]]
 name = "grpcio-tools"
 version = "1.85.1"
 source = { registry = "https://pypi.org/simple" }
@@ -469,6 +482,7 @@ dependencies = [
     { name = "googleapis-common-protos" },
     { name = "grpcio" },
     { name = "grpcio-health-checking" },
+    { name = "grpcio-reflection" },
     { name = "openai" },
     { name = "pydantic" },
     { name = "pydantic-settings" },
@@ -486,6 +500,7 @@ requires-dist = [
     { name = "googleapis-common-protos", specifier = ">=1.76.0" },
     { name = "grpcio", specifier = ">=1.85.1" },
     { name = "grpcio-health-checking", specifier = ">=1.85.1" },
+    { name = "grpcio-reflection", specifier = ">=1.85.1" },
     { name = "openai", specifier = ">=3.49.0" },
     { name = "pydantic", specifier = ">=2.14.3" },
     { name = "pydantic-settings", specifier = ">=2.16.2" },
