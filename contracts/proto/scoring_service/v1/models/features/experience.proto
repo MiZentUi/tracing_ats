@@ -1,0 +1,25 @@
+syntax = "proto3";
+
+package scoring_service.v1.models.features;
+import "google/type/date.proto";
+import "scoring_service/v1/models/features/common.proto";
+
+message PriorExperienceRequirement {
+  // Стаж
+  uint32 tenure = 1;
+  // Категория работ (Scala-разработчик, командир взвода связи)
+  string category = 2;
+}
+
+message PriorExperiencePerResume {
+  // Категория работ (Scala-разработчик, командир взвода связи)
+  string category = 1;
+  // Начало работы
+  google.type.Date begin = 2;
+  // Конец работы
+  google.type.Date end = 3;
+  // Возможные метрики
+  repeated FeatureEvidence metrics = 4;
+  // Должность
+  string position = 5;
+}

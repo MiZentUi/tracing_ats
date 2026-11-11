@@ -1,0 +1,29 @@
+syntax = "proto3";
+
+package scoring_service.v1.models.features;
+import "scoring_service/v1/models/features/common.proto";
+
+message SkillRequirement {
+  // Название навыка
+  string name = 1;
+  // Нормализованное название
+  string normalized_name = 2;
+  // Описание обязанностей или чего-либо подобного (простой текст)
+  string description = 3;
+  // Требуемый стаж в годах (0 если не требуется/нерелевантно для конкретного
+  // навыка)
+  uint32 tenure = 4;
+}
+
+message SkillPerResume {
+  // Давность навыка, если известна
+  optional uint32 recency = 1;
+  // Название (как указано в резюме)
+  string name = 2;
+  // Нормализованное название (как указано в `SkillRequirement`)
+  string normalized_name = 3;
+  // Ссылка на фрагмент текста, где навык упоминается
+  scoring_service.v1.models.features.FeatureEvidence evidence = 4;
+  // Стаж навыка (если известен)
+  optional uint32 tenure = 5;
+}
