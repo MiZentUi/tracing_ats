@@ -8,6 +8,10 @@
         Корневой changelog. Новые миграции добавляются сюда отдельными include,
         строго после предыдущих: порядок application определяется порядком include.
         Файлы миграций — formatted SQL, лежат в migration/changes.
+
+        Порядок: сначала актуальная схема вакансий (001 и 009–015), затем схема резюме
+        (002), демо-данные (003) и доработки скоринга (004). Демо-вакансия из 003
+        использует колонки kind/skill_text, которые появляются только в 009.
     -->
     <include file="changes/001-vacancy-schema.sql" relativeToChangelogFile="true" />
     <include file="changes/009-requirement-skills-and-kinds.sql" relativeToChangelogFile="true" />
@@ -19,9 +23,5 @@
     <include file="changes/015-specialization-it.sql" relativeToChangelogFile="true" />
     <include file="changes/002-resume-schema.sql" relativeToChangelogFile="true" />
     <include file="changes/003-demo-vacancy.sql" relativeToChangelogFile="true" />
-</databaseChangeLog>
-<include file="changes/001-vacancy-schema.sql" relativeToChangelogFile="true" />
-<include file="changes/002-resume-schema.sql" relativeToChangelogFile="true" />
-<include file="changes/003-demo-vacancy.sql" relativeToChangelogFile="true" />
-<include file="changes/004-scoring-integration.sql" relativeToChangelogFile="true" />
+    <include file="changes/004-scoring-integration.sql" relativeToChangelogFile="true" />
 </databaseChangeLog>

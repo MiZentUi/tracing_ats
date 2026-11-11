@@ -69,40 +69,39 @@ services:
         condition: service_healthy
     restart: "no"
 
+  # Stateless онлайн-ML: без БД, файлов и внешних источников.
   scoring-service:
     build:
       context: ./scoring-service
       dockerfile: Dockerfile
+    environment:
+      SCORING_SERVICE_GRPC_HOST: 0.0.0.0
+      SCORING_SERVICE_GRPC_PORT: 8082
+      SCORING_SERVICE_LOG_LEVEL: ${SCORING_SERVICE_LOG_LEVEL:-INFO}
     ports:
       - "${SCORING_SERVICE_PORT:-8082}:8082"
     restart: unless-stopped
 
-  vacancy-service:
+  # Заглушка LLM для CI и демо без ключа.
+  mock-llm:
     build:
-      context: .
-      dockerfile: vacancy-service/Dockerfile
-    environment:
-      SPRING_DATASOURCE_URL: jdbc:postgresql://postgres:5432/${POSTGRES_DB:-ats}
-      SPRING_DATASOURCE_USERNAME: ${POSTGRES_USER:-ats}
-      SPRING_DATASOURCE_PASSWORD: ${POSTGRES_PASSWORD:-ats}
-      VACANCY_GRPC_PORT: 9090
+      context: ./infra/mock-llm
     ports:
-      - "${VACANCY_SERVICE_PORT:-8080}:8080"
-      - "${VACANCY_GRPC_PORT:-9090}:9090"
-    depends_on:
-      migrations:
-        condition: service_completed_successfully
+      - "${MOCK_LLM_PORT:-8089}:8089"
     restart: unless-stopped
 
-  resume-service:
+  # Один Java-сервис: вакансии, шаблон, резюме, PII, скрининг, рейтинг, отчёт.
+  ats-service:
     build:
       context: .
-      dockerfile: resume-service/Dockerfile
+      dockerfile: ats-service/Dockerfile
     environment:
       SPRING_DATASOURCE_URL: jdbc:postgresql://postgres:5432/${POSTGRES_DB:-ats}
       SPRING_DATASOURCE_USERNAME: ${POSTGRES_USER:-ats}
       SPRING_DATASOURCE_PASSWORD: ${POSTGRES_PASSWORD:-ats}
-      ATS_STORAGE_TYPE: s3
+      ATS_SERVICE_PORT: 8080
+      ATS_GRPC_PORT: 9090
+      ATS_STORAGE_TYPE: ${ATS_STORAGE_TYPE:-s3}
       ATS_S3_ENDPOINT: http://minio:9000
       ATS_S3_ACCESS_KEY: ${ATS_S3_ACCESS_KEY:-minioadmin}
       ATS_S3_SECRET_KEY: ${ATS_S3_SECRET_KEY:-minioadmin}
@@ -113,24 +112,41 @@ services:
       ATS_PII_NER_MODEL_PATH: ${ATS_PII_NER_MODEL_PATH:-/models/ner/model.onnx}
       ATS_PII_NER_TOKENIZER_PATH: ${ATS_PII_NER_TOKENIZER_PATH:-/models/ner/tokenizer.json}
       ATS_PII_NER_CONFIG_PATH: ${ATS_PII_NER_CONFIG_PATH:-/models/ner/config.json}
-      VACANCY_GRPC_TARGET: vacancy-service:9090
+      # Внутренние gRPC-вызовы идут в тот же процесс.
+      ATS_VACANCY_GRPC_TARGET: localhost:9090
       SCORING_GRPC_TARGET: scoring-service:8082
       ATS_GITHUB_ENABLED: ${ATS_GITHUB_ENABLED:-false}
       ATS_GITHUB_TOKEN: ${ATS_GITHUB_TOKEN:-}
+      # Для запуска без ключа: ATS_PROFILES=mock-llm
+      SPRING_PROFILES_ACTIVE: ${ATS_PROFILES:-}
+      # Compose подставляет значение из корневого .env или окружения хоста.
+      OPENROUTER_API_KEY: ${OPENROUTER_API_KEY:-}
+      MOCK_LLM_URL: http://mock-llm:8089/api/v1
     volumes:
       # scripts/download-ner.sh кладёт сюда ONNX-модель; для fake-NER каталог не нужен.
       - ./models:/models:ro
     ports:
-      - "${RESUME_SERVICE_PORT:-8081}:8081"
+      - "${ATS_SERVICE_PORT:-8080}:8080"
+      - "${ATS_GRPC_PORT:-9090}:9090"
     depends_on:
       migrations:
         condition: service_completed_successfully
       minio-init:
         condition: service_completed_successfully
-      vacancy-service:
-        condition: service_started
       scoring-service:
-        condition: service_healthy
+        condition: service_started
+    restart: unless-stopped
+
+  frontend:
+    build:
+      context: .
+      dockerfile: frontend/Dockerfile
+    environment:
+      ATS_SERVICE_URL: http://ats-service:8080
+    ports:
+      - "${FRONTEND_PORT:-3000}:80"
+    depends_on:
+      - ats-service
     restart: unless-stopped
 
 volumes:

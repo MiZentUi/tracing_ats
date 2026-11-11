@@ -7,6 +7,33 @@
 
 ## [Unreleased]
 
+### Ветка `feature/unified-ats-service` — единый Java-сервис
+
+#### Breaking changes
+
+- `vacancy-service` и `resume-service` объединены в один проект `ats-service`
+  (пакеты `ats.vacancy` и `ats.resume`); отдельные каталоги и compose-сервисы удалены.
+  REST обоих контуров доступен на `:8080`, внутренний gRPC — на `:9090`.
+- В compose сервис называется `ats-service`; переменные `VACANCY_SERVICE_PORT`,
+  `VACANCY_GRPC_PORT`, `VACANCY_PROFILES`, `VACANCY_SERVICE_URL` заменены на
+  `ATS_SERVICE_PORT`, `ATS_GRPC_PORT`, `ATS_PROFILES`, `ATS_SERVICE_URL`.
+- Исправлен публичный контракт после слияния main: восстановлены
+  `GET/DELETE /vacancies/{id}` и `PUT /vacancies/{id}/template`, тело и ответы
+  `POST /vacancies`, разделены path-параметры `{id}` и `{vacancyId}`, восстановлены
+  схемы `RankingItem`, `ApplicationReport`, `RequirementReportItem`
+  и тела `/resumes`, `/vacancies/{vacancyId}/screen`.
+
+#### Changed
+
+- Единый `build.gradle`: OpenAPI-генерация снова включена (`ats.api`,
+  `ats.gateway.model`), proto-контракты scoring и vacancy-internal собираются в одном
+  модуле, объединены зависимости (LLM, PII/NER, MinIO, gRPC server/client, actuator).
+- `db.changelog-master.xml` собран в рабочий порядок (`001`, `009–015`, `002–004`);
+  демо-вакансия из `003` переписана под актуальную схему (`kind`, без `weight`,
+  навыки берутся из справочника).
+- В CI одна Java-джоба `ats-service` вместо двух; frontend ходит в `ats-service`.
+
+
 ### Ветка `feature/specialization-it-flag`
 
 #### Breaking changes

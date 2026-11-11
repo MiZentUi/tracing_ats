@@ -1,2 +1,0 @@
-rootProject.name = 'resume-service'
-includeBuild('../text-extraction')
