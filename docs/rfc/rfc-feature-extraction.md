@@ -286,8 +286,9 @@ OpenAI-совместимый эндпоинт включается `SCORING_SER
 Клиент — официальный SDK `openai` с настраиваемым `base_url`, поэтому подходит
 OpenRouter и локальные OpenAI-совместимые серверы. Промпт и JSON-схема —
 `scoring-service/src/api/prompts/resume_extraction.py`, версия
-`resume-extraction.v1`. Контракт gRPC в v0 не менялся: `parsed` в ответе
-не отдаётся.
+`resume-extraction.v1`. Контракт gRPC дополнен методом `ExtractResume`, который
+возвращает `ParsedResume` без сверки с вакансией; `ScoreResume` по-прежнему не
+отдаёт `parsed`.
 
 ## 6. Пайплайн A (целевой): детерминированное ядро + LLM на остаток
 

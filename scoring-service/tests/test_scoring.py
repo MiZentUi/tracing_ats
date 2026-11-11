@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import json
+import logging
 from collections.abc import Iterator
 from contextlib import contextmanager
 
@@ -104,6 +105,12 @@ def _request(text: str = TEXT) -> messages_pb2.ScoreResumeRequest:
     )
 
 
+def _extract_request(text: str = TEXT) -> messages_pb2.ExtractResumeRequest:
+    return messages_pb2.ExtractResumeRequest(
+        resume=messages_pb2.UnprocessedResume(text=text),
+    )
+
+
 def test_score_resume_returns_extracted_features() -> None:
     with _running(ResumeExtractor(FakeLlm(PAYLOAD))) as stub:
         response = stub.ScoreResume(_request(), timeout=2)
@@ -123,10 +130,12 @@ def test_score_resume_returns_extracted_features() -> None:
     education = response.features["education"].education
     assert education.institution == "МГУ"
     assert education.master == "Прикладная математика"
+    assert education.level == education_pb2.EDUCATION_LEVEL_MASTER
     assert education.graduation_year.year == 2019
     assert education.evidence.text == "МГУ, 2019"
 
     experience = response.features["experience"].experience
+    assert experience.company == "Ромашка"
     assert experience.category == "backend"
     assert experience.position == "Developer"
     assert experience.begin.year == 2020
@@ -200,5 +209,95 @@ def test_score_resume_reports_invalid_llm_response() -> None:
         pytest.raises(grpc.RpcError) as exc_info,
     ):
         stub.ScoreResume(_request(), timeout=2)
+
+    assert exc_info.value.code() == grpc.StatusCode.INTERNAL
+
+
+def test_extract_resume_returns_parsed_resume() -> None:
+    with _running(ResumeExtractor(FakeLlm(PAYLOAD))) as stub:
+        response = stub.ExtractResume(_extract_request(), timeout=2)
+
+    parsed = response.parsed
+    assert parsed.schema_version == 1
+    assert response.dropped == 0
+
+    assert len(parsed.skills) == 1
+    skill = parsed.skills[0]
+    assert skill.name == "Python"
+    assert skill.normalized_name == "python"
+    assert skill.tenure == 3
+    assert skill.evidence.text == "Python developer"
+    assert skill.evidence.start_index == 0
+
+    assert len(parsed.education) == 1
+    education = parsed.education[0]
+    assert education.institution == "МГУ"
+    assert education.master == "Прикладная математика"
+    assert education.level == education_pb2.EDUCATION_LEVEL_MASTER
+    assert education.graduation_year.year == 2019
+    assert education.evidence.text == "МГУ, 2019"
+
+    assert len(parsed.experience) == 1
+    experience = parsed.experience[0]
+    assert experience.company == "Ромашка"
+    assert experience.position == "Developer"
+    assert experience.category == "backend"
+    assert experience.begin.year == 2020
+    assert experience.end.year == 2023
+    assert experience.metrics[0].text == "ООО Ромашка, 2020-2023"
+    assert experience.metrics[1].text == "Python developer"
+
+
+def test_extract_resume_logs_only_metadata(caplog) -> None:
+    with (
+        caplog.at_level(logging.INFO, logger="api.scoring.service"),
+        _running(ResumeExtractor(FakeLlm(PAYLOAD))) as stub,
+    ):
+        stub.ExtractResume(_extract_request(), timeout=2)
+
+    assert "extract_resume model=fake prompt=resume-extraction.v1 schema=1" in caplog.text
+    assert "skills=1 education=1 experience=1 dropped=0" in caplog.text
+    assert TEXT not in caplog.text
+    assert "Python developer" not in caplog.text
+
+
+def test_extract_resume_drops_unverified_quotes() -> None:
+    payload = {
+        **PAYLOAD,
+        "skills": [{"name": "Rust", "years": None, "quote": "Rust developer"}],
+    }
+    with _running(ResumeExtractor(FakeLlm(payload))) as stub:
+        response = stub.ExtractResume(_extract_request(), timeout=2)
+
+    assert not response.parsed.skills
+    assert response.dropped == 1
+
+
+def test_extract_resume_rejects_empty_text() -> None:
+    with (
+        _running(ResumeExtractor(FakeLlm(PAYLOAD))) as stub,
+        pytest.raises(grpc.RpcError) as exc_info,
+    ):
+        stub.ExtractResume(_extract_request(text="   "), timeout=2)
+
+    assert exc_info.value.code() == grpc.StatusCode.INVALID_ARGUMENT
+
+
+def test_extract_resume_reports_unavailable_llm() -> None:
+    with (
+        _running(ResumeExtractor(UnavailableLlm())) as stub,
+        pytest.raises(grpc.RpcError) as exc_info,
+    ):
+        stub.ExtractResume(_extract_request(), timeout=2)
+
+    assert exc_info.value.code() == grpc.StatusCode.UNAVAILABLE
+
+
+def test_extract_resume_reports_invalid_llm_response() -> None:
+    with (
+        _running(ResumeExtractor(FakeLlm({"schema_version": 2}))) as stub,
+        pytest.raises(grpc.RpcError) as exc_info,
+    ):
+        stub.ExtractResume(_extract_request(), timeout=2)
 
     assert exc_info.value.code() == grpc.StatusCode.INTERNAL

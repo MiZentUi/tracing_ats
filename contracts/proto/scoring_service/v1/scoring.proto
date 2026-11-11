@@ -12,4 +12,8 @@ service ScoringService {
   // Оценивает соответствие резюме вакансии
   rpc ScoreResume(scoring_service.v1.models.ScoreResumeRequest)
       returns (scoring_service.v1.models.ScoreResumeResponse);
+
+  // Извлекает структурированные данные из резюме без сверки с вакансией
+  rpc ExtractResume(scoring_service.v1.models.ExtractResumeRequest)
+      returns (scoring_service.v1.models.ExtractResumeResponse);
 }

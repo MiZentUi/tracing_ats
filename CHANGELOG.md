@@ -51,6 +51,10 @@
   серверы), получает строгий JSON `ParsedResume` со навыками, образованием
   и опытом, проверяет цитаты как подстроки со схлопыванием пробелов и
   отбрасывает непрошедшие.
+- **Метод `ExtractResume`.** Новый gRPC-метод возвращает `ParsedResume`
+  (навыки, образование, опыт) без сверки с вакансией и без скоринга; в контракт
+  добавлены `ParsedResume`, `ExtractResumeRequest/Response`,
+  `EducationPerResume.level` и `PriorExperiencePerResume.company`.
 - **Детерминированная заглушка `S^{ij}`.** Псевдослучайная матрица с seed из
   SHA-256 текста резюме; `coverage = relevance`, агрегаты `Score` остаются
   заглушкой до реализации модели.
@@ -71,6 +75,8 @@
 - `ScoringService` принимает `ResumeExtractor`; `create_server` собирает
   LLM-клиент из настроек. Заглушка `api/scoring.py` заменена пакетом
   `api/scoring/`.
+- `ScoreResume` заполняет новые поля `EducationPerResume.level` и
+  `PriorExperiencePerResume.company`; расчёт скоринга не меняется.
 
 #### Security
 

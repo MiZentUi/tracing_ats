@@ -36,4 +36,6 @@ message EducationPerResume {
   string master = 3;
   // Ссылка на место в тексте, где описано образование
   scoring_service.v1.models.features.FeatureEvidence evidence = 4;
+  // Уровень образования
+  EducationLevel level = 5;
 }

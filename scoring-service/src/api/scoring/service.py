@@ -23,10 +23,11 @@ from scoring_service.v1.models.features import (
     skill_pb2,
 )
 
-from ..extraction.extractor import ExtractionError, ResumeExtractor
+from ..extraction.extractor import ExtractionError, ExtractionResult, ResumeExtractor
 from ..extraction.normalize import normalize_key
 from ..extraction.quotes import QuoteIndex
 from ..extraction.schema import (
+    EducationLevel,
     ExtractedEducation,
     ExtractedExperience,
     ExtractedSkill,
@@ -37,12 +38,33 @@ from .similarity import best_match, resume_seed
 
 logger = logging.getLogger(__name__)
 
+_EDUCATION_LEVELS = {
+    EducationLevel.UNKNOWN: education_pb2.EDUCATION_LEVEL_UNSPECIFIED,
+    EducationLevel.SECONDARY: education_pb2.EDUCATION_LEVEL_SECONDARY,
+    EducationLevel.SECONDARY_SPECIALIZED: education_pb2.EDUCATION_LEVEL_SECONDARY_SPECIALIZED,
+    EducationLevel.BACHELOR: education_pb2.EDUCATION_LEVEL_BACHELOR,
+    EducationLevel.MASTER: education_pb2.EDUCATION_LEVEL_MASTER,
+    EducationLevel.DOCTOR: education_pb2.EDUCATION_LEVEL_DOCTOR,
+    EducationLevel.COURSES: education_pb2.EDUCATION_LEVEL_COURSES,
+}
+
 
 class ScoringService(scoring_pb2_grpc.ScoringServiceServicer):
-    """Онлайн-оценка резюме: LLM извлекает признаки, код собирает ответ."""
+    """Онлайн-оценка и извлечение резюме: LLM извлекает признаки, код собирает ответ."""
 
     def __init__(self, extractor: ResumeExtractor) -> None:
         self._extractor = extractor
+
+    def _extract(self, text: str, context: grpc.ServicerContext) -> ExtractionResult:
+        if not text.strip():
+            context.abort(grpc.StatusCode.INVALID_ARGUMENT, "resume text is empty")
+
+        try:
+            return self._extractor.extract(text)
+        except LlmUnavailable:
+            context.abort(grpc.StatusCode.UNAVAILABLE, "LLM is unavailable")
+        except ExtractionError:
+            context.abort(grpc.StatusCode.INTERNAL, "LLM response failed validation")
 
     def ScoreResume(
         self,
@@ -50,15 +72,7 @@ class ScoringService(scoring_pb2_grpc.ScoringServiceServicer):
         context: grpc.ServicerContext,
     ) -> messages_pb2.ScoreResumeResponse:
         text = request.resume.text
-        if not text.strip():
-            context.abort(grpc.StatusCode.INVALID_ARGUMENT, "resume text is empty")
-
-        try:
-            result = self._extractor.extract(text)
-        except LlmUnavailable:
-            context.abort(grpc.StatusCode.UNAVAILABLE, "LLM is unavailable")
-        except ExtractionError:
-            context.abort(grpc.StatusCode.INTERNAL, "LLM response failed validation")
+        result = self._extract(text, context)
 
         index = QuoteIndex(text)
         seed = resume_seed(text)
@@ -95,6 +109,87 @@ class ScoringService(scoring_pb2_grpc.ScoringServiceServicer):
             refine=refine,
             features=features,
         )
+
+    def ExtractResume(
+        self,
+        request: messages_pb2.ExtractResumeRequest,
+        context: grpc.ServicerContext,
+    ) -> messages_pb2.ExtractResumeResponse:
+        text = request.resume.text
+        result = self._extract(text, context)
+        parsed = self._to_parsed_resume(text, result)
+
+        logger.info(
+            "extract_resume model=%s prompt=%s schema=%d "
+            "skills=%d education=%d experience=%d dropped=%d",
+            self._extractor.model,
+            self._extractor.prompt_version,
+            result.parsed.schema_version,
+            len(result.parsed.skills),
+            len(result.parsed.education),
+            len(result.parsed.experience),
+            result.dropped,
+        )
+
+        return messages_pb2.ExtractResumeResponse(parsed=parsed, dropped=result.dropped)
+
+    @staticmethod
+    def _to_parsed_resume(
+        text: str,
+        result: ExtractionResult,
+    ) -> messages_pb2.ParsedResume:
+        index = QuoteIndex(text)
+        parsed = messages_pb2.ParsedResume(schema_version=result.parsed.schema_version)
+
+        for skill in result.parsed.skills:
+            evidence = _evidence(index, skill.quote)
+            if evidence is None:
+                continue
+            skill_kwargs: dict[str, Any] = {
+                "name": skill.name,
+                "normalized_name": normalize_key(skill.name),
+                "evidence": evidence,
+            }
+            if skill.years is not None:
+                skill_kwargs["tenure"] = skill.years
+            parsed.skills.append(skill_pb2.SkillPerResume(**skill_kwargs))
+
+        for item in result.parsed.education:
+            evidence = _evidence(index, item.quote)
+            if evidence is None:
+                continue
+            education_kwargs: dict[str, Any] = {
+                "institution": item.institution or "",
+                "master": item.field or "",
+                "level": _EDUCATION_LEVELS[item.level],
+                "evidence": evidence,
+            }
+            if item.graduation_year is not None:
+                education_kwargs["graduation_year"] = date_pb2.Date(year=item.graduation_year)
+            parsed.education.append(education_pb2.EducationPerResume(**education_kwargs))
+
+        for item in result.parsed.experience:
+            evidence = _evidence(index, item.quote)
+            if evidence is None:
+                continue
+            metrics = [evidence]
+            for metric in item.metrics:
+                metric_evidence = _evidence(index, metric)
+                if metric_evidence is not None:
+                    metrics.append(metric_evidence)
+            experience_kwargs: dict[str, Any] = {
+                "company": item.company or "",
+                "position": item.position or "",
+                "category": item.category or "",
+                "metrics": metrics,
+            }
+            if item.begin_year is not None:
+                experience_kwargs["begin"] = date_pb2.Date(year=item.begin_year)
+            if item.end_year is not None:
+                experience_kwargs["end"] = date_pb2.Date(year=item.end_year)
+            parsed.experience.append(experience_pb2.PriorExperiencePerResume(**experience_kwargs))
+
+        return parsed
 
     def _assess(
         self,
@@ -176,6 +271,7 @@ class ScoringService(scoring_pb2_grpc.ScoringServiceServicer):
         resume_kwargs: dict[str, Any] = {
             "institution": item.institution or "",
             "master": item.field or "",
+            "level": _EDUCATION_LEVELS[item.level],
             "evidence": evidence,
         }
         if item.graduation_year is not None:
@@ -220,6 +316,7 @@ class ScoringService(scoring_pb2_grpc.ScoringServiceServicer):
                 metrics.append(metric_evidence)
 
         resume_kwargs: dict[str, Any] = {
+            "company": item.company or "",
             "category": item.category or "",
             "position": item.position or "",
             "metrics": metrics,

@@ -2,6 +2,9 @@ syntax = "proto3";
 
 package scoring_service.v1.models;
 import "scoring_service/v1/models/features.proto";
+import "scoring_service/v1/models/features/education.proto";
+import "scoring_service/v1/models/features/experience.proto";
+import "scoring_service/v1/models/features/skill.proto";
 
 // Уровень должности
 enum JobPositionLevel {
@@ -33,6 +36,26 @@ message Vacancy {
 message UnprocessedResume {
   // Обезличенный текст резюме
   string text = 1;
+}
+
+// Структурированные данные, извлечённые из резюме.
+message ParsedResume {
+  // Версия схемы извлечения
+  uint32 schema_version = 1;
+  // Навыки, образование и опыт, извлечённые из текста
+  repeated scoring_service.v1.models.features.SkillPerResume skills = 2;
+  repeated scoring_service.v1.models.features.EducationPerResume education = 3;
+  repeated scoring_service.v1.models.features.PriorExperiencePerResume experience = 4;
+}
+
+message ExtractResumeRequest {
+  UnprocessedResume resume = 1;
+}
+
+message ExtractResumeResponse {
+  ParsedResume parsed = 1;
+  // Сколько признаков отброшено из-за невалидной цитаты
+  uint32 dropped = 2;
 }
 
 // Запрос для оценки соответствия резюме вакансии

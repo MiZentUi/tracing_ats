@@ -22,4 +22,6 @@ message PriorExperiencePerResume {
   repeated FeatureEvidence metrics = 4;
   // Должность
   string position = 5;
+  // Компания
+  string company = 6;
 }
