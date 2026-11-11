@@ -287,7 +287,10 @@ public class SpringAiLlmClient implements LlmClient {
                 OpenAiChatOptions.builder()
                         .model(model)
                         .temperature(properties.getTemperature())
-                        .maxTokens(properties.getMaxTokens());
+                        .maxTokens(properties.getMaxTokens())
+                        // Spring AI по умолчанию ставит 60 с и перекрывает таймауты SDK:
+                        // без этого read-timeout/total-timeout из конфигурации не работают.
+                        .timeout(callTimeout);
 
         if (format != FormatMode.NONE) {
             var responseFormat =

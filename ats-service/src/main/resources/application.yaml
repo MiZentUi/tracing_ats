@@ -118,7 +118,9 @@ vacancy:
       - google/gemma-4-31b-it:free
       - google/gemma-4-26b-a4b-it:free
     temperature: 0
-    max-tokens: 6000
+    # dots-studio — reasoning-модель: при 6000 токенах всё уходит в reasoning,
+    # и content приходит пустым (finish_reason=length).
+    max-tokens: 20000
     connect-timeout: 5s
     read-timeout: 180s
     total-timeout: 300s

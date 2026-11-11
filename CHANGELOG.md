@@ -40,6 +40,10 @@
   и предварительный скоринг резюме оставался в `SCORING_FAILED`.
 - `scoring-service/Dockerfile` генерирует protobuf-модули при сборке; контейнер больше не
   падает с `ModuleNotFoundError: scoring_service.v1`.
+- LLM-клиент явно передаёт таймаут в `OpenAiChatOptions`: Spring AI по умолчанию ставит 60 с и
+  перекрывал `read-timeout`/`total-timeout`, из-за чего реальные ответы обрывались.
+- `max-tokens` поднят до 20000: reasoning-модель `dots-studio/dots-3-note-preview:free`
+  расходовала 6000 токенов на reasoning и возвращала пустой `content` (`finish_reason=length`).
 - `compose.yaml`: `ATS_STORAGE_TYPE` можно переопределить из окружения (например, `memory`
   без MinIO); сборка `scoring-service` идёт из корня репозитория.
 
