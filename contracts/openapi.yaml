@@ -239,9 +239,10 @@ paths:
         - Screening
       summary: Запустить предварительный скрининг
       description: |
-        Асинхронно считает Score_pre по обезличенному тексту, применяет политику
-        шорт-листа из vacancy-service и при согласии обогащает шорт-лист из GitHub,
-        после чего считает Score_final.
+        Асинхронно применяет политику шорт-листа к готовым Score_pre, посчитанным
+        при загрузке резюме. Если запуск ещё считается, ждёт до дедлайна; запуск,
+        посчитанный по устаревшей версии шаблона, пересчитывает. При согласии
+        обогащает шорт-лист из GitHub и создаёт Score_final без повторного вызова LLM.
       operationId: startScreening
       parameters:
         - $ref: "#/components/parameters/VacancyId"
@@ -881,6 +882,10 @@ components:
         applicationId:
           type: string
           format: uuid
+        relevance:
+          type: number
+          format: double
+          description: Общая релевантность навыков (`Rv`), 0..1.
         score:
           type: number
           format: double
@@ -926,6 +931,10 @@ components:
           enum:
             - PRELIMINARY
             - FINAL
+        relevance:
+          type: number
+          format: double
+          description: Общая релевантность навыков (`Rv`), 0..1.
         score:
           type: number
           format: double
@@ -980,9 +989,17 @@ components:
             - OPTIONAL
         critical:
           type: boolean
+        relevance:
+          type: number
+          format: double
+          description: Релевантность требования (`R_i`), 0..1.
         cR:
           type: number
           format: double
+          description: Покрытие требования (`c_i`), 0..1.
+        tenure:
+          type: integer
+          description: Подтверждённый стаж по требованию, лет.
         status:
           type: string
           enum:

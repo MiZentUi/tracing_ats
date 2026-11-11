@@ -12,10 +12,16 @@ import org.springframework.beans.factory.annotation.Qualifier;
 import org.springframework.core.task.TaskExecutor;
 import org.springframework.stereotype.Service;
 
-/** Запуск пакета. Политика шорт-листа будет применена один раз на весь пакет в worker-е. */
+/**
+ * Запуск пакета. Предварительные баллы уже посчитаны при загрузке; worker только ждёт их,
+ * пересчитывает устаревшие и применяет политику шорт-листа один раз на весь пакет.
+ */
 @Service
 @RequiredArgsConstructor
 public class ScreeningService {
+
+    private static final List<String> READY_STATUSES =
+            List.of("SCORED", "SCORING", "SCORING_FAILED");
 
     private final ApplicationRepository applicationRepository;
     private final ScreeningBatchRepository batchRepository;
@@ -50,10 +56,10 @@ public class ScreeningService {
 
     private List<ApplicationEntity> selectApplications(UUID vacancyId, List<UUID> applicationIds) {
         if (applicationIds == null || applicationIds.isEmpty()) {
-            return applicationRepository.findByVacancyIdAndStatus(vacancyId, "MASKED");
+            return applicationRepository.findByVacancyIdAndStatusIn(vacancyId, READY_STATUSES);
         }
         return applicationRepository.findByVacancyIdAndIdIn(vacancyId, applicationIds).stream()
-                .filter(application -> "MASKED".equals(application.getStatus()))
+                .filter(application -> READY_STATUSES.contains(application.getStatus()))
                 .toList();
     }
 }

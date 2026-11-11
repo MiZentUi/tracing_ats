@@ -3,6 +3,9 @@ package ats.resume;
 import static org.assertj.core.api.Assertions.assertThat;
 
 import ats.resume.domain.ingestion.UploadOutcome;
+import ats.resume.domain.scoring.ScoringClient;
+import ats.resume.domain.scoring.ScoringRequest;
+import ats.resume.domain.scoring.ScoringResult;
 import ats.resume.domain.vacancy.Requirement;
 import ats.resume.domain.vacancy.RequirementKind;
 import ats.resume.domain.vacancy.VacancyClient;
@@ -23,6 +26,9 @@ import ats.resume.infrastructure.report.ReportService;
 import ats.resume.infrastructure.report.RevealService;
 import ats.resume.infrastructure.screening.ScreeningWorker;
 import java.nio.charset.StandardCharsets;
+import java.time.Duration;
+import java.time.Instant;
+import java.util.ArrayList;
 import java.util.List;
 import java.util.UUID;
 import org.junit.jupiter.api.Test;
@@ -99,6 +105,9 @@ class ResumePipelineIntegrationTest {
                         .filter(item -> item.getResumeId().equals(outcome.resumeId()))
                         .findFirst()
                         .orElseThrow();
+        application = awaitStatus(application.getId(), "SCORED", Duration.ofSeconds(10));
+        assertThat(application.getStatus()).isEqualTo("SCORED");
+        assertThat(application.getPreliminaryScoreRunId()).isNotNull();
 
         ScreeningBatchEntity batch = new ScreeningBatchEntity();
         batch.setVacancyId(VACANCY_ID);
@@ -135,10 +144,13 @@ class ResumePipelineIntegrationTest {
                 .isBetween(
                         preliminary.getScoreLow().doubleValue(),
                         preliminary.getScoreHigh().doubleValue());
+        assertThat(preliminary.getTemplateVersion()).isEqualTo(1);
+        assertThat(preliminary.getRelevance()).isEqualByComparingTo("0.800");
         assertThat(finalRun.getScore().doubleValue())
                 .isBetween(
                         finalRun.getScoreLow().doubleValue(),
                         finalRun.getScoreHigh().doubleValue());
+        assertThat(finalRun.getTemplateVersion()).isEqualTo(1);
 
         RankingService.RankingView ranking = rankingService.ranking(VACANCY_ID, "FINAL");
         assertThat(ranking.items()).hasSize(1);
@@ -147,6 +159,14 @@ class ResumePipelineIntegrationTest {
         ReportService.ReportView report =
                 reportService.report(application.getId(), "FINAL").orElseThrow();
         assertThat(report.requirements()).hasSize(3);
+        assertThat(report.relevance()).isEqualTo(0.8);
+        ReportService.RequirementReportItem javaReport =
+                report.requirements().stream()
+                        .filter(item -> "Java".equals(item.text()))
+                        .findFirst()
+                        .orElseThrow();
+        assertThat(javaReport.relevance()).isEqualTo(0.9);
+        assertThat(javaReport.tenure()).isEqualTo(5);
         assertThat(report.blind()).isTrue();
 
         RevealService.RevealedCandidate revealed =
@@ -154,6 +174,24 @@ class ResumePipelineIntegrationTest {
         assertThat(revealed.fullName()).isEqualTo("Иван Петров");
         assertThat(revealed.email()).isEqualTo("ivan.petrov@example.com");
         assertThat(revealed.university()).isEqualTo("Московский государственный университет");
+    }
+
+    private ApplicationEntity awaitStatus(UUID applicationId, String status, Duration timeout) {
+        Instant deadline = Instant.now().plus(timeout);
+        while (Instant.now().isBefore(deadline)) {
+            ApplicationEntity application =
+                    applicationRepository.findById(applicationId).orElseThrow();
+            if (status.equals(application.getStatus())) {
+                return application;
+            }
+            try {
+                Thread.sleep(50);
+            } catch (InterruptedException e) {
+                Thread.currentThread().interrupt();
+                throw new IllegalStateException(e);
+            }
+        }
+        return applicationRepository.findById(applicationId).orElseThrow();
     }
 
     @TestConfiguration(proxyBeanMethods = false)
@@ -192,6 +230,8 @@ class ResumePipelineIntegrationTest {
                             "Java-разработчик (тест)",
                             "java-developer",
                             "middle",
+                            "Ищем Java-разработчика. Java, Spring Boot.",
+                            5,
                             0.8,
                             0.7,
                             0.15,
@@ -217,6 +257,56 @@ class ResumePipelineIntegrationTest {
                                                     ScreeningDecision.SHORTLISTED,
                                                     false))
                             .toList();
+                }
+            };
+        }
+
+        @Bean
+        @Primary
+        ScoringClient scoringClient() {
+            return new ScoringClient() {
+                @Override
+                public ScoringResult score(ScoringRequest request) {
+                    List<ScoringResult.RequirementResult> requirements = new ArrayList<>();
+                    for (Requirement requirement : request.template().requirements()) {
+                        boolean java = "Java".equalsIgnoreCase(requirement.skill());
+                        boolean spring = "Spring Boot".equalsIgnoreCase(requirement.skill());
+                        double coverage = java ? 0.9 : spring ? 0.8 : 0;
+                        String quote =
+                                java
+                                        ? "Java developer with 5 years."
+                                        : spring ? "Spring Boot" : null;
+                        requirements.add(
+                                new ScoringResult.RequirementResult(
+                                        requirement.id().toString(),
+                                        requirement.text(),
+                                        requirement.kind(),
+                                        requirement.weight(),
+                                        requirement.critical(),
+                                        java ? 0.9 : spring ? 0.8 : 0,
+                                        coverage,
+                                        java || spring ? 5 : null,
+                                        coverage >= 0.8
+                                                ? ScoringResult.RequirementResult.Status.COVERED
+                                                : coverage >= 0.4
+                                                        ? ScoringResult.RequirementResult.Status
+                                                                .PARTIAL
+                                                        : ScoringResult.RequirementResult.Status
+                                                                .GAP,
+                                        quote == null
+                                                ? null
+                                                : ScoringResult.RequirementResult.EvidenceSource
+                                                        .RESUME,
+                                        quote,
+                                        quote == null ? "Навык не найден" : null,
+                                        false));
+                    }
+                    return new ScoringResult(0.8, 72.5, 60, 85, 5, List.of(), requirements);
+                }
+
+                @Override
+                public String version() {
+                    return "test-scoring";
                 }
             };
         }

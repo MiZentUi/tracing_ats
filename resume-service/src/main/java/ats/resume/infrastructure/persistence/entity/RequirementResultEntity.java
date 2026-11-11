@@ -43,19 +43,28 @@ public class RequirementResultEntity {
     @Column(nullable = false)
     private boolean critical;
 
+    /** Релевантность требования (`R_i`) из scoring-service. */
+    @Column(precision = 4, scale = 3)
+    private BigDecimal relevance;
+
+    /** Покрытие требования (`c_i`). Историческое имя колонки — c_r. */
     @Column(name = "c_r", nullable = false, precision = 4, scale = 3)
     private BigDecimal cR;
 
     @Column(nullable = false, length = 8)
     private String status;
 
-    @Column(nullable = false, precision = 4, scale = 3)
+    /** Стаж по требованию, если scoring-service его вернул. */
+    private Integer tenure;
+
+    // Поля старой локальной модели. Новые запуски их не заполняют.
+    @Column(precision = 4, scale = 3)
     private BigDecimal m;
 
-    @Column(nullable = false, precision = 4, scale = 3)
+    @Column(precision = 4, scale = 3)
     private BigDecimal t;
 
-    @Column(nullable = false, precision = 4, scale = 3)
+    @Column(precision = 4, scale = 3)
     private BigDecimal rho;
 
     @Column(name = "evidence_source", length = 16)

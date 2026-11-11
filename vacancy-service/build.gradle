@@ -26,12 +26,27 @@ ext {
 	set('grpcVersion', "1.77.1")
 }
 
+// vacancy-service использует только собственный внутренний контракт.
+// Копируем его в build, чтобы protoc не видел scoring-прото и google/type/date.proto.
+def internalProtoRoot = layout.buildDirectory.dir('internal-proto').get().asFile
+
+tasks.register('prepareInternalProtos', Copy) {
+	from('../contracts/vacancy-internal.proto')
+	into internalProtoRoot
+}
+
 sourceSets {
 	main {
 		proto {
-			srcDir '../contracts'
+			srcDir internalProtoRoot
 		}
 	}
+}
+
+tasks.matching {
+	it.name.toLowerCase().contains('proto') && !it.name.startsWith('prepare')
+}.configureEach {
+	dependsOn 'prepareInternalProtos'
 }
 
 protobuf {

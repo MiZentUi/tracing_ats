@@ -21,7 +21,15 @@ ats:
     grpc:
       target: localhost:9090
       deadline: 1s
+  scoring:
+    worker-threads: 1
+    queue-capacity: 100
+    grpc:
+      target: localhost:8082
+      deadline: 1s
   github:
     enabled: false
   screening:
     worker-threads: 1
+    scoring-wait: 5s
+    scoring-poll: 50ms

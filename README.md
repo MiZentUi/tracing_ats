@@ -274,8 +274,8 @@ flowchart LR
 - **Маскировка до любого LLM.** Java маскирует PII до передачи текста в Python, поэтому и Java, и Python отправляют модели только обезличенный текст.
 - **Кого обогащать GitHub, решает Java**, а не обученная модель.
 - **Контракты.** Публичный REST — OpenAPI (`contracts/openapi.yaml`), внутренний ML — gRPC (`contracts/ml-internal.proto`), обучение — JSON Schema (`contracts/training-artifact.schema.json`). Шаблон вакансии и решение о шорт-листе приходят из `vacancy-service` по `contracts/vacancy-internal.proto`.
-- **Пайплайн `resume-service`.** Загрузка → извлечение текста → маскировка PII → очистка prompt injection → `Score_pre` → один вызов `DecideScreening` на пачку → GitHub только для шорт-листа с согласием → `Score_final` → рейтинг и отчёт. Подробности — `docs/resume-pipeline.md`.
-- **Временный порт скоринга.** Пока контракт `scoring-service` не реализован, `resume-service` использует детерминированный `LocalScoringClient` и временную копию формул. Это зафиксировано в ADR 0002 и подлежит замене на gRPC-адаптер; выдавать его за финальную модель нельзя.
+- **Пайплайн `resume-service`.** Загрузка → извлечение текста → маскировка PII → очистка prompt injection → `Score_pre` сразу после загрузки → ожидание готовых запусков в скрининге → один вызов `DecideScreening` на пачку → GitHub только для шорт-листа с согласием → `Score_final` → рейтинг и отчёт. Подробности — `docs/resume-pipeline.md`.
+- **Скоринг через gRPC.** `resume-service` вызывает `scoring-service` по `contracts/proto/scoring_service/v1`. Java не содержит формул. Пока во внешнем контракте нет `Refine`, `Score_final` копирует готовые факты `Score_pre`, а GitHub влияет только на отчёт. Это ограничение контракта, а не модели (ADR 0006).
 
 ---
 
@@ -646,16 +646,17 @@ erDiagram
 
 ### Внутренний API ML (gRPC, только из сети Java)
 
-Контракт будет описан в `contracts/ml-internal.proto`; пока файла нет, Java вызывает Python через Spring gRPC client.
-**Статус:** контракт ещё не реализован; в MVP `resume-service` использует временный
-детерминированный адаптер `LocalScoringClient` (ADR 0002).
+Контракт — `contracts/proto/scoring_service/v1/scoring.proto`; Java вызывает Python
+через gRPC client (`GrpcScoringClient`, ADR 0006).
+**Статус:** контракт реализован, но `scoring-service` пока возвращает заглушку.
 
 | RPC | Вход | Выход |
 |---|---|---|
-| `AnalyzeAndScore` | обезличенный текст резюме + шаблон вакансии | `parsed`, `Score_pre`, вилка, матрица требований |
-| `Refine` | результат `AnalyzeAndScore` + факты GitHub | `Score_final`, `delta`, подсветка навыков |
+| `ScoreResume` | обезличенный текст резюме + шаблон вакансии | `Score_pre`, вилка, релевантность, матрица требований |
 
-`AnalyzeAndScore` сам вызывает LLM для разбора резюме, неявных навыков и категорий `m`/`t`. `Refine` LLM не вызывает.
+`ScoreResume` сам вызывает LLM для разбора резюме, неявных навыков и категорий
+сходства/убедительности. RPC `Refine` в текущем контракте нет: `Score_final`
+создаётся копированием готовых фактов `Score_pre` и LLM повторно не вызывает.
 
 ### Внутренний API вакансии (gRPC)
 
@@ -832,7 +833,7 @@ erDiagram
 
 **Минимальный сквозной путь для демо:** вакансия → шаблон и правка HR → резюме → `Score_pre` для всех → шорт-лист → отчёт с пробелами → слепой режим → PDF. GitHub и письмо отказа добавляют вес демо, но ядро держится и без них.
 
-**Что уже реализовано в `resume-service`:** загрузка и обезличивание пачки, `Score_pre`, шорт-лист через gRPC, GitHub для отобранных, `Score_final`, рейтинг, отчёт и reveal с аудитом. Скоринг пока считается временным Java-портом (ADR 0002), реальный `scoring-service` ещё не подключён.
+**Что уже реализовано в `resume-service`:** загрузка и обезличивание пачки, `Score_pre` при загрузке через gRPC `scoring-service`, шорт-лист через gRPC, GitHub для отобранных, `Score_final` копированием готовых фактов, рейтинг, отчёт и reveal с аудитом. Реальная математика `scoring-service` пока остаётся заглушкой; контракт без `Refine` ограничивает влияние GitHub на итоговый балл (ADR 0006).
 
 ---
 

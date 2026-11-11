@@ -30,12 +30,41 @@ ext {
 	set('libphonenumberVersion', "9.0.43")
 }
 
+// scoring-прото лежат в contracts/proto, но этот корень содержит и google/type/date.proto,
+// который уже приходит из googleapis-common-protos. Копируем только scoring_service,
+// чтобы protoc не видел две копии google.type.Date.
+def scoringProtoRoot = layout.buildDirectory.dir('scoring-proto').get().asFile
+def internalProtoRoot = layout.buildDirectory.dir('internal-proto').get().asFile
+
+tasks.register('prepareScoringProtos', Copy) {
+	from('../contracts/proto/scoring_service') {
+		include '**/*.proto'
+	}
+	into new File(scoringProtoRoot, 'scoring_service')
+}
+
+tasks.register('prepareInternalProtos', Copy) {
+	from('../contracts/vacancy-internal.proto')
+	into internalProtoRoot
+}
+
 sourceSets {
 	main {
 		proto {
-			srcDir '../contracts'
+			// Только нужные контракты: корень contracts целиком тянет contracts/proto
+			// и даёт вторую копию google/type/date.proto.
+			srcDir internalProtoRoot
+			srcDir scoringProtoRoot
 		}
 	}
+}
+
+// protobuf-плагин создаёт несколько proto-задач (generate, process resources, extract),
+// и все они читают подготовленные каталоги. Зависимость нужна каждой, не только generateProto.
+tasks.matching {
+	it.name.toLowerCase().contains('proto') && !it.name.startsWith('prepare')
+}.configureEach {
+	dependsOn 'prepareScoringProtos', 'prepareInternalProtos'
 }
 
 protobuf {

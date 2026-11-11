@@ -17,7 +17,7 @@ public class VacancyTemplateQuery {
 
     private static final String TEMPLATE_SQL =
             """
-            SELECT v.id, v.title, v.current_version,
+            SELECT v.id, v.title, v.source_text, v.current_version,
                    t.id AS template_id, t.version_no, t.github_weight,
                    s.code AS specialization_code, l.code AS level_code,
                    w.w_m, w.w_n, w.w_f, t.llm_prompt_version, w.version AS weights_version
@@ -50,12 +50,26 @@ public class VacancyTemplateQuery {
                         TEMPLATE_SQL,
                         (rs, rowNum) -> {
                             UUID templateId = rs.getObject("template_id", UUID.class);
+                            List<VacancyTemplateData.RequirementData> requirements =
+                                    requirements(templateId);
+                            int tenure =
+                                    (int)
+                                            Math.round(
+                                                    requirements.stream()
+                                                            .mapToDouble(
+                                                                    VacancyTemplateData
+                                                                                    .RequirementData
+                                                                            ::yearsRequired)
+                                                            .max()
+                                                            .orElse(0));
                             return new VacancyTemplateData(
                                     rs.getObject("id", UUID.class),
                                     rs.getInt("version_no"),
                                     rs.getString("title"),
                                     rs.getString("specialization_code"),
                                     rs.getString("level_code"),
+                                    rs.getString("source_text"),
+                                    tenure,
                                     rs.getDouble("github_weight"),
                                     rs.getDouble("w_m"),
                                     rs.getDouble("w_n"),
@@ -63,7 +77,7 @@ public class VacancyTemplateQuery {
                                     rs.getString("llm_prompt_version"),
                                     "scoring-v1",
                                     "v" + rs.getInt("weights_version"),
-                                    requirements(templateId));
+                                    requirements);
                         },
                         vacancyId);
         return rows.stream().findFirst();

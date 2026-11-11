@@ -56,6 +56,9 @@ public class ReportService {
                 new ReportView(
                         applicationId,
                         normalizedPhase,
+                        run.get().getRelevance() == null
+                                ? null
+                                : run.get().getRelevance().doubleValue(),
                         run.get().getScore().doubleValue(),
                         run.get().getScoreLow().doubleValue(),
                         run.get().getScoreHigh().doubleValue(),
@@ -75,7 +78,9 @@ public class ReportService {
                 entity.getRequirementText(),
                 entity.getKind(),
                 entity.isCritical(),
+                entity.getRelevance() == null ? null : entity.getRelevance().doubleValue(),
                 entity.getCR().doubleValue(),
+                entity.getTenure(),
                 entity.getStatus(),
                 entity.getEvidenceSource(),
                 entity.getEvidenceQuote(),
@@ -120,6 +125,7 @@ public class ReportService {
     public record ReportView(
             UUID applicationId,
             String phase,
+            Double relevance,
             double score,
             double scoreLow,
             double scoreHigh,
@@ -135,7 +141,9 @@ public class ReportService {
             String text,
             String kind,
             boolean critical,
+            Double relevance,
             double cR,
+            Integer tenure,
             String status,
             String evidenceSource,
             String evidenceQuote,

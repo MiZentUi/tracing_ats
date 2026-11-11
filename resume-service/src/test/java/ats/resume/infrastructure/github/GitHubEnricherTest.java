@@ -4,6 +4,7 @@ import static org.assertj.core.api.Assertions.assertThat;
 
 import ats.resume.domain.enrichment.GitHubClient;
 import ats.resume.domain.enrichment.GitHubProfile;
+import ats.resume.domain.scoring.ExternalSkillEvidence;
 import ats.resume.domain.vacancy.Requirement;
 import ats.resume.domain.vacancy.RequirementKind;
 import ats.resume.infrastructure.pii.GitHubUrlExtractor;
@@ -39,7 +40,7 @@ class GitHubEnricherTest {
                                 List.of());
         GitHubEnricher enricher = new GitHubEnricher(client, new GitHubUrlExtractor());
 
-        List<ats.resume.domain.scoring.ScoringRequest.ExternalSkillEvidence> evidence =
+        List<ExternalSkillEvidence> evidence =
                 enricher.enrich(
                         "https://github.com/example",
                         List.of(

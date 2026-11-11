@@ -54,6 +54,14 @@ ats:
     grpc:
       target: ${VACANCY_GRPC_TARGET:localhost:9090}
       deadline: 5s
+  scoring:
+    # Отдельный пул для скоринга при загрузке.
+    worker-threads: ${ATS_SCORING_WORKERS:4}
+    queue-capacity: ${ATS_SCORING_QUEUE_CAPACITY:1000}
+    grpc:
+      target: ${SCORING_GRPC_TARGET:localhost:8082}
+      # Внутри scoring-service может вызываться LLM.
+      deadline: ${ATS_SCORING_DEADLINE:60s}
   github:
     enabled: ${ATS_GITHUB_ENABLED:false}
     token: ${ATS_GITHUB_TOKEN:}
@@ -62,6 +70,9 @@ ats:
     timeout: 5s
   screening:
     worker-threads: ${ATS_SCREENING_WORKERS:2}
+    # Сколько ждать скоринг при загрузке, прежде чем пометить отклик FAILED.
+    scoring-wait: ${ATS_SCREENING_SCORING_WAIT:2m}
+    scoring-poll: ${ATS_SCREENING_SCORING_POLL:500ms}
   ingestion:
     extraction:
       max-file-size: 10MB

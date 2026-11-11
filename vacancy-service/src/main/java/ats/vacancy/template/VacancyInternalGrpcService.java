@@ -92,6 +92,8 @@ public class VacancyInternalGrpcService
                         .setTitle(template.title())
                         .setSpecializationCode(template.specializationCode())
                         .setLevelCode(template.levelCode())
+                        .setSourceText(nullToEmpty(template.sourceText()))
+                        .setTenure(Math.max(0, template.tenure()))
                         .setGithubWeight(template.githubWeight())
                         .setWeights(
                                 ScoringWeights.newBuilder()

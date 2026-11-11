@@ -6,6 +6,7 @@ import ats.extraction.domain.FileTypeDetector;
 import ats.extraction.domain.TextExtractionService;
 import ats.extraction.domain.UploadedFile;
 import ats.extraction.domain.error.ExtractionException;
+import ats.resume.domain.ingestion.ResumeMaskedEvent;
 import ats.resume.domain.ingestion.UploadOutcome;
 import ats.resume.domain.privacy.MaskingResult;
 import ats.resume.domain.privacy.SanitizedText;
@@ -35,6 +36,7 @@ import java.util.List;
 import java.util.UUID;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.context.ApplicationEventPublisher;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.web.multipart.MultipartFile;
@@ -61,6 +63,7 @@ public class ResumeIngestionService {
     private final PiiVaultRepository piiVaultRepository;
     private final ParsedResumeRepository parsedResumeRepository;
     private final ApplicationRepository applicationRepository;
+    private final ApplicationEventPublisher eventPublisher;
 
     @Transactional
     public UploadOutcome ingest(UUID vacancyId, boolean consentGithub, MultipartFile file) {
@@ -148,12 +151,14 @@ public class ResumeIngestionService {
         resume.setStatus(UploadOutcome.Status.MASKED.name());
         resume.setWarnings(jsonCodec.write(extracted.warnings().stream().map(Enum::name).toList()));
         resumeRepository.save(resume);
-        createApplication(
-                vacancyId,
-                resumeId,
-                candidateId,
-                consentGithub,
-                UploadOutcome.Status.MASKED.name());
+        ApplicationEntity application =
+                createApplication(
+                        vacancyId,
+                        resumeId,
+                        candidateId,
+                        consentGithub,
+                        UploadOutcome.Status.MASKED.name());
+        eventPublisher.publishEvent(new ResumeMaskedEvent(application.getId()));
 
         return new UploadOutcome(
                 resumeId,
@@ -173,7 +178,7 @@ public class ResumeIngestionService {
         return resume;
     }
 
-    private void createApplication(
+    private ApplicationEntity createApplication(
             UUID vacancyId, UUID resumeId, UUID candidateId, boolean consentGithub, String status) {
         ApplicationEntity application = new ApplicationEntity();
         application.setVacancyId(vacancyId);
@@ -181,7 +186,7 @@ public class ResumeIngestionService {
         application.setCandidateId(candidateId);
         application.setConsentGithub(consentGithub);
         application.setStatus(status);
-        applicationRepository.save(application);
+        return applicationRepository.save(application);
     }
 
     private FileType detectType(String fileName, byte[] content) {

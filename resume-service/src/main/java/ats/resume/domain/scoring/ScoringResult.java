@@ -5,10 +5,11 @@ import java.util.List;
 
 /** Результат скоринга. Score_pre и Score_final — разные запуски, а не разные поля одного. */
 public record ScoringResult(
+        double relevance,
         double score,
         double scoreLow,
         double scoreHigh,
-        boolean capApplied,
+        Integer tenure,
         List<String> flags,
         List<RequirementResult> requirements) {
 
@@ -23,10 +24,9 @@ public record ScoringResult(
             RequirementKind kind,
             int weight,
             boolean critical,
-            double m,
-            double t,
-            double rho,
-            double cR,
+            double relevance,
+            double coverage,
+            Integer tenure,
             Status status,
             EvidenceSource evidenceSource,
             String evidenceQuote,

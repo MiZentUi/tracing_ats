@@ -5,7 +5,7 @@ public interface ScoringClient {
 
     ScoringResult score(ScoringRequest request);
 
-    /** Версия модели/адаптера для неизменяемого запуска скоринга. */
+    /** Версия адаптера для неизменяемого запуска скоринга. */
     default String version() {
         return "unknown";
     }

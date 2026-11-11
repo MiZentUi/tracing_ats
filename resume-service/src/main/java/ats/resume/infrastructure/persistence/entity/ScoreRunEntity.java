@@ -28,11 +28,16 @@ public class ScoreRunEntity {
     @Column(name = "application_id", nullable = false)
     private UUID applicationId;
 
-    @Column(name = "batch_id", nullable = false)
+    /** Для запуска при загрузке пакета ещё нет: PRELIMINARY считается вне скрининга. */
+    @Column(name = "batch_id")
     private UUID batchId;
 
     @Column(nullable = false, length = 16)
     private String phase;
+
+    /** Версия шаблона, по которой посчитан запуск. По ней определяется устаревание. */
+    @Column(name = "template_version")
+    private Integer templateVersion;
 
     @Column(name = "scoring_version", nullable = false, length = 32)
     private String scoringVersion;
@@ -45,6 +50,9 @@ public class ScoreRunEntity {
 
     @Column(name = "weights_version", length = 32)
     private String weightsVersion;
+
+    @Column(precision = 4, scale = 3)
+    private BigDecimal relevance;
 
     @Column(nullable = false, precision = 5, scale = 2)
     private BigDecimal score;

@@ -69,6 +69,14 @@ services:
         condition: service_healthy
     restart: "no"
 
+  scoring-service:
+    build:
+      context: ./scoring-service
+      dockerfile: Dockerfile
+    ports:
+      - "${SCORING_SERVICE_PORT:-8082}:8082"
+    restart: unless-stopped
+
   vacancy-service:
     build:
       context: .
@@ -106,6 +114,7 @@ services:
       ATS_PII_NER_TOKENIZER_PATH: ${ATS_PII_NER_TOKENIZER_PATH:-/models/ner/tokenizer.json}
       ATS_PII_NER_CONFIG_PATH: ${ATS_PII_NER_CONFIG_PATH:-/models/ner/config.json}
       VACANCY_GRPC_TARGET: vacancy-service:9090
+      SCORING_GRPC_TARGET: scoring-service:8082
       ATS_GITHUB_ENABLED: ${ATS_GITHUB_ENABLED:-false}
       ATS_GITHUB_TOKEN: ${ATS_GITHUB_TOKEN:-}
     volumes:
@@ -120,6 +129,8 @@ services:
         condition: service_completed_successfully
       vacancy-service:
         condition: service_started
+      scoring-service:
+        condition: service_healthy
     restart: unless-stopped
 
 volumes:

@@ -10,6 +10,8 @@ public record VacancyTemplateData(
         String title,
         String specializationCode,
         String levelCode,
+        String sourceText,
+        int tenure,
         double githubWeight,
         double wM,
         double wN,

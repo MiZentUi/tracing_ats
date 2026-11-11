@@ -2,8 +2,7 @@ package ats.resume.infrastructure.github;
 
 import ats.resume.domain.enrichment.GitHubClient;
 import ats.resume.domain.enrichment.GitHubProfile;
-import ats.resume.domain.scoring.ScoreCalculator;
-import ats.resume.domain.scoring.ScoringRequest;
+import ats.resume.domain.scoring.ExternalSkillEvidence;
 import ats.resume.domain.vacancy.Requirement;
 import ats.resume.infrastructure.pii.GitHubUrlExtractor;
 import java.time.Duration;
@@ -35,7 +34,7 @@ public class GitHubEnricher {
     private final GitHubClient gitHubClient;
     private final GitHubUrlExtractor githubUrlExtractor;
 
-    public List<ScoringRequest.ExternalSkillEvidence> enrich(
+    public List<ExternalSkillEvidence> enrich(
             String githubUrl, List<Requirement> requirements, Instant now) {
         String username = githubUrlExtractor.username(githubUrl);
         if (username == null) {
@@ -53,7 +52,7 @@ public class GitHubEnricher {
             return List.of();
         }
 
-        List<ScoringRequest.ExternalSkillEvidence> evidence = new ArrayList<>();
+        List<ExternalSkillEvidence> evidence = new ArrayList<>();
         for (Requirement requirement : requirements) {
             if (requirement.skill() == null || requirement.skill().isBlank()) {
                 continue;
@@ -66,7 +65,7 @@ public class GitHubEnricher {
             if (matched.isEmpty()) {
                 continue;
             }
-            ScoringRequest.ExternalSkillEvidence item = evidence(requirement, matched, now);
+            ExternalSkillEvidence item = evidence(requirement, matched, now);
             if (item != null && item.q() > 0) {
                 evidence.add(item);
             }
@@ -74,7 +73,7 @@ public class GitHubEnricher {
         return evidence;
     }
 
-    private ScoringRequest.ExternalSkillEvidence evidence(
+    private ExternalSkillEvidence evidence(
             Requirement requirement,
             List<GitHubProfile.GitHubRepository> repositories,
             Instant now) {
@@ -122,7 +121,7 @@ public class GitHubEnricher {
         double stability = Math.min(1, activeMonths / 12);
         double cultureScore = culture / repositories.size();
         double rho =
-                ScoreCalculator.rho(
+                rho(
                         latest == null ? null : latest.atZone(java.time.ZoneOffset.UTC).getYear(),
                         now.atZone(java.time.ZoneOffset.UTC).getYear(),
                         requirement.halfLifeYears());
@@ -153,7 +152,7 @@ public class GitHubEnricher {
         if (bulk) {
             flags.add("RECENT_BULK_UPLOAD");
         }
-        return new ScoringRequest.ExternalSkillEvidence(
+        return new ExternalSkillEvidence(
                 requirement.skill().toLowerCase(Locale.ROOT).strip(), q, facts, List.copyOf(flags));
     }
 
@@ -190,6 +189,15 @@ public class GitHubEnricher {
         return Pattern.compile("(?<![\\p{L}\\p{N}])" + Pattern.quote(needle) + "(?![\\p{L}\\p{N}])")
                 .matcher(haystack)
                 .find();
+    }
+
+    /** Свежесть навыка: вклад GitHub затухает с тем же периодом полураспада, что и в модели. */
+    private double rho(Integer lastUsedYear, int currentYear, double halfLifeYears) {
+        if (lastUsedYear == null || halfLifeYears <= 0) {
+            return 1;
+        }
+        double years = Math.max(0, currentYear - lastUsedYear);
+        return Math.pow(0.5, years / halfLifeYears);
     }
 
     private double activeMonths(Instant earliest, Instant latest, Instant now) {

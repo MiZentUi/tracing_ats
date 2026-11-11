@@ -33,6 +33,12 @@ message VacancyTemplate {
   string prompt_version = 9;
   string scoring_version = 10;
   string weights_version = 11;
+  // Исходное текстовое описание вакансии. Уходит в scoring-service
+  // как `Vacancy.text_description`.
+  string source_text = 12;
+  // Общий требуемый стаж в годах. Пока выводится из требований,
+  // отдельной колонки в vacancy нет.
+  uint32 tenure = 13;
 }
 
 message ScoringWeights {

@@ -81,6 +81,8 @@ public class GrpcVacancyClient implements VacancyClient {
                 template.getTitle(),
                 template.getSpecializationCode(),
                 template.getLevelCode(),
+                template.getSourceText(),
+                template.getTenure(),
                 template.getGithubWeight(),
                 template.getWeights().getWM(),
                 template.getWeights().getWN(),

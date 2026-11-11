@@ -1,6 +1,6 @@
 # ADR 0002. Временный локальный порт скоринга в Java
 
-- **Статус:** принято, временно
+- **Статус:** заменено ADR 0006
 - **Дата:** 2026-11-10
 - **Контекст:** `resume-service`, инварианты 1, 4 и 6 (AGENTS.md, раздел 4)
 
@@ -44,3 +44,9 @@
   `ScoreCalculator` удаляется, а golden-тесты переносятся в Python.
 - Пока адаптер включён, README и отчёт должны явно говорить, что это MVP-заглушка,
   а не финальная модель.
+
+## Замена
+
+`LocalScoringClient`, `ScoreCalculator` и `TenureCalculator` удалены. Вместо них
+`resume-service` вызывает `scoring-service` по gRPC через `GrpcScoringClient`
+(ADR 0006). Java больше не содержит формул скоринга.

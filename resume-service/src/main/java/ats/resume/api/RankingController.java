@@ -33,6 +33,7 @@ public class RankingController implements RankingApi {
                                                         new RankingItem()
                                                                 .rank(item.rank())
                                                                 .applicationId(item.applicationId())
+                                                                .relevance(item.relevance())
                                                                 .score(item.score())
                                                                 .scoreLow(item.scoreLow())
                                                                 .scoreHigh(item.scoreHigh())

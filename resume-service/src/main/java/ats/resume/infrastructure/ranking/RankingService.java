@@ -50,6 +50,7 @@ public class RankingService {
                     new RankingItem(
                             0,
                             application.getId(),
+                            run.getRelevance() == null ? null : run.getRelevance().doubleValue(),
                             run.getScore().doubleValue(),
                             run.getScoreLow().doubleValue(),
                             run.getScoreHigh().doubleValue(),
@@ -70,6 +71,7 @@ public class RankingService {
                     new RankingItem(
                             index + 1,
                             item.applicationId(),
+                            item.relevance(),
                             item.score(),
                             item.scoreLow(),
                             item.scoreHigh(),
@@ -105,6 +107,7 @@ public class RankingService {
     public record RankingItem(
             int rank,
             UUID applicationId,
+            Double relevance,
             double score,
             double scoreLow,
             double scoreHigh,

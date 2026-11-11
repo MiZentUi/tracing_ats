@@ -35,6 +35,7 @@ public class ReportController implements ReportsApi {
                                                 .phase(
                                                         ApplicationReport.PhaseEnum.valueOf(
                                                                 report.phase()))
+                                                .relevance(report.relevance())
                                                 .score(report.score())
                                                 .scoreLow(report.scoreLow())
                                                 .scoreHigh(report.scoreHigh())
@@ -80,7 +81,9 @@ public class ReportController implements ReportsApi {
                 .text(item.text())
                 .kind(RequirementReportItem.KindEnum.valueOf(item.kind()))
                 .critical(item.critical())
+                .relevance(item.relevance())
                 .cR(item.cR())
+                .tenure(item.tenure())
                 .status(RequirementReportItem.StatusEnum.valueOf(item.status()))
                 .evidenceSource(
                         item.evidenceSource() == null
