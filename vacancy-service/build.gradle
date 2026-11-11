@@ -103,6 +103,16 @@ tasks.named('compileJava') {
 	dependsOn tasks.named('openApiGenerate')
 }
 
+tasks.named('processTestResources') {
+	// Тесты поднимают схему тем же changelog, что и прод, но берут его из classpath,
+	// чтобы результат не зависел от рабочей директории IDE/Gradle.
+	from("${rootDir}/../migrations") {
+		include 'db.changelog-master.xml'
+		include 'changes/**'
+		into 'db/changelog'
+	}
+}
+
 tasks.named('test') {
 	useJUnitPlatform()
 }
