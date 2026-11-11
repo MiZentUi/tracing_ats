@@ -16,4 +16,5 @@
     <include file="changes/011-skill-kind-stat.sql" relativeToChangelogFile="true"/>
     <include file="changes/012-seed-specializations.sql" relativeToChangelogFile="true"/>
     <include file="changes/013-optional-level.sql" relativeToChangelogFile="true"/>
+    <include file="changes/014-seed-more-skills.sql" relativeToChangelogFile="true"/>
 </databaseChangeLog>
