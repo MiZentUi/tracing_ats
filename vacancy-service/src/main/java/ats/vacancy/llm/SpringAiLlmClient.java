@@ -6,14 +6,18 @@ import com.openai.client.okhttp.OpenAIOkHttpClient;
 import com.openai.core.Timeout;
 import com.openai.errors.BadRequestException;
 import com.openai.errors.NotFoundException;
+import com.openai.errors.OpenAIException;
+import com.openai.errors.OpenAIInvalidDataException;
 import com.openai.errors.OpenAIIoException;
 import com.openai.errors.OpenAIServiceException;
 import com.openai.errors.PermissionDeniedException;
 import com.openai.errors.RateLimitException;
 import com.openai.errors.UnauthorizedException;
+import java.io.InterruptedIOException;
 import java.time.Duration;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.concurrent.TimeoutException;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.ai.chat.messages.SystemMessage;
 import org.springframework.ai.chat.messages.UserMessage;
@@ -108,6 +112,22 @@ public class SpringAiLlmClient implements LlmClient {
                     return null;
                 }
             } catch (OpenAIIoException e) {
+                if (!sleepBeforeRetry(model, attempt, deadline, e)) {
+                    return null;
+                }
+            } catch (OpenAIInvalidDataException e) {
+                // Ответ оборвался на середине чтения: таймаут чтения или сброс HTTP/2.
+                // Повторять ту же медленную модель бессмысленно, сразу идём к следующей.
+                if (isTimeout(e)) {
+                    log.warn("LLM model {} timed out mid-response, trying next model", model);
+                    return null;
+                }
+                if (!sleepBeforeRetry(model, attempt, deadline, e)) {
+                    return null;
+                }
+            } catch (OpenAIException e) {
+                // Прочие ошибки SDK не должны вылетать наружу: по RFC-002 истёкшая
+                // цепочка — это LlmUnavailableException, а не 500 для клиента.
                 if (!sleepBeforeRetry(model, attempt, deadline, e)) {
                     return null;
                 }
@@ -212,6 +232,15 @@ public class SpringAiLlmClient implements LlmClient {
             case JSON_OBJECT -> FormatMode.NONE;
             case NONE -> null;
         };
+    }
+
+    private static boolean isTimeout(Throwable throwable) {
+        for (Throwable cause = throwable; cause != null; cause = cause.getCause()) {
+            if (cause instanceof InterruptedIOException || cause instanceof TimeoutException) {
+                return true;
+            }
+        }
+        return false;
     }
 
     private boolean sleepBeforeRetry(String model, int attempt, long deadline, Exception cause) {

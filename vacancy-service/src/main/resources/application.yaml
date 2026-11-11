@@ -43,8 +43,8 @@ vacancy:
     temperature: 0
     max-tokens: 6000
     connect-timeout: 5s
-    read-timeout: 120s
-    total-timeout: 170s
+    read-timeout: 180s
+    total-timeout: 300s
     max-attempts: 3
     delay: 5s
     multiplier: 2

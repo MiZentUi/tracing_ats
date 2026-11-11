@@ -4,8 +4,8 @@ import type { ApiStatusResponse } from './generated'
 
 const basePath = import.meta.env.VITE_API_URL ?? '/api/v1'
 
-// Сервер может отвечать до total-timeout (170 с), клиент ждёт чуть дольше.
-axios.defaults.timeout = 180_000
+// Сервер может отвечать до total-timeout (300 с), а nginx ждёт 300 с: клиент ждёт дольше обоих.
+axios.defaults.timeout = 310_000
 
 const configuration = new Configuration({ basePath })
 

@@ -348,7 +348,7 @@ async function submit() {
           </button>
           <div v-if="loading" class="mt-3 flex items-start gap-2 rounded-xl bg-indigo-50 p-3 text-xs text-indigo-800" role="status">
             <LoaderCircle :size="16" class="mt-0.5 shrink-0 animate-spin" />
-            <span>Разбор может занять до пары минут. Не закрывайте страницу.</span>
+            <span>Разбор может занять до 5 минут. Не закрывайте страницу.</span>
           </div>
           <p v-else class="mt-3 text-center text-xs text-slate-400">
             Обычно занимает 10–60 секунд

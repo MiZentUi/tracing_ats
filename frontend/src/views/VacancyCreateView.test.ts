@@ -58,7 +58,7 @@ describe('VacancyCreateView', () => {
 
     const button = wrapper.get('button[type="submit"]')
     expect(button.attributes('disabled')).toBeDefined()
-    expect(wrapper.text()).toContain('Разбор может занять до пары минут')
+    expect(wrapper.text()).toContain('Разбор может занять до 5 минут')
 
     resolveRequest({ data: { vacancy_id: 'vacancy-1' } })
     await flushPromises()
