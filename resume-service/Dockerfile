@@ -1,17 +1,22 @@
 FROM gradle:9.8.2-jdk21 AS build
-WORKDIR /app
+# Образ Gradle по умолчанию работает не от root; для записи в /workspace нужен root.
+USER root
+WORKDIR /workspace
 
-COPY build.gradle settings.gradle ./
-RUN --mount=type=cache,id=resume-service-gradle,target=/home/gradle/.gradle \
-    gradle dependencies --no-daemon
+COPY text-extraction ./text-extraction
+COPY contracts ./contracts
+COPY resume-service ./resume-service
 
-COPY lombok.config ./
-COPY src ./src
+WORKDIR /workspace/resume-service
 RUN --mount=type=cache,id=resume-service-gradle,target=/home/gradle/.gradle \
     gradle clean build -x test --no-daemon
 
-FROM eclipse-temurin:21-jre-alpine
-RUN apk --no-cache add curl
+# ONNX Runtime для локальной NER требует glibc; alpine (musl) не подходит.
+FROM eclipse-temurin:21-jre
+RUN apt-get update \
+    && apt-get install -y --no-install-recommends curl \
+    && rm -rf /var/lib/apt/lists/*
+WORKDIR /app
 EXPOSE 8081
-COPY --from=build /app/build/libs/*.jar app.jar
-ENTRYPOINT ["java", "-jar", "/app.jar"]
+COPY --from=build /workspace/resume-service/build/libs/*.jar app.jar
+ENTRYPOINT ["java", "-jar", "/app/app.jar"]

@@ -1,0 +1,35 @@
+spring:
+  jpa:
+    hibernate:
+      # Тесты должны ловить рассинхрон Liquibase-схемы и JPA-сущностей.
+      ddl-auto: validate
+  liquibase:
+    change-log: classpath:db/migrations/db.changelog-master.xml
+    enabled: true
+
+ats:
+  storage:
+    type: memory
+  pii:
+    # Только для тестов. Production-ключ приходит из секрета.
+    encryption-key: N3EUTRUDDeQVaKtCpzs3IYQTdYw8rQp/CSnETlKL5/U=
+    key-version: test
+    ner:
+      provider: fake
+      fail-closed: false
+  vacancy:
+    grpc:
+      target: localhost:9090
+      deadline: 1s
+  scoring:
+    worker-threads: 1
+    queue-capacity: 100
+    grpc:
+      target: localhost:8082
+      deadline: 1s
+  github:
+    enabled: false
+  screening:
+    worker-threads: 1
+    scoring-wait: 5s
+    scoring-poll: 50ms

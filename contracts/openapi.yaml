@@ -5,6 +5,7 @@ info:
   version: "1.0"
 servers:
   - url: https://localhost:8080/api/v1
+  - url: http://localhost:8081/api/v1
 
 paths:
   /users/signup:
@@ -159,6 +160,16 @@ paths:
         - Vacancies
       summary: Создать вакансию и получить черновик шаблона
       operationId: createVacancy
+  /resumes:
+    post:
+      tags:
+        - Resumes
+      summary: Загрузить пачку резюме
+      description: |
+        Принимает PDF, DOCX, TXT или MD. Для каждого файла извлекается текст,
+        PII маскируется, prompt injection удаляется. Исходный файл хранится
+        в объектном хранилище, PII — в зашифрованном виде.
+      operationId: uploadResumes
       requestBody:
         required: true
         content:
@@ -166,9 +177,10 @@ paths:
             schema:
               type: object
               required:
-                - specialization
+                - vacancyId
+                - files
               properties:
-                specialization:
+                vacancyId:
                   type: string
                   description: Код специализации из справочника
                   example: backend
@@ -192,100 +204,191 @@ paths:
                   nullable: true
                   description: PDF, DOCX, TXT или MD, если не передан текст
       responses:
-        "201":
-          description: Вакансия создана, шаблон в статусе черновика
+        "202":
+          description: Файлы приняты
           content:
             application/json:
               schema:
-                $ref: "#/components/schemas/Vacancy"
-        "409":
-          $ref: "#/components/responses/conflict"
-        "413":
-          $ref: "#/components/responses/payloadTooLarge"
-        "415":
-          $ref: "#/components/responses/unsupportedMediaType"
-        "422":
-          $ref: "#/components/responses/unprocessable"
-        "502":
-          $ref: "#/components/responses/badGateway"
-        "503":
-          $ref: "#/components/responses/serviceUnavailable"
+                $ref: "#/components/schemas/ResumeBatchUploadResponse"
         default:
-          $ref: "#/components/responses/error"
+          $ref: "#/components/responses/default"
 
-  /vacancies/{id}:
+  /resumes/{resumeId}:
     get:
       tags:
-        - Vacancies
-      summary: Вакансия с текущей версией шаблона
-      operationId: getVacancy
+        - Resumes
+      summary: Метаданные резюме без PII
+      operationId: getResume
       parameters:
-        - $ref: "#/components/parameters/VacancyId"
+        - $ref: "#/components/parameters/ResumeId"
       responses:
         "200":
-          description: Вакансия с текущей версией шаблона
+          description: Резюме
           content:
             application/json:
               schema:
-                $ref: "#/components/schemas/Vacancy"
+                $ref: "#/components/schemas/ResumeSummary"
         "404":
-          $ref: "#/components/responses/notFound"
+          description: Не найдено
         default:
-          $ref: "#/components/responses/error"
-    delete:
-      tags:
-        - Vacancies
-      summary: Удалить вакансию и убрать её вклад из истории типов
-      operationId: deleteVacancy
-      parameters:
-        - $ref: "#/components/parameters/VacancyId"
-      responses:
-        "204":
-          description: Вакансия удалена
-        "404":
-          $ref: "#/components/responses/notFound"
-        default:
-          $ref: "#/components/responses/error"
+          $ref: "#/components/responses/default"
 
-  /vacancies/{id}/template:
-    put:
+  /vacancies/{vacancyId}/screen:
+    post:
       tags:
-        - Vacancies
-      summary: Сохранить шаблон, создать новую версию и обновить статистику
-      operationId: updateVacancyTemplate
+        - Screening
+      summary: Запустить предварительный скрининг
+      description: |
+        Асинхронно применяет политику шорт-листа к готовым Score_pre, посчитанным
+        при загрузке резюме. Если запуск ещё считается, ждёт до дедлайна; запуск,
+        посчитанный по устаревшей версии шаблона, пересчитывает. При согласии
+        обогащает шорт-лист из GitHub и создаёт Score_final без повторного вызова LLM.
+      operationId: startScreening
       parameters:
         - $ref: "#/components/parameters/VacancyId"
+      requestBody:
+        required: false
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/ScreeningRequest"
+      responses:
+        "202":
+          description: Скрининг запущен
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ScreeningBatchAccepted"
+        default:
+          $ref: "#/components/responses/default"
+
+  /screening-batches/{batchId}:
+    get:
+      tags:
+        - Screening
+      summary: Статус пакета скрининга
+      operationId: getScreeningBatch
+      parameters:
+        - $ref: "#/components/parameters/BatchId"
+      responses:
+        "200":
+          description: Статус
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ScreeningBatchStatus"
+        "404":
+          description: Не найдено
+        default:
+          $ref: "#/components/responses/default"
+
+  /vacancies/{vacancyId}/ranking:
+    get:
+      tags:
+        - Ranking
+      summary: Рейтинг кандидатов по вакансии
+      operationId: getRanking
+      parameters:
+        - $ref: "#/components/parameters/VacancyId"
+        - $ref: "#/components/parameters/Phase"
+      responses:
+        "200":
+          description: Рейтинг
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/RankingResponse"
+        default:
+          $ref: "#/components/responses/default"
+
+  /applications/{applicationId}/report:
+    get:
+      tags:
+        - Reports
+      summary: Отчёт «требование → доказательство → пробел»
+      operationId: getApplicationReport
+      parameters:
+        - $ref: "#/components/parameters/ApplicationId"
+        - $ref: "#/components/parameters/Phase"
+      responses:
+        "200":
+          description: Отчёт без PII
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApplicationReport"
+        "404":
+          description: Не найдено
+        default:
+          $ref: "#/components/responses/default"
+
+  /applications/{applicationId}/reveal:
+    post:
+      tags:
+        - Reports
+      summary: Раскрыть PII кандидата
+      description: Отдельное действие с обязательной причиной и записью в аудит.
+      operationId: revealCandidate
+      parameters:
+        - $ref: "#/components/parameters/ApplicationId"
       requestBody:
         required: true
         content:
           application/json:
             schema:
-              $ref: "#/components/schemas/UpdateTemplateRequest"
+              $ref: "#/components/schemas/RevealRequest"
       responses:
         "200":
-          description: Новая подтверждённая версия шаблона
+          description: PII раскрыты
           content:
             application/json:
               schema:
-                $ref: "#/components/schemas/Vacancy"
+                $ref: "#/components/schemas/RevealedCandidate"
         "404":
-          $ref: "#/components/responses/notFound"
-        "409":
-          $ref: "#/components/responses/conflict"
-        "422":
-          $ref: "#/components/responses/unprocessable"
+          description: Не найдено
         default:
-          $ref: "#/components/responses/error"
+          $ref: "#/components/responses/default"
 
 components:
   parameters:
     VacancyId:
-      name: id
+      name: vacancyId
       in: path
       required: true
       schema:
         type: string
         format: uuid
+    ResumeId:
+      name: resumeId
+      in: path
+      required: true
+      schema:
+        type: string
+        format: uuid
+    BatchId:
+      name: batchId
+      in: path
+      required: true
+      schema:
+        type: string
+        format: uuid
+    ApplicationId:
+      name: applicationId
+      in: path
+      required: true
+      schema:
+        type: string
+        format: uuid
+    Phase:
+      name: phase
+      in: query
+      required: false
+      schema:
+        type: string
+        enum:
+          - PRELIMINARY
+          - FINAL
+        default: FINAL
 
   schemas:
     ReferenceItem:
@@ -620,6 +723,350 @@ components:
         message:
           type: string
 
+    ResumeBatchUploadResponse:
+      type: object
+      required:
+        - vacancyId
+        - resumes
+      properties:
+        vacancyId:
+          type: string
+          format: uuid
+        resumes:
+          type: array
+          description: Результаты в порядке файлов запроса.
+          items:
+            $ref: "#/components/schemas/ResumeUploadResult"
+
+    ResumeUploadResult:
+      type: object
+      required:
+        - status
+      properties:
+        resumeId:
+          type: string
+          format: uuid
+          description: Идентификатор резюме; отсутствует, если файл не удалось прочитать.
+        status:
+          type: string
+          enum:
+            - MASKED
+            - TEXT_EMPTY
+            - MASKING_FAILED
+            - FAILED
+        warnings:
+          type: array
+          items:
+            type: string
+
+    ResumeSummary:
+      type: object
+      required:
+        - resumeId
+        - status
+        - fileType
+        - sizeBytes
+        - createdAt
+      properties:
+        resumeId:
+          type: string
+          format: uuid
+        status:
+          type: string
+        fileType:
+          type: string
+        sizeBytes:
+          type: integer
+          format: int64
+        createdAt:
+          type: string
+          format: date-time
+        warnings:
+          type: array
+          items:
+            type: string
+
+    ScreeningRequest:
+      type: object
+      properties:
+        applicationIds:
+          type: array
+          description: Если не задано — берутся все готовые отклики вакансии.
+          items:
+            type: string
+            format: uuid
+
+    ScreeningBatchAccepted:
+      type: object
+      required:
+        - batchId
+        - status
+      properties:
+        batchId:
+          type: string
+          format: uuid
+        status:
+          type: string
+
+    ScreeningBatchStatus:
+      type: object
+      required:
+        - batchId
+        - status
+        - total
+        - processed
+        - failed
+      properties:
+        batchId:
+          type: string
+          format: uuid
+        status:
+          type: string
+          enum:
+            - PENDING
+            - RUNNING
+            - COMPLETED
+            - FAILED
+        total:
+          type: integer
+        processed:
+          type: integer
+        failed:
+          type: integer
+        createdAt:
+          type: string
+          format: date-time
+        finishedAt:
+          type: string
+          format: date-time
+        errorMessage:
+          type: string
+
+    RankingResponse:
+      type: object
+      required:
+        - vacancyId
+        - phase
+        - items
+      properties:
+        vacancyId:
+          type: string
+          format: uuid
+        phase:
+          type: string
+          enum:
+            - PRELIMINARY
+            - FINAL
+        generatedAt:
+          type: string
+          format: date-time
+        items:
+          type: array
+          items:
+            $ref: "#/components/schemas/RankingItem"
+
+    RankingItem:
+      type: object
+      required:
+        - rank
+        - applicationId
+        - score
+        - scoreLow
+        - scoreHigh
+        - capApplied
+        - decision
+        - flags
+      properties:
+        rank:
+          type: integer
+        applicationId:
+          type: string
+          format: uuid
+        relevance:
+          type: number
+          format: double
+          description: Общая релевантность навыков (`Rv`), 0..1.
+        score:
+          type: number
+          format: double
+        scoreLow:
+          type: number
+          format: double
+        scoreHigh:
+          type: number
+          format: double
+        capApplied:
+          type: boolean
+        decision:
+          type: string
+          enum:
+            - SHORTLISTED
+            - BORDERLINE
+            - NOT_SHORTLISTED
+        flags:
+          type: array
+          items:
+            type: string
+
+    ApplicationReport:
+      type: object
+      required:
+        - applicationId
+        - phase
+        - score
+        - scoreLow
+        - scoreHigh
+        - capApplied
+        - decision
+        - requirements
+        - externalEvidence
+        - flags
+        - blind
+      properties:
+        applicationId:
+          type: string
+          format: uuid
+        phase:
+          type: string
+          enum:
+            - PRELIMINARY
+            - FINAL
+        relevance:
+          type: number
+          format: double
+          description: Общая релевантность навыков (`Rv`), 0..1.
+        score:
+          type: number
+          format: double
+        scoreLow:
+          type: number
+          format: double
+        scoreHigh:
+          type: number
+          format: double
+        capApplied:
+          type: boolean
+        decision:
+          type: string
+          enum:
+            - SHORTLISTED
+            - BORDERLINE
+            - NOT_SHORTLISTED
+        requirements:
+          type: array
+          items:
+            $ref: "#/components/schemas/RequirementReportItem"
+        externalEvidence:
+          type: array
+          items:
+            $ref: "#/components/schemas/ExternalEvidenceItem"
+        flags:
+          type: array
+          items:
+            type: string
+        blind:
+          type: boolean
+
+    RequirementReportItem:
+      type: object
+      required:
+        - requirementId
+        - text
+        - kind
+        - critical
+        - cR
+        - status
+      properties:
+        requirementId:
+          type: string
+        text:
+          type: string
+        kind:
+          type: string
+          enum:
+            - MUST
+            - NICE
+            - OPTIONAL
+        critical:
+          type: boolean
+        relevance:
+          type: number
+          format: double
+          description: Релевантность требования (`R_i`), 0..1.
+        cR:
+          type: number
+          format: double
+          description: Покрытие требования (`c_i`), 0..1.
+        tenure:
+          type: integer
+          description: Подтверждённый стаж по требованию, лет.
+        status:
+          type: string
+          enum:
+            - COVERED
+            - PARTIAL
+            - GAP
+        evidenceSource:
+          type: string
+          enum:
+            - RESUME
+            - GITHUB
+        evidenceQuote:
+          type: string
+        gap:
+          type: string
+
+    ExternalEvidenceItem:
+      type: object
+      required:
+        - source
+        - skill
+        - facts
+        - flags
+      properties:
+        source:
+          type: string
+          enum:
+            - GITHUB
+        skill:
+          type: string
+        facts:
+          type: object
+          additionalProperties:
+            type: string
+        flags:
+          type: array
+          items:
+            type: string
+
+    RevealRequest:
+      type: object
+      required:
+        - reason
+      properties:
+        reason:
+          type: string
+          minLength: 3
+          maxLength: 512
+
+    RevealedCandidate:
+      type: object
+      properties:
+        fullName:
+          type: string
+        email:
+          type: string
+        phone:
+          type: string
+        university:
+          type: string
+        graduationYear:
+          type: integer
+        githubUrl:
+          type: string
+        originalFilename:
+          type: string
+
   securitySchemes:
     BearerAuth:
       type: http
@@ -627,54 +1074,6 @@ components:
       bearerFormat: JWT
 
   responses:
-    error:
-      description: Ошибка в формате ApiStatusResponse
-      content:
-        application/json:
-          schema:
-            $ref: "#/components/schemas/ApiStatusResponse"
-    notFound:
-      description: Объект не найден
-      content:
-        application/json:
-          schema:
-            $ref: "#/components/schemas/ApiStatusResponse"
-    conflict:
-      description: Конфликт версии или нет активного профиля весов
-      content:
-        application/json:
-          schema:
-            $ref: "#/components/schemas/ApiStatusResponse"
-    payloadTooLarge:
-      description: Файл слишком большой
-      content:
-        application/json:
-          schema:
-            $ref: "#/components/schemas/ApiStatusResponse"
-    unsupportedMediaType:
-      description: Неподдерживаемый тип файла
-      content:
-        application/json:
-          schema:
-            $ref: "#/components/schemas/ApiStatusResponse"
-    unprocessable:
-      description: Ошибка валидации запроса
-      content:
-        application/json:
-          schema:
-            $ref: "#/components/schemas/ApiStatusResponse"
-    badGateway:
-      description: LLM вернула некорректный или обрезанный ответ
-      content:
-        application/json:
-          schema:
-            $ref: "#/components/schemas/ApiStatusResponse"
-    serviceUnavailable:
-      description: LLM не настроена или недоступна
-      content:
-        application/json:
-          schema:
-            $ref: "#/components/schemas/ApiStatusResponse"
     auth:
       description: Auth response with token
       headers:

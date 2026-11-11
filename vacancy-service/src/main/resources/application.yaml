@@ -1,21 +1,17 @@
 spring:
   application:
     name: vacancy-service
-  config:
-    import: "optional:file:.env[.properties]"
   jpa:
     hibernate:
       ddl-auto: validate
     open-in-view: false
-  liquibase:
-    enabled: false
-  jackson:
-    deserialization:
-      fail-on-unknown-properties: false
   servlet:
     multipart:
       max-file-size: 10MB
       max-request-size: 10MB
+  grpc:
+    server:
+      port: ${VACANCY_GRPC_PORT:9090}
 
 server:
   port: 8080
@@ -61,3 +57,9 @@ vacancy:
     kind-history:
       min-observations: 3
       min-share: 0.6
+  vacancy:
+    screening:
+      # Стартовые гипотезы для MVP; политика живёт в vacancy-service.
+      threshold: ${ATS_SCREENING_THRESHOLD:50}
+      top-n: ${ATS_SCREENING_TOP_N:10}
+      borderline-margin: ${ATS_SCREENING_BORDERLINE_MARGIN:5}

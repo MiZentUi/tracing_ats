@@ -4,8 +4,8 @@ package scoring_service.v1;
 import "scoring_service/v1/models/messages.proto";
 
 option java_multiple_files = true;
-option java_outer_classname = "ScoringProto";
-option java_package = "ats.vacancy.proto";
+option java_outer_classname = "ScoringServiceProto";
+option java_package = "ats.scoring.proto";
 
 // Сервис оценки соответствия резюме вакансии
 service ScoringService {

@@ -1,4 +1,10 @@
 temp
 .idea
 .vscode
+.gradle/
+build/
+out/
+**/bin/
+models/
+.ner-venv/
 .env
