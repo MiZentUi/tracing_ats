@@ -2,6 +2,7 @@ package ats.resume.api;
 
 import ats.api.ResumesApi;
 import ats.gateway.model.ResumeBatchUploadResponse;
+import ats.gateway.model.ResumeList;
 import ats.gateway.model.ResumeSummary;
 import ats.gateway.model.ResumeUploadResult;
 import ats.resume.domain.ingestion.UploadOutcome;
@@ -50,20 +51,30 @@ public class ResumeController implements ResumesApi {
     }
 
     @Override
+    public ResponseEntity<ResumeList> listResumes(Integer limit, Integer offset) {
+        ResumeQueryService.ResumePage page = queryService.list(limit, offset);
+        ResumeList response =
+                new ResumeList()
+                        .total(page.total())
+                        .items(page.items().stream().map(this::summary).toList());
+        return ResponseEntity.ok(response);
+    }
+
+    @Override
     public ResponseEntity<ResumeSummary> getResume(UUID resumeId) {
         return queryService
                 .find(resumeId)
-                .map(
-                        view ->
-                                ResponseEntity.ok(
-                                        new ResumeSummary()
-                                                .resumeId(view.resumeId())
-                                                .status(view.status())
-                                                .fileType(view.fileType())
-                                                .sizeBytes(view.sizeBytes())
-                                                .createdAt(
-                                                        view.createdAt().atOffset(ZoneOffset.UTC))
-                                                .warnings(view.warnings())))
+                .map(view -> ResponseEntity.ok(summary(view)))
                 .orElseGet(() -> ResponseEntity.notFound().build());
+    }
+
+    private ResumeSummary summary(ResumeQueryService.ResumeView view) {
+        return new ResumeSummary()
+                .resumeId(view.resumeId())
+                .status(view.status())
+                .fileType(view.fileType())
+                .sizeBytes(view.sizeBytes())
+                .createdAt(view.createdAt().atOffset(ZoneOffset.UTC))
+                .warnings(view.warnings());
     }
 }
