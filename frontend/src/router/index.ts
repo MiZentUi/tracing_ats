@@ -6,6 +6,7 @@ import MatchView from '@/views/MatchView.vue'
 import VacancyCandidatesView from '@/views/VacancyCandidatesView.vue'
 import ResumeRankingView from '@/views/ResumeRankingView.vue'
 import ResumeTextView from '@/views/ResumeTextView.vue'
+import CompareView from '@/views/CompareView.vue'
 import ReportView from '@/views/ReportView.vue'
 
 const router = createRouter({
@@ -28,6 +29,11 @@ const router = createRouter({
       name: 'resume-text',
       component: ResumeTextView,
       props: true,
+    },
+    {
+      path: '/compare',
+      name: 'compare',
+      component: CompareView,
     },
     {
       path: '/applications/:id/report',

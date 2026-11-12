@@ -2,13 +2,16 @@ package ats.resume.api;
 
 import ats.api.ResumesApi;
 import ats.gateway.model.ResumeBatchUploadResponse;
+import ats.gateway.model.ResumeFullText;
 import ats.gateway.model.ResumeList;
 import ats.gateway.model.ResumeSummary;
 import ats.gateway.model.ResumeText;
 import ats.gateway.model.ResumeUploadResult;
+import ats.gateway.model.RevealTextRequest;
 import ats.resume.domain.ingestion.UploadOutcome;
 import ats.resume.infrastructure.ingestion.ResumeIngestionService;
 import ats.resume.infrastructure.ingestion.ResumeQueryService;
+import ats.resume.infrastructure.report.RevealService;
 import java.time.ZoneOffset;
 import java.util.ArrayList;
 import java.util.List;
@@ -26,6 +29,7 @@ public class ResumeController implements ResumesApi {
 
     private final ResumeIngestionService ingestionService;
     private final ResumeQueryService queryService;
+    private final RevealService revealService;
 
     @Override
     public ResponseEntity<ResumeBatchUploadResponse> uploadResumes(
@@ -81,6 +85,21 @@ public class ResumeController implements ResumesApi {
                                                 .maskedText(view.maskedText())
                                                 .warnings(view.warnings())
                                                 .blind(true)))
+                .orElseGet(() -> ResponseEntity.notFound().build());
+    }
+
+    @Override
+    public ResponseEntity<ResumeFullText> revealResumeText(
+            UUID resumeId, RevealTextRequest request) {
+        return revealService
+                .revealText(resumeId, request.getApplicationId(), request.getReason())
+                .map(
+                        text ->
+                                ResponseEntity.ok(
+                                        new ResumeFullText()
+                                                .resumeId(resumeId)
+                                                .text(text)
+                                                .blind(false)))
                 .orElseGet(() -> ResponseEntity.notFound().build());
     }
 

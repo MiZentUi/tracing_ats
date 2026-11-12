@@ -42,7 +42,11 @@ class ResumeControllerTest {
                                 1));
 
         ResponseEntity<ResumeList> response =
-                new ResumeController(ingestion, query).listResumes(10, 0);
+                new ResumeController(
+                                ingestion,
+                                query,
+                                mock(ats.resume.infrastructure.report.RevealService.class))
+                        .listResumes(10, 0);
 
         assertThat(response.getStatusCode().value()).isEqualTo(200);
         assertThat(response.getBody()).isNotNull();
@@ -66,7 +70,11 @@ class ResumeControllerTest {
                                         List.of())));
 
         ResponseEntity<ats.gateway.model.ResumeText> response =
-                new ResumeController(ingestion, query).getResumeText(resumeId);
+                new ResumeController(
+                                ingestion,
+                                query,
+                                mock(ats.resume.infrastructure.report.RevealService.class))
+                        .getResumeText(resumeId);
 
         assertThat(response.getStatusCode().value()).isEqualTo(200);
         assertThat(response.getBody()).isNotNull();
@@ -91,7 +99,10 @@ class ResumeControllerTest {
                                 null, UploadOutcome.Status.FAILED, List.of("FILE_READ_FAILED")));
 
         ResponseEntity<ResumeBatchUploadResponse> response =
-                new ResumeController(ingestion, query)
+                new ResumeController(
+                                ingestion,
+                                query,
+                                mock(ats.resume.infrastructure.report.RevealService.class))
                         .uploadResumes(List.of(file), vacancyId, false);
 
         assertThat(response.getStatusCode().value()).isEqualTo(202);

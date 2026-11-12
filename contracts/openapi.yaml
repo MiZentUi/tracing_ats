@@ -392,6 +392,35 @@ paths:
         default:
           $ref: "#/components/responses/default"
 
+  /resumes/{resumeId}/reveal-text:
+    post:
+      tags:
+        - Resumes
+      summary: Раскрыть исходный текст резюме
+      description: |
+        Подставляет PII обратно в обезличенный текст. Обязательна причина,
+        действие пишется в аудит. Использовать только для ручной проверки.
+      operationId: revealResumeText
+      parameters:
+        - $ref: "#/components/parameters/ResumeId"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/RevealTextRequest"
+      responses:
+        "200":
+          description: Текст с PII
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ResumeFullText"
+        "404":
+          description: Не найдено
+        default:
+          $ref: "#/components/responses/default"
+
   /resumes/{resumeId}/ranking:
     get:
       tags:
@@ -1016,6 +1045,36 @@ components:
             type: string
         blind:
           type: boolean
+
+    ResumeFullText:
+      type: object
+      required:
+        - resumeId
+        - text
+        - blind
+      properties:
+        resumeId:
+          type: string
+          format: uuid
+        text:
+          type: string
+          description: Текст с PII; выдан после reveal с причиной и аудитом.
+        blind:
+          type: boolean
+
+    RevealTextRequest:
+      type: object
+      required:
+        - reason
+      properties:
+        reason:
+          type: string
+          minLength: 3
+          maxLength: 512
+        applicationId:
+          type: string
+          format: uuid
+          description: Если раскрытие инициировано из отчёта отклика.
 
     ResumeList:
       type: object
