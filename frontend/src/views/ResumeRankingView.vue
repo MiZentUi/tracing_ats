@@ -110,7 +110,12 @@ onBeforeUnmount(stopPolling)
         >
           Загрузить ещё
         </RouterLink>
-        <button class="btn-primary" :disabled="matching" @click="rematch">
+        <button
+          class="btn-primary"
+          :disabled="matching"
+          title="Повторно сравнивает резюме со всеми вакансиями по уже сохранённому разбору: LLM не вызывается"
+          @click="rematch"
+        >
           <Loader2 v-if="matching" :size="16" class="animate-spin" />
           <RefreshCcw v-else :size="16" />
           Пересчитать без LLM
@@ -119,6 +124,11 @@ onBeforeUnmount(stopPolling)
     </header>
 
     <p v-if="error" class="rounded-xl bg-rose-50 px-4 py-3 text-sm text-rose-700">{{ error }}</p>
+
+    <p class="text-xs text-slate-500">
+      «Пересчитать без LLM» — повторный матчинг по сохранённому разбору резюме: без обращения к
+      модели, нужен после добавления новых вакансий.
+    </p>
 
     <div
       v-if="inProgress"

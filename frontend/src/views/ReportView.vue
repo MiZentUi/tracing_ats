@@ -1,7 +1,7 @@
 <script setup lang="ts">
 import { computed, onMounted, ref } from 'vue'
 import { useRoute } from 'vue-router'
-import { LockKeyholeOpen, ShieldCheck } from '@lucide/vue'
+import { ArrowLeft, LockKeyholeOpen, ShieldCheck } from '@lucide/vue'
 import type { ApplicationReport, RevealedCandidate } from '@/api/generated'
 import { apiErrorMessage, reportsApi } from '@/api'
 import { useToast } from '@/composables/useToast'
@@ -18,6 +18,22 @@ const error = ref('')
 const applicationId = computed(() => route.params.id as string | undefined)
 const resumeId = computed(() => route.params.resumeId as string | undefined)
 const vacancyId = computed(() => route.params.vacancyId as string | undefined)
+
+const analysisLink = computed(() => {
+  const value = report.value
+  if (value?.applicationId && value.vacancyId) {
+    return `/vacancies/${value.vacancyId}/candidates`
+  }
+  if (value?.resumeId) {
+    return `/resumes/${value.resumeId}`
+  }
+  if (value?.vacancyId) {
+    return `/vacancies/${value.vacancyId}/candidates`
+  }
+  return null
+})
+
+const analysisLabel = computed(() => (report.value?.applicationId ? 'К кандидатам' : 'К разбору'))
 
 const compareLink = computed(() => {
   const value = report.value
@@ -116,6 +132,10 @@ onMounted(load)
         </p>
       </div>
       <div class="flex items-center gap-2">
+        <RouterLink v-if="analysisLink" :to="analysisLink" class="btn-secondary">
+          <ArrowLeft :size="16" />
+          {{ analysisLabel }}
+        </RouterLink>
         <span
           v-if="report?.blind"
           class="inline-flex items-center gap-1 rounded-full bg-slate-100 px-3 py-1 text-xs font-medium text-slate-600"
