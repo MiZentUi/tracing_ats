@@ -49,7 +49,6 @@ class ResumeExtractor:
             prompt = system if attempt == 0 else f"{system}\n\n{resume_extraction.RETRY_HINT}"
             try:
                 raw = self._client.complete(prompt, user)
-                print(raw)
                 parsed = ParsedResume.model_validate_json(raw)
             except (LlmInvalidResponse, ValidationError) as exc:
                 last_error = exc
@@ -63,7 +62,7 @@ class ResumeExtractor:
             if extracted.dropped > 0:
                 logger.warning(
                     "some resume features dropped count=%s",
-                    extracted.droppereturnd,
+                    extracted.dropped,
                 )
             return extracted
 

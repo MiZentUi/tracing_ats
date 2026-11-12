@@ -34,6 +34,13 @@
   `direction` (`VACANCY_TO_CANDIDATES` / `RESUME_TO_VACANCIES`) и nullable-владельца,
   чтобы оба рейтинга считались одной моделью и одним отчётом.
 
+#### Fixed
+
+- **`ExtractResume` на реальных резюме.** `scoring-service` падал с `AttributeError`
+  на любом резюме, где хотя бы одна цитата не прошла проверку: в логе стояло
+  `extracted.droppereturnd` вместо `extracted.dropped`. Из `extractor.py` также
+  убран отладочный `print(raw)`, который печатал сырой ответ модели в логи.
+
 #### Security
 
 - **Образование больше не маскируется**: вуз, специальность и годы остаются в
