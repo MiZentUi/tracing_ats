@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import { computed, onBeforeUnmount, onMounted, ref } from 'vue'
-import { Loader2, RefreshCcw } from '@lucide/vue'
+import { ArrowLeft, Loader2, RefreshCcw } from '@lucide/vue'
 import type { ResumeSummary, ResumeVacancyRankingResponse } from '@/api/generated'
 import { apiErrorMessage, resumeRankingApi, resumesApi } from '@/api'
 import { useToast } from '@/composables/useToast'
@@ -100,6 +100,10 @@ onBeforeUnmount(stopPolling)
         </p>
       </div>
       <div class="flex flex-wrap items-center gap-2">
+        <RouterLink class="btn-secondary" to="/analyses">
+          <ArrowLeft :size="16" />
+          Все разборы
+        </RouterLink>
         <RouterLink
           class="btn-secondary"
           :to="{ path: '/match', query: { mode: 'vacancies' } }"
