@@ -133,6 +133,18 @@ vacancy:
     multiplier: 2
     prompt-version: vacancy-template.v2
     max-requirements: 50
+    # Запасной провайдер Cloudflare Workers AI. Включается явно: это ещё одна
+    # точка отправки текста вакансии наружу. Используется только после отказа OpenRouter.
+    fallback:
+      enabled: ${CLOUDFLARE_AI_ENABLED:false}
+      # OpenAI-совместимый endpoint:
+      # https://api.cloudflare.com/client/v4/accounts/<ACCOUNT_ID>/ai/v1
+      base-url: ${CLOUDFLARE_AI_BASE_URL:}
+      api-key: ${CLOUDFLARE_AI_API_TOKEN:}
+      model: "${CLOUDFLARE_AI_MODEL:@cf/qwen/qwen3.8-27b}"
+      fallback-models: []
+      # Qwen3.8 по умолчанию использует xhigh; для извлечения требований достаточно low.
+      reasoning-effort: ${CLOUDFLARE_AI_REASONING_EFFORT:low}
   template:
     max-text-chars: 30000
     max-file-size: 5MB

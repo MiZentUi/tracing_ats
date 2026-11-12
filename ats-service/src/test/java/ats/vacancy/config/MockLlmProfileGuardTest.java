@@ -28,4 +28,14 @@ class MockLlmProfileGuardTest {
         assertThatCode(() -> new MockLlmProfileGuard(compose).validateBaseUrl())
                 .doesNotThrowAnyException();
     }
+
+    @Test
+    void rejectsEnabledFallback() {
+        VacancyLlmProperties properties = new VacancyLlmProperties();
+        properties.setBaseUrl("http://localhost:8089/api/v1");
+        properties.getFallback().setEnabled(true);
+        assertThatThrownBy(() -> new MockLlmProfileGuard(properties).validateBaseUrl())
+                .isInstanceOf(IllegalStateException.class)
+                .hasMessageContaining("fallback");
+    }
 }

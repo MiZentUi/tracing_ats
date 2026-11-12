@@ -6,7 +6,7 @@ spring:
       port: 0
   liquibase:
     enabled: true
-    change-log: classpath:db/changelog/db.changelog-master.xml
+    change-log: classpath:db/changelog/db.changelog-master.yaml
 
 ats:
   storage:
@@ -42,6 +42,8 @@ ats:
 vacancy:
   llm:
     api-key: test-key
+    fallback:
+      enabled: false
   template:
     kind-history:
       min-observations: 1

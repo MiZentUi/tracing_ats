@@ -30,8 +30,9 @@ import org.springframework.ai.openai.OpenAiChatOptions;
 import org.springframework.stereotype.Component;
 
 /**
- * OpenAI-совместимый клиент OpenRouter через Spring AI. Повторы, деградация response_format и
- * переключение моделей реализованы здесь, а не в конфигурации клиента.
+ * OpenAI-совместимый клиент OpenRouter через Spring AI с запасным провайдером Cloudflare Workers
+ * AI. Повторы, деградация response_format и переключение провайдеров/моделей реализованы здесь, а
+ * не в конфигурации клиента.
  */
 @Slf4j
 @Component
@@ -48,45 +49,136 @@ public class SpringAiLlmClient implements LlmClient {
 
     @Override
     public LlmResponse complete(LlmRequest request) {
-        if (properties.getApiKey() == null || properties.getApiKey().isBlank()) {
+        List<Provider> providers = providers();
+        if (providers.isEmpty()) {
             log.warn("llm_not_configured api_key=absent");
             throw new LlmNotConfiguredException();
         }
 
         long startedAt = System.nanoTime();
         long deadline = startedAt + properties.getTotalTimeout().toNanos();
-        List<String> models = new ArrayList<>();
-        models.add(properties.getModel());
-        models.addAll(properties.getFallbackModels());
         log.info(
-                "llm_chain_started models={} prompt_chars={} json_schema={} total_timeout={}",
-                models,
+                "llm_chain_started providers={} prompt_chars={} json_schema={} total_timeout={}",
+                providers.stream().map(Provider::name).toList(),
                 request.userPrompt() == null ? 0 : request.userPrompt().length(),
                 request.jsonSchema() != null,
                 properties.getTotalTimeout());
 
-        for (String model : models) {
-            LlmResponse response = tryModel(model, request, deadline);
+        LlmException lastProviderFailure = null;
+        for (int index = 0; index < providers.size(); index++) {
+            Provider provider = providers.get(index);
+            log.info(
+                    "llm_provider_started provider={} models={}",
+                    provider.name(),
+                    provider.models());
+            try {
+                LlmResponse response = runProvider(provider, request, deadline);
+                if (response != null) {
+                    log.info(
+                            "llm_chain_succeeded provider={} model={} elapsed_ms={}"
+                                    + " attempts_budget={}",
+                            provider.name(),
+                            response.model(),
+                            elapsedMs(startedAt),
+                            properties.getMaxAttempts());
+                    return response;
+                }
+                log.warn(
+                        "llm_provider_exhausted provider={} models={} reason=no_usable_response",
+                        provider.name(),
+                        provider.models());
+                lastProviderFailure = null;
+            } catch (LlmAuthException | LlmQuotaException e) {
+                log.warn(
+                        "llm_provider_failed provider={} reason={}",
+                        provider.name(),
+                        e.getClass().getSimpleName());
+                lastProviderFailure = e;
+            }
+            if (index + 1 < providers.size()) {
+                log.warn(
+                        "llm_provider_fallback from={} to={} reason={}",
+                        provider.name(),
+                        providers.get(index + 1).name(),
+                        lastProviderFailure == null
+                                ? "exhausted"
+                                : lastProviderFailure.getClass().getSimpleName());
+            }
+        }
+
+        if (lastProviderFailure != null) {
+            throw lastProviderFailure;
+        }
+        log.error(
+                "llm_chain_exhausted providers={} elapsed_ms={} error={}",
+                providers.stream().map(Provider::name).toList(),
+                elapsedMs(startedAt),
+                "all providers returned no usable response or the total timeout expired");
+        throw new LlmUnavailableException(
+                "All LLM providers are unavailable or the total timeout has expired", null);
+    }
+
+    private List<Provider> providers() {
+        List<Provider> providers = new ArrayList<>();
+        if (hasText(properties.getApiKey())) {
+            providers.add(
+                    new Provider(
+                            "openrouter",
+                            properties.getBaseUrl(),
+                            properties.getApiKey(),
+                            modelChain(properties.getModel(), properties.getFallbackModels()),
+                            null));
+        } else {
+            log.warn("llm_provider_skipped provider=openrouter reason=api_key_absent");
+        }
+
+        VacancyLlmProperties.Fallback fallback = properties.getFallback();
+        if (fallback != null && fallback.isEnabled()) {
+            if (!hasText(fallback.getApiKey())) {
+                log.warn("llm_provider_skipped provider=cloudflare reason=api_key_absent");
+            } else if (!hasText(fallback.getBaseUrl())) {
+                log.warn("llm_provider_skipped provider=cloudflare reason=base_url_absent");
+            } else {
+                providers.add(
+                        new Provider(
+                                "cloudflare",
+                                fallback.getBaseUrl(),
+                                fallback.getApiKey(),
+                                modelChain(fallback.getModel(), fallback.getFallbackModels()),
+                                fallback.getReasoningEffort()));
+            }
+        }
+        return providers;
+    }
+
+    private LlmResponse runProvider(Provider provider, LlmRequest request, long deadline) {
+        for (String model : provider.models()) {
+            LlmResponse response = tryModel(provider, model, request, deadline);
             if (response != null) {
-                log.info(
-                        "llm_chain_succeeded model={} elapsed_ms={} attempts_budget={}",
-                        model,
-                        elapsedMs(startedAt),
-                        properties.getMaxAttempts());
                 return response;
             }
         }
-        log.error(
-                "llm_chain_exhausted models={} elapsed_ms={} error={}",
-                models,
-                elapsedMs(startedAt),
-                "all models returned no usable response or the total timeout expired");
-        throw new LlmUnavailableException(
-                "All LLM models are unavailable or the total timeout has expired", null);
+        return null;
+    }
+
+    private static List<String> modelChain(String model, List<String> fallbackModels) {
+        List<String> models = new ArrayList<>();
+        if (hasText(model)) {
+            models.add(model);
+        }
+        if (fallbackModels != null) {
+            fallbackModels.stream().filter(SpringAiLlmClient::hasText).forEach(models::add);
+        }
+        return models;
+    }
+
+    private static boolean hasText(String value) {
+        return value != null && !value.isBlank();
     }
 
     /** Возвращает null, если модель исчерпана и нужно перейти к следующей. */
-    private LlmResponse tryModel(String model, LlmRequest request, long deadline) {
+    private LlmResponse tryModel(
+            Provider provider, String model, LlmRequest request, long deadline) {
         FormatMode format = request.jsonSchema() == null ? FormatMode.NONE : FormatMode.JSON_SCHEMA;
         int attempt = 0;
 
@@ -102,18 +194,20 @@ public class SpringAiLlmClient implements LlmClient {
             attempt++;
             long attemptStartedAt = System.nanoTime();
             log.info(
-                    "llm_request_sent model={} attempt={} format={} prompt_chars={}",
+                    "llm_request_sent provider={} model={} attempt={} format={} prompt_chars={}",
+                    provider.name(),
                     model,
                     attempt,
                     format,
                     request.userPrompt() == null ? 0 : request.userPrompt().length());
             try {
-                ChatResponse response = callOnce(model, request, format, deadline);
+                ChatResponse response = callOnce(provider, model, request, format, deadline);
                 LlmResponse mapped = toResponse(response, model);
                 log.info(
-                        "llm_response_received model={} attempt={} format={} elapsed_ms={}"
-                                + " content_chars={} prompt_tokens={} completion_tokens={}"
-                                + " finish_reason={}",
+                        "llm_response_received provider={} model={} attempt={} format={}"
+                                + " elapsed_ms={} content_chars={} prompt_tokens={}"
+                                + " completion_tokens={} finish_reason={}",
+                        provider.name(),
                         model,
                         attempt,
                         format,
@@ -253,7 +347,7 @@ public class SpringAiLlmClient implements LlmClient {
     }
 
     private ChatResponse callOnce(
-            String model, LlmRequest request, FormatMode format, long deadline) {
+            Provider provider, String model, LlmRequest request, FormatMode format, long deadline) {
         Duration remaining = Duration.ofNanos(Math.max(1, deadline - System.nanoTime()));
         Duration callTimeout =
                 remaining.compareTo(properties.getReadTimeout()) < 0
@@ -262,8 +356,8 @@ public class SpringAiLlmClient implements LlmClient {
 
         OpenAIClient client =
                 OpenAIOkHttpClient.builder()
-                        .apiKey(properties.getApiKey())
-                        .baseUrl(properties.getBaseUrl())
+                        .apiKey(provider.apiKey())
+                        .baseUrl(provider.baseUrl())
                         .timeout(
                                 Timeout.builder()
                                         .connect(
@@ -287,6 +381,10 @@ public class SpringAiLlmClient implements LlmClient {
                         // Spring AI по умолчанию ставит 60 с и перекрывает таймауты SDK:
                         // без этого read-timeout/total-timeout из конфигурации не работают.
                         .timeout(callTimeout);
+
+        if (hasText(provider.reasoningEffort())) {
+            options.reasoningEffort(provider.reasoningEffort());
+        }
 
         if (format != FormatMode.NONE) {
             var responseFormat =
@@ -410,4 +508,11 @@ public class SpringAiLlmClient implements LlmClient {
         JSON_OBJECT,
         NONE
     }
+
+    private record Provider(
+            String name,
+            String baseUrl,
+            String apiKey,
+            List<String> models,
+            String reasoningEffort) {}
 }

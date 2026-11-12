@@ -180,7 +180,7 @@ tasks.named('compileTestJava') {
 tasks.named('processTestResources') {
 	// Тесты поднимают схему тем же changelog, что и прод, но берут его из classpath.
 	from("$rootDir/../migrations") {
-		include 'db.changelog-master.xml'
+		include 'db.changelog-master.yaml'
 		include 'changes/**'
 		into 'db/changelog'
 	}

@@ -837,7 +837,7 @@ tracing-ats/
 │   └── vacancy-data-model.md
 ├── migrations/                  # общие Liquibase-миграции (SQL) + Dockerfile
 │   ├── Dockerfile
-│   ├── db.changelog-master.xml
+│   ├── db.changelog-master.yaml
 │   └── changes/
 ├── compose.yaml                 # запуск всей системы
 ├── scripts/

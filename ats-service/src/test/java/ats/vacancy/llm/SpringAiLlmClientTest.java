@@ -186,6 +186,56 @@ class SpringAiLlmClientTest {
     }
 
     @Test
+    void switchesToCloudflareWhenPrimaryIsUnavailable() throws Exception {
+        AtomicInteger primaryCalls = new AtomicInteger();
+        AtomicInteger fallbackCalls = new AtomicInteger();
+        String primary =
+                server(
+                        body -> {
+                            primaryCalls.incrementAndGet();
+                            return new MockResponse(500, error("down"));
+                        });
+        String fallback =
+                server(
+                        body -> {
+                            fallbackCalls.incrementAndGet();
+                            return new MockResponse(200, success("cloudflare"));
+                        });
+        VacancyLlmProperties properties = properties(primary);
+        properties.setMaxAttempts(1);
+        properties.setFallbackModels(List.of());
+        enableFallback(properties, fallback);
+
+        LlmResponse response = new SpringAiLlmClient(properties).complete(request());
+
+        assertThat(response.content()).isEqualTo("cloudflare");
+        assertThat(primaryCalls).hasValue(1);
+        assertThat(fallbackCalls).hasValue(1);
+    }
+
+    @Test
+    void switchesToCloudflareOnPrimaryAuthRejection() throws Exception {
+        String primary = server(body -> new MockResponse(401, error("invalid_api_key")));
+        String fallback = server(body -> new MockResponse(200, success("cloudflare")));
+        VacancyLlmProperties properties = properties(primary);
+        properties.setMaxAttempts(1);
+        properties.setFallbackModels(List.of());
+        enableFallback(properties, fallback);
+
+        LlmResponse response = new SpringAiLlmClient(properties).complete(request());
+
+        assertThat(response.content()).isEqualTo("cloudflare");
+    }
+
+    private static void enableFallback(VacancyLlmProperties properties, String baseUrl) {
+        properties.getFallback().setEnabled(true);
+        properties.getFallback().setBaseUrl(baseUrl);
+        properties.getFallback().setApiKey("cloudflare-key");
+        properties.getFallback().setModel("@cf/qwen/qwen3.8-27b");
+        properties.getFallback().setFallbackModels(List.of());
+    }
+
+    @Test
     void reportsUnavailableWhenResponseCannotBeRead() throws Exception {
         // Оборванный ответ раньше вылетал OpenAIInvalidDataException мимо клиента и давал 500.
         String baseUrl = server(body -> new MockResponse(200, "{\"choices\": ["));
