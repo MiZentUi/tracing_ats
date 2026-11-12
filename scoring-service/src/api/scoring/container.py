@@ -13,6 +13,7 @@ from ..extraction.extractor import ResumeExtractor
 from ..llm import build_llm_client
 from .calculator import ScoringCalculator
 from .evaluator import ResumeEvaluator
+from .feedback import FeedbackBuilder
 from .mapping import ExtractionMapper
 from .matcher import RequirementMatcher
 from .policies import (
@@ -57,6 +58,7 @@ def build_evaluator(settings: Settings | None = None) -> ResumeEvaluator:
         matcher=matcher,
         calculator=calculator,
         domain=NoDomainMatcher(),
+        feedback=FeedbackBuilder(),
     )
 
 

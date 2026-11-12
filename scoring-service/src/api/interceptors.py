@@ -50,8 +50,8 @@ class RequestLoggingInterceptor(grpc.ServerInterceptor):
             except Exception as exc:
                 code = context.code()  # type: ignore
                 status = code.name if code is not None else "UNKNOWN"
-                logger.exception(
-                    "failed to handle grpc request method=%s request_id=%s status=%s error=%s elapsed_ms=%.1f",
+                logger.warning(
+                    "grpc request end method=%s request_id=%s status=%s error=%s elapsed_ms=%.1f",
                     method,
                     request_id,
                     status,

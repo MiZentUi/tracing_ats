@@ -265,10 +265,22 @@ def test_evaluate_resume_match_statuses_and_explanations() -> None:
 
     gap_ids = {gap.requirement_id for gap in response.gaps}
     assert gap_ids == {"kafka", "soft"}
-    assert "Python" in response.strengths
+    assert "Python" in " ".join(response.strengths)
     assert response.questions
     assert response.recruiter_note
     assert response.general_score.score_low < response.general_score.score_high
+
+
+def test_evaluate_resume_match_logs_no_resume_text(caplog) -> None:
+    with caplog.at_level(logging.INFO), _running(ResumeExtractor(FakeLlm(PAYLOAD))) as stub:
+        stub.EvaluateResumeMatch(_evaluate_request(), timeout=2)
+
+    assert "Python developer" not in caplog.text
+    assert TEXT not in caplog.text
+    assert "strengths=" in caplog.text
+    assert "risks=" in caplog.text
+    assert "questions=" in caplog.text
+    assert "feedback=feedback-templates.v1" in caplog.text
 
 
 def test_evaluate_resume_match_marks_insufficient_tenure() -> None:

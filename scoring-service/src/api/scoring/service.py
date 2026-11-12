@@ -16,6 +16,7 @@ from ..llm.client import LlmUnavailable
 from .dates import resolve_reference_date
 from .errors import ScoringError
 from .evaluator import ResumeEvaluator
+from .feedback import FEEDBACK_TEMPLATE_VERSION
 from .mapping import ExtractionMapper, to_evaluate_response, to_score_response
 from .policies import Clock, SystemClock
 
@@ -84,10 +85,15 @@ class ScoringService(scoring_pb2_grpc.ScoringServiceServicer):
         )
 
         logger.info(
-            "evaluate resume match requirements=%d matches=%d gaps=%d",
+            "evaluate resume match requirements=%d matches=%d gaps=%d "
+            "strengths=%d risks=%d questions=%d feedback=%s",
             len(request.vacancy.requirements),
             len(evaluation.matches),
             len(evaluation.gaps),
+            len(evaluation.strengths),
+            len(evaluation.risks),
+            len(evaluation.questions),
+            FEEDBACK_TEMPLATE_VERSION,
         )
         return to_evaluate_response(evaluation)
 

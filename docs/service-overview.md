@@ -1,5 +1,11 @@
 # Tracing ATS — текущее состояние сервиса
 
+> [!NOTE]
+> Исторический снимок на 2026-11-12: ветка `feature/unified-ats-service`,
+> коммит `1fadb9b`. Утверждения о заглушке `scoring-service` и нереализованной
+> математике устарели. Актуальное состояние — `scoring-service/README.md`,
+> `docs/rfc/rfc-scoring-model.md` и `docs/rfc/rfc-feedback-generation.md`.
+
 Документ фиксирует, что реализовано в объединённом Java-сервисе `ats-service` на ветке
 `feature/unified-ats-service` (коммит `1fadb9b`), какие решения приняты и что делать дальше.
 Дата: 2026-11-12.
