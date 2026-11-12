@@ -286,9 +286,11 @@ OpenAI-совместимый эндпоинт включается `SCORING_SER
 Клиент — официальный SDK `openai` с настраиваемым `base_url`, поэтому подходит
 OpenRouter и локальные OpenAI-совместимые серверы. Промпт и JSON-схема —
 `scoring-service/src/api/prompts/resume_extraction.py`, версия
-`resume-extraction.v1`. Контракт gRPC дополнен методом `ExtractResume`, который
-возвращает `ParsedResume` без сверки с вакансией; `ScoreResume` по-прежнему не
-отдаёт `parsed`.
+`resume-extraction.v1`. Контракт gRPC дополнен методами `ExtractResume`,
+`EvaluateResumeMatch` и `EvaluateResumeMatches`: первый возвращает `ParsedResume`
+без сверки с вакансией, второй оценивает уже разобранное резюме по одной
+вакансии, третий — пакетно по нескольким. `ScoreResume` остаётся одношаговым
+вызовом и по-прежнему не отдаёт `parsed`.
 
 ## 6. Пайплайн A (целевой): детерминированное ядро + LLM на остаток
 
@@ -423,22 +425,53 @@ PII в логи не попадают (`AGENTS.md` §8).
 
 ## 9. Влияние на контракт
 
-Изменения **не внесены** этим RFC; они перечислены как требующие отдельного
-изменения контракта вместе с реализацией.
+Контракт обновлён в `contracts/proto/scoring_service/v1/`. Ниже — что
+зафиксировано и что остаётся открытым.
+
+### 9.1. Что уже есть в контракте
+
+| RPC / сообщение | Назначение |
+|---|---|
+| `ExtractResume` | обезличенный текст → `ParsedResume`; без вакансии и скоринга; есть `reference_date`, `warnings`, `dropped` |
+| `EvaluateResumeMatch` | `ParsedResume` + исходный текст + одна `Vacancy` → `EvaluateResumeMatchResponse`; LLM не вызывается |
+| `EvaluateResumeMatches` | `ParsedResume` + исходный текст + `map<string, Vacancy>` → `map<string, EvaluateResumeMatchResult>`; пакетная обработка, ошибка по одной вакансии не отменяет остальные |
+| `ScoreResume` | одношаговый legacy-вызов: текст + вакансия; эквивалентен `ExtractResume` + `EvaluateResumeMatch`, `parsed` не возвращает |
+| `FeatureRequirement` | `criticality`, `source`, `oneof` (`skill` / `education` / `experience` / `text_requirement`) |
+| `TextRequirement` | `category` (`SOFT` / `OTHER`) + `text` для требований без структуры |
+| `FeatureMatch` | `status`, `relevance`, `coverage`, `resume_feature_key`, `evidence`, `comment`, `years_found` |
+| `Gap` / `GapReason` | `requirement_id` + причина; статус, цитата, комментарий и стаж — в `matches[requirement_id]` |
+| `GeneralResumeScore` | `relevance`, `score_low`, `score_high`, `score`, `tenure`; общий для одиночной и пакетной оценки |
+
+### 9.2. Принятые решения
+
+- `TextRequirement` — отдельная ветка `oneof`, чтобы не дублировать `category`
+  на верхнем уровне `FeatureRequirement`.
+- `source` остаётся в `FeatureRequirement`: это происхождение требования
+  (`REQUIREMENT` / `DUTY`), а не тип фичи.
+- `gaps` нормализованы: `Gap { requirement_id, reason }`. Детали не дублируются,
+  а берутся из `matches`; это сохраняет связь «требование → доказательство →
+  статус → комментарий».
+- `risks`, `questions`, `recruiter_note` пока остаются строками. Если UI начнёт
+  фильтровать риски по типу, их можно структурировать отдельно.
+- `EvaluateResumeMatches` не вызывает LLM: резюме разбирается один раз через
+  `ExtractResume`, затем оценивается по нескольким вакансиям.
+- `FeatureMatch` и `GeneralResumeScore` общие для одиночной и пакетной оценки,
+  чтобы не расходились формы ответа.
+
+### 9.3. Остаётся открытым
 
 | Что | Зачем | Предложение |
 |---|---|---|
-| `ScoreResumeRequest` принимает только текст | итоговый вызов обязан не вызывать LLM (`AGENTS.md` §4 инв. 10, `README.md` §5) | `oneof` вход: сырой текст **или** сохранённый `parsed` |
-| `ScoreResumeResponse` без `parsed` | Java хранит `PARSED_RESUME.jsonb` (`README.md` §9) | добавить `ParsedResume` в ответ |
-| нет пометки «не оценено» | отличать «навыка нет» от «извлечение не удалось» | `missing_requirements` в ответе + расширение вилки |
-| нет `related_skills` в `SkillRequirement` | A3 нужна смежность, но в ветке `feature/vacancy-skill-kinds` поле убрано из шаблона | вернуть вместе с картой смежных навыков (P1) |
 | `FeatureCriticality` не связан с `kind` | веса в `scoring-service` не передаются, на входе только классификация | зафиксировать маппинг `kind` → `criticality` в контракте и не добавлять поле веса |
 | нет пометки, что `normalize_name` посчитан Java | Python обязан сравнивать теми же ключами, что `SkillNormalizer` | закрепить в комментарии контракта: ключ считает Java |
 | нет метаданных извлечения | воспроизводимость запуска (инв. 13) | `extraction_meta`: режим, провайдер, модель, квантизация, версия промпта и словаря |
 | `FeatureEvidence` не указывает базу offsets | цитаты проверяются по обезличенному тексту | зафиксировать в комментарии контракта |
 | `common.proto`: «возможно применение капа» | противоречит модели: критичность входит в вес, отдельного cap нет (`rfc-scoring-model.md`) | убрать комментарий |
 | `normalize_name` / `normalized_name` | разнобой в именах | унифицировать |
-| нет `Unclassified` и «расплывчатого требования» | `README.md` §10, требование с `raw_text` | решить, нужен ли отдельный вариант `oneof` |
+| `ScoreResumeResponse.features` использует `FeatureAssessment` | legacy-путь не отдаёт `status`, `evidence` и `comment`; `FeatureMatch` отдаёт | решить, мигрировать `ScoreResume` на `FeatureMatch` или оставить его legacy |
+| `BatchItemError.code` — строка | ошибки одной вакансии должны быть машинно-читаемыми | при необходимости заменить на enum или `google.rpc.Status` |
+| `related_skills` в `SkillRequirement` | A3 нужна смежность, но в ветке `feature/vacancy-skill-kinds` поле убрано из шаблона | вернуть вместе с картой смежных навыков (P1) |
+| `Unclassified` для признаков резюме | `TextRequirement` закрывает soft/other требования, но не признаки резюме | решить, нужен ли отдельный вариант `oneof` для неклассифицированных признаков |
 
 ## 10. Соответствие инвариантам
 
@@ -488,6 +521,9 @@ PII в логи не попадают (`AGENTS.md` §8).
 | Ранг | 10–15 синтетических резюме с известным порядком; сравнение с эталоном |
 | Словарь | алиасы и границы токенов: `Java`/`JavaScript`, `Go`/`Google`, `C`/`C++` |
 | Режимы | `llm`, `shadow`, `hybrid` дают совместимую форму ответа |
+| Пакетная оценка | ошибка одной вакансии не отменяет остальные; ключи `results` совпадают с `vacancies` |
+| Пробелы | каждый `Gap.requirement_id` есть в `matches`; `GapReason` согласован со `status` |
+| Текстовые требования | `TextRequirement` не ломает оценку skill/education/experience и даёт `FeatureMatch` с цитатой или `NOT_STATED` |
 
 Golden-наборы и фикстуры — только синтетические (`AGENTS.md` §8).
 
@@ -508,8 +544,9 @@ Golden-наборы и фикстуры — только синтетическ�
    соотносится с `R_i = max_j S^{ij}`.
 6. **Провайдер.** Внешний API, локальная 10–12B или гибрид; нужен замер на golden
    и данные о железе (VRAM).
-7. **`Unclassified` и расплывчатые требования.** Нужен ли отдельный вариант в
-   контракте или они живут только в отчёте.
+7. **`Unclassified` и расплывчатые требования.** `TextRequirement` уже покрывает
+   soft/other требования. Остаётся решить, нужен ли отдельный `Unclassified`
+   для признаков резюме, которые не удалось отнести к skill/education/experience.
 8. **Языки.** Русский и английский; нужно ли что-то кроме морфологии для
    смешанных резюме.
 9. **Стоимость и латентность.** Замерить на демо-пачке, зафиксировать лимиты
