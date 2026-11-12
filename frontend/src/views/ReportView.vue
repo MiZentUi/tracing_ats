@@ -47,6 +47,9 @@ const compareLink = computed(() => {
   if (value.applicationId) {
     params.set('applicationId', value.applicationId)
   }
+  if (value.phase) {
+    params.set('phase', value.phase)
+  }
   params.set('from', route.fullPath)
   return `/compare?${params.toString()}`
 })
