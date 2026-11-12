@@ -7,6 +7,39 @@
 
 ## [Unreleased]
 
+### Ветка `feature/liquibase-yaml-cloudflare-fallback` — YAML changelog и запасной LLM
+
+#### Added
+
+- **Запасной провайдер Cloudflare Workers AI.** Если OpenRouter отвечает
+  401/402/403, исчерпал 429/5xx/таймауты, не отдал модель или не поддерживает
+  `response_format`, `SpringAiLlmClient` переключается на Cloudflare Workers AI
+  с моделью `@cf/qwen/qwen3.8-27b` (`reasoning_effort=low`). Fallback выключен по
+  умолчанию: включается `CLOUDFLARE_AI_ENABLED=true`, адресом
+  `CLOUDFLARE_AI_BASE_URL` и токеном `CLOUDFLARE_AI_API_TOKEN`. Общий
+  `vacancy.llm.total-timeout` действует на всю цепочку провайдеров.
+- **События переключения провайдеров.** `llm_provider_started`,
+  `llm_provider_fallback`, `llm_provider_exhausted`, `llm_provider_failed`,
+  `llm_provider_skipped` показывают, какой провайдер и модель работали, без текста
+  запроса и ключей.
+- **Защита `mock-llm`.** В профиле `mock-llm` fallback принудительно выключен,
+  а `MockLlmProfileGuard` не даёт запустить приложение с включённым внешним
+  провайдером.
+
+#### Changed
+
+- **Master changelog Liquibase переведён на YAML.**
+  `migrations/db.changelog-master.xml` заменён на
+  `migrations/db.changelog-master.yaml` с прежним порядком include; SQL-миграции
+  остались formatted SQL. Обновлены `compose.yaml`, `migrations/Dockerfile`,
+  `ats-service/build.gradle` и тестовый профиль.
+
+#### Security
+
+- **Новая точка отправки данных наружу.** При включённом fallback текст вакансии
+  уходит в Cloudflare Workers AI. Fallback выключен по умолчанию, в `mock-llm`
+  запрещён, ключи не логируются; резюме и PII в Cloudflare не отправляются.
+
 ### Ветка `feature/resume-to-vacancy-matching` — обратный подбор и новый контракт
 
 #### Added

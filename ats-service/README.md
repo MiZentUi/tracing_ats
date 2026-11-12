@@ -18,6 +18,10 @@ PostgreSQL передаётся через `SPRING_DATASOURCE_URL`, `SPRING_DATA
 Обязательные для резюме настройки: `ATS_PII_ENCRYPTION_KEY` (base64 32 байта), MinIO/S3
 (`ATS_STORAGE_TYPE=s3`, `ATS_S3_*`) или `ATS_STORAGE_TYPE=memory`, `SCORING_GRPC_TARGET`.
 Для запуска без ключа LLM: `SPRING_PROFILES_ACTIVE=mock-llm` и `MOCK_LLM_URL`.
+Если OpenRouter недоступен, можно включить fallback Cloudflare Workers AI:
+`CLOUDFLARE_AI_ENABLED=true`, `CLOUDFLARE_AI_BASE_URL` вида
+`https://api.cloudflare.com/client/v4/accounts/<ACCOUNT_ID>/ai/v1`,
+`CLOUDFLARE_AI_API_TOKEN` (право Account > Workers AI > Read). В mock-профиле fallback запрещён.
 
 ## Docker
 
@@ -42,6 +46,7 @@ metadata `x-request-id`. По нему видно всю цепочку: HTTP �
 | `llm_request_sent`, `llm_response_received` | INFO | клиент LLM: модель, попытка, формат, `elapsed_ms`, токены, `finish_reason` |
 | `llm_rate_limited`, `llm_timeout`, `llm_transport_error`, `llm_request_failed` | WARN | внешний провайдер: повтор или следующая модель |
 | `llm_model_exhausted`, `llm_chain_exhausted` | WARN/ERROR | исчерпание попыток/цепочки |
+| `llm_provider_started`, `llm_provider_fallback`, `llm_provider_exhausted`, `llm_provider_failed` | INFO/WARN | переключение OpenRouter → Cloudflare Workers AI |
 | `template_extraction_started/finished`, `template_response_invalid` | INFO/WARN | разбор шаблона; причина без содержимого ответа |
 | `template_requirements_all_dropped` | WARN | все требования отброшены: счётчики причин и примеры |
 | `vacancy_created`, `vacancy_template_updated`, `vacancy_deleted` | INFO | бизнес-итог операции |

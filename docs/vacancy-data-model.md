@@ -4,7 +4,7 @@
 `009-requirement-skills-and-kinds.sql`, `010-skill-alias-and-seed.sql`,
 `011-skill-kind-stat.sql`, `012-seed-specializations.sql`, `013-optional-level.sql`,
 `014-seed-more-skills.sql` и `015-specialization-it.sql`.
-Корневой changelog Liquibase — `migrations/db.changelog-master.xml`; его накатывает не
+Корневой changelog Liquibase — `migrations/db.changelog-master.yaml`; его накатывает не
 приложение, а отдельная джоба `migrations` из корневого `compose.yaml` (см. `migrations/Dockerfile`).
 
 ## ER-диаграмма

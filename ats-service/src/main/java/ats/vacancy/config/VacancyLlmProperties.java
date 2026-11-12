@@ -1,5 +1,6 @@
 package ats.vacancy.config;
 
+import jakarta.validation.Valid;
 import jakarta.validation.constraints.AssertTrue;
 import jakarta.validation.constraints.DecimalMax;
 import jakarta.validation.constraints.DecimalMin;
@@ -57,6 +58,9 @@ public class VacancyLlmProperties {
     @Min(1)
     private int maxRequirements = 50;
 
+    /** Запасной провайдер: Cloudflare Workers AI (OpenAI-совместимый endpoint). */
+    @NotNull @Valid private Fallback fallback = new Fallback();
+
     @AssertTrue(message = "vacancy.llm.total-timeout must be greater than read-timeout")
     public boolean isTotalTimeoutGreaterThanReadTimeout() {
         return totalTimeout != null
@@ -88,6 +92,49 @@ public class VacancyLlmProperties {
                 + fallbackModels
                 + ", promptVersion="
                 + promptVersion
+                + ", fallback="
+                + fallback
                 + ")";
+    }
+
+    @Getter
+    @Setter
+    public static class Fallback {
+
+        private boolean enabled;
+
+        private String baseUrl = "";
+
+        /** Может быть пустым: это ошибка вызова, а не старта приложения. */
+        private String apiKey = "";
+
+        private String model = "@cf/qwen/qwen3.8-27b";
+
+        private List<String> fallbackModels = new ArrayList<>();
+
+        private String reasoningEffort = "low";
+
+        @AssertTrue(
+                message =
+                        "vacancy.llm.fallback.base-url and model are required when fallback is enabled")
+        public boolean isEndpointConfiguredWhenEnabled() {
+            return !enabled
+                    || (baseUrl != null && !baseUrl.isBlank() && model != null && !model.isBlank());
+        }
+
+        @Override
+        public String toString() {
+            return "Fallback(enabled="
+                    + enabled
+                    + ", baseUrl="
+                    + baseUrl
+                    + ", apiKey=***, model="
+                    + model
+                    + ", fallbackModels="
+                    + fallbackModels
+                    + ", reasoningEffort="
+                    + reasoningEffort
+                    + ")";
+        }
     }
 }

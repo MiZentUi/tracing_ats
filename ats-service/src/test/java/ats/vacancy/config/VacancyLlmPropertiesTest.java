@@ -10,7 +10,9 @@ class VacancyLlmPropertiesTest {
     void doesNotLeakApiKeyInToString() {
         VacancyLlmProperties properties = new VacancyLlmProperties();
         properties.setApiKey("super-secret-key");
+        properties.getFallback().setApiKey("cloudflare-secret-key");
         assertThat(properties.toString()).doesNotContain("super-secret-key");
+        assertThat(properties.toString()).doesNotContain("cloudflare-secret-key");
         assertThat(properties.toString()).contains("apiKey=***");
     }
 }

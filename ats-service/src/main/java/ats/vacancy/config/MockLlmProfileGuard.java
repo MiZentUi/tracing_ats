@@ -38,5 +38,9 @@ public class MockLlmProfileGuard {
                             + ", but was: "
                             + properties.getBaseUrl());
         }
+        if (properties.getFallback() != null && properties.getFallback().isEnabled()) {
+            throw new IllegalStateException(
+                    "vacancy.llm.fallback must be disabled in mock-llm profile");
+        }
     }
 }

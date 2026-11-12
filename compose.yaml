@@ -26,7 +26,7 @@ services:
       LIQUIBASE_COMMAND_URL: jdbc:postgresql://postgres:5432/${POSTGRES_DB:-ats}
       LIQUIBASE_COMMAND_USERNAME: ${POSTGRES_USER:-ats}
       LIQUIBASE_COMMAND_PASSWORD: ${POSTGRES_PASSWORD:-ats}
-      LIQUIBASE_COMMAND_CHANGELOG_FILE: db.changelog-master.xml
+      LIQUIBASE_COMMAND_CHANGELOG_FILE: db.changelog-master.yaml
       LIQUIBASE_SEARCH_PATH: /liquibase/changelog
     command: ["update"]
     depends_on:
@@ -150,6 +150,12 @@ services:
       SPRING_PROFILES_ACTIVE: ${ATS_PROFILES:-}
       # Compose подставляет значение из корневого .env или окружения хоста.
       OPENROUTER_API_KEY: ${OPENROUTER_API_KEY:-}
+      # Fallback Cloudflare Workers AI включается явно.
+      CLOUDFLARE_AI_ENABLED: ${CLOUDFLARE_AI_ENABLED:-false}
+      CLOUDFLARE_AI_BASE_URL: ${CLOUDFLARE_AI_BASE_URL:-}
+      CLOUDFLARE_AI_API_TOKEN: ${CLOUDFLARE_AI_API_TOKEN:-}
+      CLOUDFLARE_AI_MODEL: ${CLOUDFLARE_AI_MODEL:-@cf/qwen/qwen3.8-27b}
+      CLOUDFLARE_AI_REASONING_EFFORT: ${CLOUDFLARE_AI_REASONING_EFFORT:-low}
       MOCK_LLM_URL: http://mock-llm:8089/api/v1
     volumes:
       # scripts/download-ner.sh кладёт сюда ONNX-модель; для fake-NER каталог не нужен.

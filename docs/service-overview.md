@@ -47,10 +47,14 @@ LLM разбор резюме и формулы `S/τ/c_i` не реализов
 
 Профили LLM:
 - по умолчанию — реальный OpenRouter, модель `dots-studio/dots-3-note-preview:free`;
+- при `CLOUDFLARE_AI_ENABLED=true` и заданном токене — fallback Cloudflare Workers AI
+  (Qwen `@cf/qwen/qwen3.8-27b`), если OpenRouter недоступен;
 - `ATS_PROFILES=mock-llm` — `mock-llm` вместо внешней модели (для CI и проверки без ключа).
 
-Обязательные переменные: `OPENROUTER_API_KEY`, `ATS_PII_ENCRYPTION_KEY` (base64 32 байта),
-`SPRING_DATASOURCE_*`, `ATS_S3_*`, `SCORING_GRPC_TARGET`.
+Обязательные переменные: `OPENROUTER_API_KEY` (или настроенный fallback Cloudflare),
+`ATS_PII_ENCRYPTION_KEY` (base64 32 байта), `SPRING_DATASOURCE_*`, `ATS_S3_*`,
+`SCORING_GRPC_TARGET`. Для fallback дополнительно: `CLOUDFLARE_AI_ENABLED`,
+`CLOUDFLARE_AI_BASE_URL`, `CLOUDFLARE_AI_API_TOKEN`.
 
 ---
 
@@ -69,7 +73,7 @@ ats-service (Java 21, Spring Boot 4)
 scoring-service (Python 3.14, gRPC) — stateless, без БД/файлов/PII
    │ LLM (после реализации)
    ▼
-OpenRouter / mock-llm
+OpenRouter / Cloudflare Workers AI (fallback) / mock-llm
 ```
 
 - Java — единственный владелец PostgreSQL, MinIO, GitHub, hh и PII.
@@ -295,6 +299,9 @@ compose.yaml
 | Переменная / свойство | Значение |
 |---|---|
 | `OPENROUTER_API_KEY` | ключ LLM (не коммитится) |
+| `CLOUDFLARE_AI_ENABLED` | `true` включает fallback Cloudflare Workers AI |
+| `CLOUDFLARE_AI_BASE_URL` / `CLOUDFLARE_AI_API_TOKEN` | OpenAI-совместимый endpoint и токен Cloudflare |
+| `CLOUDFLARE_AI_MODEL` | `@cf/qwen/qwen3.8-27b` |
 | `ATS_PROFILES` | `mock-llm` или пусто (реальная LLM) |
 | `vacancy.llm.model` | `dots-studio/dots-3-note-preview:free` |
 | `vacancy.llm.fallback-models` | `[]` |

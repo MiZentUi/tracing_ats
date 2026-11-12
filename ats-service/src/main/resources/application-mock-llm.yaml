@@ -8,6 +8,9 @@ vacancy:
     total-timeout: 60s
     read-timeout: 30s
     delay: 1s
+    fallback:
+      # В mock-профиле внешние провайдеры запрещены.
+      enabled: false
   template:
     kind-history:
       # Для демонстрации подсказки истории в mock-профиле.
