@@ -3,11 +3,14 @@ package ats.resume;
 import static org.assertj.core.api.Assertions.assertThat;
 
 import ats.resume.domain.ingestion.UploadOutcome;
+import ats.resume.domain.scoring.ParsedResume;
+import ats.resume.domain.scoring.ScoringBatchItem;
 import ats.resume.domain.scoring.ScoringClient;
 import ats.resume.domain.scoring.ScoringRequest;
 import ats.resume.domain.scoring.ScoringResult;
 import ats.resume.domain.vacancy.Requirement;
 import ats.resume.domain.vacancy.RequirementKind;
+import ats.resume.domain.vacancy.VacancyCatalog;
 import ats.resume.domain.vacancy.VacancyClient;
 import ats.resume.domain.vacancy.VacancyTemplate;
 import ats.resume.infrastructure.ingestion.ResumeIngestionService;
@@ -17,18 +20,22 @@ import ats.resume.infrastructure.persistence.entity.ScoreRunEntity;
 import ats.resume.infrastructure.persistence.entity.ScreeningBatchEntity;
 import ats.resume.infrastructure.persistence.repository.ApplicationRepository;
 import ats.resume.infrastructure.persistence.repository.ParsedResumeRepository;
+import ats.resume.infrastructure.persistence.repository.ResumeRepository;
 import ats.resume.infrastructure.persistence.repository.ScoreRunRepository;
 import ats.resume.infrastructure.persistence.repository.ScreeningBatchRepository;
 import ats.resume.infrastructure.pii.ner.NerEntity;
 import ats.resume.infrastructure.pii.ner.NerModel;
 import ats.resume.infrastructure.ranking.RankingService;
+import ats.resume.infrastructure.ranking.ResumeRankingService;
 import ats.resume.infrastructure.report.ReportService;
 import ats.resume.infrastructure.report.RevealService;
+import ats.resume.infrastructure.screening.ResumeMatchService;
 import ats.resume.infrastructure.screening.ScreeningWorker;
 import java.nio.charset.StandardCharsets;
 import java.time.Duration;
 import java.time.Instant;
 import java.util.ArrayList;
+import java.util.Comparator;
 import java.util.List;
 import java.util.UUID;
 import org.junit.jupiter.api.Test;
@@ -59,6 +66,9 @@ class ResumePipelineIntegrationTest {
     @Autowired private ScoreRunRepository scoreRunRepository;
     @Autowired private ScreeningBatchRepository batchRepository;
     @Autowired private RankingService rankingService;
+    @Autowired private ResumeRankingService resumeRankingService;
+    @Autowired private ResumeMatchService resumeMatchService;
+    @Autowired private ResumeRepository resumeRepository;
     @Autowired private ReportService reportService;
     @Autowired private RevealService revealService;
 
@@ -94,10 +104,11 @@ class ResumePipelineIntegrationTest {
                 .doesNotContain("ivan.petrov@example.com")
                 .doesNotContain("+7 999 123-45-67")
                 .doesNotContain("Иван Петров")
-                .doesNotContain("Московский государственный университет")
                 .contains("[PII_EMAIL_1]")
                 .contains("[PII_NAME_1]")
-                .contains("[PII_UNIVERSITY_1]");
+                // Образование больше не маскируется: вуз остаётся в тексте.
+                .contains("Московский государственный университет")
+                .doesNotContain("[PII_UNIVERSITY_1]");
         assertThat(parsed.getEducationLevel()).isEqualTo("HIGHER");
         assertThat(parsed.getSpecialty()).isEqualTo("Прикладная математика");
         assertThat(parsed.getEducationYears()).isEqualByComparingTo("4.0");
@@ -175,7 +186,80 @@ class ResumePipelineIntegrationTest {
                 revealService.reveal(application.getId(), "integration test").orElseThrow();
         assertThat(revealed.fullName()).isEqualTo("Иван Петров");
         assertThat(revealed.email()).isEqualTo("ivan.petrov@example.com");
-        assertThat(revealed.university()).isEqualTo("Московский государственный университет");
+        assertThat(revealed.university()).isNull();
+    }
+
+    @Test
+    void uploadsResumeWithoutVacancyAndRanksVacancies() {
+        String text =
+                """
+                Иван Петров
+                Email: ivan.petrov@example.com
+                Опыт работы
+                Java developer with 5 years. Spring Boot, PostgreSQL.
+                """;
+
+        UploadOutcome outcome =
+                ingestionService.ingest(
+                        null,
+                        false,
+                        new MockMultipartFile(
+                                "files",
+                                "resume.txt",
+                                "text/plain",
+                                text.getBytes(StandardCharsets.UTF_8)));
+
+        assertThat(outcome.status()).isEqualTo(UploadOutcome.Status.MASKED);
+        assertThat(outcome.batchId()).isNotNull();
+
+        awaitResumeStatus(outcome.resumeId(), "MATCHED", Duration.ofSeconds(10));
+        ScreeningBatchEntity batch = batchRepository.findById(outcome.batchId()).orElseThrow();
+        assertThat(batch.getStatus()).isEqualTo("COMPLETED");
+        assertThat(batch.getDirection()).isEqualTo("RESUME_TO_VACANCIES");
+        assertThat(batch.getResumeId()).isEqualTo(outcome.resumeId());
+        assertThat(batch.getTotal()).isEqualTo(4);
+        assertThat(batch.getProcessed()).isEqualTo(4);
+        assertThat(batch.getFailed()).isZero();
+
+        ResumeRankingService.RankingView ranking =
+                resumeRankingService.ranking(outcome.resumeId(), "PRELIMINARY");
+        assertThat(ranking.items()).hasSize(4);
+        assertThat(ranking.items().getFirst().rank()).isEqualTo(1);
+        assertThat(ranking.items())
+                .isSortedAccordingTo(
+                        Comparator.comparingDouble(ResumeRankingService.RankingItem::score)
+                                .reversed());
+
+        UUID topVacancy = ranking.items().getFirst().vacancyId();
+        ReportService.ReportView report =
+                reportService
+                        .reportForMatch(outcome.resumeId(), topVacancy, "PRELIMINARY")
+                        .orElseThrow();
+        assertThat(report.resumeId()).isEqualTo(outcome.resumeId());
+        assertThat(report.vacancyId()).isEqualTo(topVacancy);
+        assertThat(report.requirements()).hasSize(3);
+        assertThat(report.applicationId()).isNull();
+
+        // Повторный расчёт без LLM: пакет создаётся и считается по сохранённому ParsedResume.
+        UUID secondBatch = resumeMatchService.createBatch(outcome.resumeId());
+        resumeMatchService.run(secondBatch, outcome.resumeId());
+        assertThat(batchRepository.findById(secondBatch).orElseThrow().getStatus())
+                .isEqualTo("COMPLETED");
+    }
+
+    private void awaitResumeStatus(UUID resumeId, String status, Duration timeout) {
+        Instant deadline = Instant.now().plus(timeout);
+        while (Instant.now().isBefore(deadline)) {
+            if (status.equals(resumeRepository.findById(resumeId).orElseThrow().getStatus())) {
+                return;
+            }
+            try {
+                Thread.sleep(50);
+            } catch (InterruptedException e) {
+                Thread.currentThread().interrupt();
+                throw new IllegalStateException(e);
+            }
+        }
     }
 
     private ApplicationEntity awaitStatus(UUID applicationId, String status, Duration timeout) {
@@ -202,46 +286,8 @@ class ResumePipelineIntegrationTest {
         @Bean
         @Primary
         VacancyClient vacancyClient() {
-            Requirement java =
-                    new Requirement(
-                            UUID.randomUUID(), "Java", "Java", RequirementKind.MUST, 3, true, 3, 5);
-            Requirement spring =
-                    new Requirement(
-                            UUID.randomUUID(),
-                            "Spring Boot",
-                            "Spring Boot",
-                            RequirementKind.MUST,
-                            3,
-                            false,
-                            2,
-                            3);
-            Requirement kafka =
-                    new Requirement(
-                            UUID.randomUUID(),
-                            "Kafka",
-                            "Kafka",
-                            RequirementKind.NICE,
-                            1,
-                            false,
-                            1,
-                            3);
             VacancyTemplate template =
-                    new VacancyTemplate(
-                            VACANCY_ID,
-                            1,
-                            "Java-разработчик (тест)",
-                            "java-developer",
-                            "middle",
-                            "Ищем Java-разработчика. Java, Spring Boot.",
-                            5,
-                            0.8,
-                            0.7,
-                            0.15,
-                            0.15,
-                            "test-prompt-v1",
-                            "test-scoring-v1",
-                            "v1",
-                            List.of(java, spring, kafka));
+                    template(VACANCY_ID, "Java-разработчик (тест)", requirements());
             return new VacancyClient() {
                 @Override
                 public VacancyTemplate getTemplate(UUID vacancyId) {
@@ -265,12 +311,88 @@ class ResumePipelineIntegrationTest {
 
         @Bean
         @Primary
+        VacancyCatalog vacancyCatalog() {
+            return () ->
+                    List.of(
+                            template(UUID.randomUUID(), "Java-разработчик", requirements()),
+                            template(UUID.randomUUID(), "Backend Python", requirements()),
+                            template(UUID.randomUUID(), "Аналитик данных", requirements()),
+                            template(UUID.randomUUID(), "QA-инженер", requirements()));
+        }
+
+        private static List<Requirement> requirements() {
+            return List.of(
+                    new Requirement(
+                            UUID.randomUUID(), "Java", "Java", RequirementKind.MUST, 3, true, 3, 5),
+                    new Requirement(
+                            UUID.randomUUID(),
+                            "Spring Boot",
+                            "Spring Boot",
+                            RequirementKind.MUST,
+                            3,
+                            false,
+                            2,
+                            3),
+                    new Requirement(
+                            UUID.randomUUID(),
+                            "Kafka",
+                            "Kafka",
+                            RequirementKind.NICE,
+                            1,
+                            false,
+                            1,
+                            3));
+        }
+
+        private static VacancyTemplate template(
+                UUID vacancyId, String title, List<Requirement> requirements) {
+            return new VacancyTemplate(
+                    vacancyId,
+                    1,
+                    title,
+                    "java-developer",
+                    "middle",
+                    "Ищем Java-разработчика. Java, Spring Boot.",
+                    5,
+                    0.8,
+                    0.7,
+                    0.15,
+                    0.15,
+                    "test-prompt-v1",
+                    "test-scoring-v1",
+                    "v1",
+                    requirements);
+        }
+
+        @Bean
+        @Primary
         ScoringClient scoringClient() {
             return new ScoringClient() {
                 @Override
+                public ParsedResume extract(String maskedText) {
+                    return new ParsedResume(
+                            java.util.Base64.getEncoder().encodeToString(new byte[] {1, 2, 3}));
+                }
+
+                @Override
                 public ScoringResult score(ScoringRequest request) {
+                    return result(request.template());
+                }
+
+                @Override
+                public List<ScoringBatchItem> scoreBatch(
+                        ParsedResume parsed, String maskedText, List<VacancyTemplate> templates) {
+                    return templates.stream()
+                            .map(
+                                    template ->
+                                            ScoringBatchItem.ok(
+                                                    template.vacancyId(), result(template)))
+                            .toList();
+                }
+
+                private ScoringResult result(VacancyTemplate template) {
                     List<ScoringResult.RequirementResult> requirements = new ArrayList<>();
-                    for (Requirement requirement : request.template().requirements()) {
+                    for (Requirement requirement : template.requirements()) {
                         boolean java = "Java".equalsIgnoreCase(requirement.skill());
                         boolean spring = "Spring Boot".equalsIgnoreCase(requirement.skill());
                         double coverage = java ? 0.9 : spring ? 0.8 : 0;

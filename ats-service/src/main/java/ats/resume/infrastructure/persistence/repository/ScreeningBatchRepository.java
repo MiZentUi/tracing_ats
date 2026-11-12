@@ -8,4 +8,6 @@ import org.springframework.data.jpa.repository.JpaRepository;
 public interface ScreeningBatchRepository extends JpaRepository<ScreeningBatchEntity, UUID> {
 
     List<ScreeningBatchEntity> findByVacancyIdOrderByCreatedAtDesc(UUID vacancyId);
+
+    List<ScreeningBatchEntity> findByResumeIdOrderByCreatedAtDesc(UUID resumeId);
 }

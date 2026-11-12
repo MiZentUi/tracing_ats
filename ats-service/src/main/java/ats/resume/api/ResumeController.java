@@ -2,11 +2,16 @@ package ats.resume.api;
 
 import ats.api.ResumesApi;
 import ats.gateway.model.ResumeBatchUploadResponse;
+import ats.gateway.model.ResumeFullText;
+import ats.gateway.model.ResumeList;
 import ats.gateway.model.ResumeSummary;
+import ats.gateway.model.ResumeText;
 import ats.gateway.model.ResumeUploadResult;
+import ats.gateway.model.RevealTextRequest;
 import ats.resume.domain.ingestion.UploadOutcome;
 import ats.resume.infrastructure.ingestion.ResumeIngestionService;
 import ats.resume.infrastructure.ingestion.ResumeQueryService;
+import ats.resume.infrastructure.report.RevealService;
 import java.time.ZoneOffset;
 import java.util.ArrayList;
 import java.util.List;
@@ -24,10 +29,11 @@ public class ResumeController implements ResumesApi {
 
     private final ResumeIngestionService ingestionService;
     private final ResumeQueryService queryService;
+    private final RevealService revealService;
 
     @Override
     public ResponseEntity<ResumeBatchUploadResponse> uploadResumes(
-            UUID vacancyId, List<MultipartFile> files, Boolean consentGithub) {
+            List<MultipartFile> files, UUID vacancyId, Boolean consentGithub) {
         List<ResumeUploadResult> results = new ArrayList<>();
         for (MultipartFile file : files) {
             UploadOutcome outcome =
@@ -39,6 +45,9 @@ public class ResumeController implements ResumesApi {
             if (outcome.resumeId() != null) {
                 result.resumeId(outcome.resumeId());
             }
+            if (outcome.batchId() != null) {
+                result.batchId(outcome.batchId());
+            }
             results.add(result);
         }
         ResumeBatchUploadResponse response =
@@ -47,20 +56,60 @@ public class ResumeController implements ResumesApi {
     }
 
     @Override
+    public ResponseEntity<ResumeList> listResumes(Integer limit, Integer offset) {
+        ResumeQueryService.ResumePage page = queryService.list(limit, offset);
+        ResumeList response =
+                new ResumeList()
+                        .total(page.total())
+                        .items(page.items().stream().map(this::summary).toList());
+        return ResponseEntity.ok(response);
+    }
+
+    @Override
     public ResponseEntity<ResumeSummary> getResume(UUID resumeId) {
         return queryService
                 .find(resumeId)
+                .map(view -> ResponseEntity.ok(summary(view)))
+                .orElseGet(() -> ResponseEntity.notFound().build());
+    }
+
+    @Override
+    public ResponseEntity<ResumeText> getResumeText(UUID resumeId) {
+        return queryService
+                .text(resumeId)
                 .map(
                         view ->
                                 ResponseEntity.ok(
-                                        new ResumeSummary()
+                                        new ResumeText()
                                                 .resumeId(view.resumeId())
-                                                .status(view.status())
-                                                .fileType(view.fileType())
-                                                .sizeBytes(view.sizeBytes())
-                                                .createdAt(
-                                                        view.createdAt().atOffset(ZoneOffset.UTC))
-                                                .warnings(view.warnings())))
+                                                .maskedText(view.maskedText())
+                                                .warnings(view.warnings())
+                                                .blind(true)))
                 .orElseGet(() -> ResponseEntity.notFound().build());
+    }
+
+    @Override
+    public ResponseEntity<ResumeFullText> revealResumeText(
+            UUID resumeId, RevealTextRequest request) {
+        return revealService
+                .revealText(resumeId, request.getApplicationId(), request.getReason())
+                .map(
+                        text ->
+                                ResponseEntity.ok(
+                                        new ResumeFullText()
+                                                .resumeId(resumeId)
+                                                .text(text)
+                                                .blind(false)))
+                .orElseGet(() -> ResponseEntity.notFound().build());
+    }
+
+    private ResumeSummary summary(ResumeQueryService.ResumeView view) {
+        return new ResumeSummary()
+                .resumeId(view.resumeId())
+                .status(view.status())
+                .fileType(view.fileType())
+                .sizeBytes(view.sizeBytes())
+                .createdAt(view.createdAt().atOffset(ZoneOffset.UTC))
+                .warnings(view.warnings());
     }
 }

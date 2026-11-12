@@ -54,7 +54,7 @@ class OpenAiCompatibleClient:
         api_key: str = "",
         timeout_seconds: float = 600.0,
         max_retries: int = 1,
-        # max_output_tokens: int = 50000,
+        max_output_tokens: int = 4096,
         temperature: float = 0.0,
         client: OpenAI | None = None,
     ) -> None:
@@ -62,7 +62,7 @@ class OpenAiCompatibleClient:
         self._base_url = base_url
         self._timeout_seconds = timeout_seconds
         self._max_retries = max_retries
-        # self._max_output_tokens = max_output_tokens
+        self._max_output_tokens = max_output_tokens
         self._temperature = temperature
         self._client = client or OpenAI(
             # Локальным OpenAI-совместимым серверам ключ не нужен, но SDK
@@ -80,20 +80,20 @@ class OpenAiCompatibleClient:
     def complete(self, system: str, user: str) -> str:
         started = time.perf_counter()
         logger.info(
-            "llm request start model=%s base_url=%s timeout_s=%.1f max_retries=%d ",
-            # "max_output_tokens=%d",
+            "llm request start model=%s base_url=%s timeout_s=%.1f max_retries=%d"
+            " max_output_tokens=%d",
             self._model,
             self._base_url,
             self._timeout_seconds,
             self._max_retries,
-            # self._max_output_tokens,
+            self._max_output_tokens,
         )
 
         try:
             response = self._client.chat.completions.create(
                 model=self._model,
                 temperature=self._temperature,
-                # max_tokens=self._max_output_tokens,
+                max_tokens=self._max_output_tokens,
                 response_format={"type": "json_object"},
                 messages=[
                     {"role": "system", "content": system},

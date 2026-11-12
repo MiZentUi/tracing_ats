@@ -1,5 +1,6 @@
 package ats.resume.infrastructure.scoring;
 
+import ats.resume.domain.scoring.ParsedResume;
 import ats.resume.domain.scoring.ScoringClient;
 import ats.resume.domain.scoring.ScoringRequest;
 import ats.resume.domain.scoring.ScoringResult;
@@ -7,9 +8,11 @@ import ats.resume.domain.vacancy.VacancyClient;
 import ats.resume.domain.vacancy.VacancyTemplate;
 import ats.resume.infrastructure.persistence.entity.ApplicationEntity;
 import ats.resume.infrastructure.persistence.entity.ParsedResumeEntity;
+import ats.resume.infrastructure.persistence.entity.ResumeExtractionEntity;
 import ats.resume.infrastructure.persistence.entity.ScoreRunEntity;
 import ats.resume.infrastructure.persistence.repository.ApplicationRepository;
 import ats.resume.infrastructure.persistence.repository.ParsedResumeRepository;
+import ats.resume.infrastructure.persistence.repository.ResumeExtractionRepository;
 import ats.resume.infrastructure.screening.ScoreRunWriter;
 import java.util.UUID;
 import lombok.RequiredArgsConstructor;
@@ -26,8 +29,11 @@ import org.springframework.transaction.support.TransactionTemplate;
 @RequiredArgsConstructor
 public class PreliminaryScoringService {
 
+    private static final String EXTRACTION_VERSION = "extract-v1";
+
     private final ApplicationRepository applicationRepository;
     private final ParsedResumeRepository parsedResumeRepository;
+    private final ResumeExtractionRepository extractionRepository;
     private final VacancyClient vacancyClient;
     private final ScoringClient scoringClient;
     private final ScoreRunWriter scoreRunWriter;
@@ -68,7 +74,7 @@ public class PreliminaryScoringService {
 
     /**
      * Считает PRELIMINARY по переданному шаблону. Если отклик уже забрал другой worker, возвращает
-     * null. Используется и при загрузке, и при пересчёте устаревшего запуска в скрининге.
+     * null. Резюме разбирается один раз и сохраняется: повторный расчёт LLM не вызывает.
      */
     public ScoreRunEntity score(UUID applicationId, VacancyTemplate template) {
         ApplicationSnapshot snapshot;
@@ -82,9 +88,17 @@ public class PreliminaryScoringService {
             return null;
         }
         try {
+            ParsedResume parsed = snapshot.parsed();
+            if (parsed == null) {
+                parsed = scoringClient.extract(snapshot.maskedText());
+                ParsedResume extracted = parsed;
+                transactionTemplate.executeWithoutResult(
+                        status -> saveExtracted(applicationId, extracted));
+            }
             ScoringResult result =
                     scoringClient.score(
-                            new ScoringRequest(applicationId, snapshot.maskedText(), template));
+                            new ScoringRequest(
+                                    applicationId, snapshot.maskedText(), template, parsed));
             return transactionTemplate.execute(status -> complete(applicationId, template, result));
         } catch (RuntimeException e) {
             fail(applicationId);
@@ -104,7 +118,25 @@ public class PreliminaryScoringService {
                 parsedResumeRepository
                         .findByResumeId(application.getResumeId())
                         .orElseThrow(() -> new IllegalStateException("parsed resume not found"));
-        return new ApplicationSnapshot(parsed.getMaskedText());
+        ParsedResume extracted =
+                extractionRepository
+                        .findFirstByResumeIdOrderByCreatedAtDesc(application.getResumeId())
+                        .map(entity -> new ParsedResume(entity.getExtractedFeatures()))
+                        .orElse(null);
+        return new ApplicationSnapshot(parsed.getMaskedText(), extracted);
+    }
+
+    private void saveExtracted(UUID applicationId, ParsedResume parsed) {
+        UUID resumeId =
+                applicationRepository
+                        .findById(applicationId)
+                        .orElseThrow(() -> new IllegalStateException("application not found"))
+                        .getResumeId();
+        ResumeExtractionEntity entity = new ResumeExtractionEntity();
+        entity.setResumeId(resumeId);
+        entity.setExtractedFeatures(parsed.base64());
+        entity.setExtractionVersion(EXTRACTION_VERSION);
+        extractionRepository.save(entity);
     }
 
     private ScoreRunEntity complete(
@@ -145,5 +177,5 @@ public class PreliminaryScoringService {
         }
     }
 
-    private record ApplicationSnapshot(String maskedText) {}
+    private record ApplicationSnapshot(String maskedText, ParsedResume parsed) {}
 }

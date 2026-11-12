@@ -1,0 +1,43 @@
+[project]
+name = "mock-scoring-service"
+version = "0.1.0"
+description = "Deterministic mock of the scoring-service gRPC contract"
+readme = "README.md"
+requires-python = ">=3.14"
+dependencies = [
+    "googleapis-common-protos>=1.76.0",
+    "grpcio>=1.85.1",
+    "grpcio-health-checking>=1.85.1",
+    "grpcio-reflection>=1.85.1",
+]
+
+[project.scripts]
+mock-scoring-service = "mock_scoring:main"
+mock-scoring-service-healthcheck = "mock_scoring.healthcheck:main"
+
+[build-system]
+requires = ["uv_build>=0.13.7,<0.14.0"]
+build-backend = "uv_build"
+
+[tool.uv.build-backend]
+module-name = ["mock_scoring", "scoring_service"]
+
+[dependency-groups]
+dev = ["grpcio-tools>=1.85.1", "pytest>=9.2.0", "ruff>=0.17.4"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+pythonpath = ["src"]
+
+[tool.ruff]
+line-length = 100
+target-version = "py314"
+exclude = ["src/scoring_service"]
+
+[tool.ruff.lint]
+select = ["E", "F", "I", "UP", "B", "SIM", "RUF"]
+
+[tool.ruff.lint.per-file-ignores]
+# Русские комментарии и сообщения — намеренный частичный перевод контракта.
+"src/mock_scoring/*" = ["RUF001", "RUF002", "RUF003"]
+"tests/*" = ["RUF001", "RUF002", "RUF003"]

@@ -6,6 +6,93 @@
 версии соответствуют [семантическому версионированию](https://semver.org/lang/ru/).
 
 ## [Unreleased]
+
+### Ветка `feature/resume-to-vacancy-matching` — обратный подбор и новый контракт
+
+#### Added
+
+- **Режим «вакансии под резюме».** `POST /api/v1/resumes` без `vacancyId` принимает
+  пачку резюме, не создаёт отклик и запускает сравнение со всеми вакансиями.
+  `GET /api/v1/resumes/{resumeId}/ranking` отдаёт рейтинг вакансий,
+  `GET /api/v1/resumes/{resumeId}/vacancies/{vacancyId}/report` — отчёт по паре,
+  `POST /api/v1/resumes/{resumeId}/match` пересчитывает без LLM.
+- **Пакетная оценка вакансий.** `EvaluateResumeMatches` вызывается чанками по
+  `ats.resume.match.batch-size` (по умолчанию 3, env `ATS_RESUME_MATCH_BATCH_SIZE`).
+- **Кеш `ParsedResume`.** `ExtractResume` вызывается один раз на резюме, снимок
+  хранится в неизменяемой `resume_extraction`; повторные расчёты LLM не вызывают.
+- **Frontend.** Экран «Подбор» с переключением режимов, загрузка пачки, прогресс
+  пакета, рейтинг кандидатов и вакансий, отчёт и reveal.
+- **Вставка текста резюме.** На экране загрузки можно вставить текст вместо файла:
+  он уходит как `pasted-resume-N.txt` и проходит тот же путь извлечения и маскировки.
+- **История резюме.** `GET /api/v1/resumes` отдаёт последние загрузки без PII
+  (id, статус, тип, размер, дата). Отдельная вкладка «Разборы» показывает статусы
+  и ведёт в рейтинг; после кнопки «Загрузить и оценить» HR сразу попадает туда.
+- **Просмотр источника из отчёта.** Кнопка «Открыть тексты» открывает две панели
+  рядом: исходный текст вакансии и текст резюме. Подтверждённые и частично
+  подтверждённые навыки подсвечиваются зелёным в обоих текстах. «Вернуться к отчёту»
+  возвращает на исходную страницу. Резюме по умолчанию обезличенное:
+  `GET /api/v1/resumes/{resumeId}/text`. «Показать оригинал» требует причину и пишет
+  `REVEAL_RESUME_TEXT` в аудит: `POST /api/v1/resumes/{resumeId}/reveal-text`.
+- **Навигация по разборам.** Из рейтинга — «Все разборы», из отчёта — «К разбору»
+  или «К кандидатам»; у кнопки «Пересчитать без LLM» появилась подсказка,
+  что модель не вызывается.
+
+#### Changed
+
+- **Java переведена на новый контракт scoring.** Вместо legacy `ScoreResume`
+  используются `ExtractResume` и `EvaluateResumeMatch`/`EvaluateResumeMatches`.
+  Статусы требований теперь различают `COVERED`, `PARTIAL`, `GAP`, `NOT_STATED` и `ABSENT`.
+- **Единое хранилище запусков.** `score_run` и `screening_batch` получили
+  `direction` (`VACANCY_TO_CANDIDATES` / `RESUME_TO_VACANCIES`) и nullable-владельца,
+  чтобы оба рейтинга считались одной моделью и одним отчётом.
+
+#### Fixed
+
+- **`ExtractResume` на реальных резюме.** `scoring-service` падал с `AttributeError`
+  на любом резюме, где хотя бы одна цитата не прошла проверку: в логе стояло
+  `extracted.droppereturnd` вместо `extracted.dropped`. Из `extractor.py` также
+  убран отладочный `print(raw)`, который печатал сырой ответ модели в логи.
+
+#### Security
+
+- **Образование больше не маскируется**: вуз, специальность и годы остаются в
+  `masked_text`, ORG от NER не превращается в `PII_UNIVERSITY`. Инвариант
+  «маскировка до LLM» обновлён в `AGENTS.md` и ADR 0001; вуз не является отдельным
+  сигналом скоринга. Имена, контакты, адреса и документы маскируются как раньше.
+
+#### Docs
+
+- `docs/reports/007-resume-to-vacancy-matching.md` — сводный отчёт по ветке:
+  что сделано, что проверено, что осталось.
+
+### Ветка `feature/scoring-service-mock` — заглушка scoring-service
+
+#### Added
+
+- **Мок scoring-service по актуальному gRPC-контракту.**
+  `infra/mock-scoring-service` реализует `ExtractResume`, `EvaluateResumeMatch`,
+  `EvaluateResumeMatches` и `ScoreResume` из
+  `contracts/proto/scoring_service/v1/scoring.proto`. Модели скоринга нет:
+  навыки, образование и опыт извлекаются по фиксированному словарю, цитаты
+  проверяются как точные срезы текста, статусы `FULL`/`PARTIAL`/`ABSENT`/
+  `NOT_STATED` и пробелы собираются детерминированно.
+- **Режимы для тестов.** Сценарии `unavailable`, `invalid-argument`, `internal`,
+  `slow`, `empty` через маркер в тексте или metadata `x-mock-scenario`; изоляция
+  ошибки одной вакансии в пакетном вызове через `MOCK_VACANCY_ERROR`.
+- **Compose-профиль `mock-scoring` и CI-джоба** `mock-scoring`; адрес скоринга
+  в `ats-service` теперь переопределяется через `SCORING_GRPC_TARGET`.
+
+#### Security
+
+- Заглушка не вызывает LLM и не ходит в БД, файлы и внешние API. В логи пишутся
+  только метод, статус, `request_id`, длительность и счётчики — без текста
+  резюме и цитат.
+
+#### Docs
+
+- `infra/mock-scoring-service/README.md`: правила сопоставления, ограничения,
+  запуск и переменные окружения.
+
 ### Ветка `feature/scoring-service` — пайплайн извлечения
 
 #### Added

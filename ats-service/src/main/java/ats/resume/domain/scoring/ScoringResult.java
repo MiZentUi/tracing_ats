@@ -11,11 +11,40 @@ public record ScoringResult(
         double scoreHigh,
         Integer tenure,
         List<String> flags,
-        List<RequirementResult> requirements) {
+        List<RequirementResult> requirements,
+        List<String> strengths,
+        List<String> risks,
+        List<String> questions,
+        String recruiterNote) {
 
     public ScoringResult {
         flags = List.copyOf(flags);
         requirements = List.copyOf(requirements);
+        strengths = strengths == null ? List.of() : List.copyOf(strengths);
+        risks = risks == null ? List.of() : List.copyOf(risks);
+        questions = questions == null ? List.of() : List.copyOf(questions);
+    }
+
+    public ScoringResult(
+            double relevance,
+            double score,
+            double scoreLow,
+            double scoreHigh,
+            Integer tenure,
+            List<String> flags,
+            List<RequirementResult> requirements) {
+        this(
+                relevance,
+                score,
+                scoreLow,
+                scoreHigh,
+                tenure,
+                flags,
+                requirements,
+                List.of(),
+                List.of(),
+                List.of(),
+                null);
     }
 
     public record RequirementResult(
@@ -33,9 +62,12 @@ public record ScoringResult(
             String gap,
             boolean external) {
 
+        /** Статусы ТЗ: полное, частичное, отсутствие и «не указано». */
         public enum Status {
             COVERED,
             PARTIAL,
+            NOT_STATED,
+            ABSENT,
             GAP
         }
 

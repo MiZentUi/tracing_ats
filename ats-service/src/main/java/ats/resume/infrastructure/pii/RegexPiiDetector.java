@@ -14,7 +14,8 @@ import org.springframework.stereotype.Component;
 
 /**
  * Структурированные PII: email, телефоны, ссылки, мессенджеры, документы и явные поля-метки.
- * Семантические сущности (имена, города, вузы) ищет локальная NER-модель, а не словарь.
+ * Семантические сущности (имена, города) ищет локальная NER-модель, а не словарь. Образование (вуз,
+ * специальность, годы) намеренно не маскируется: скоринг использует его как факт резюме.
  */
 @Component
 public class RegexPiiDetector implements PiiDetector {
@@ -89,16 +90,6 @@ public class RegexPiiDetector implements PiiDetector {
 
     private static final Pattern PHOTO = Pattern.compile("\\b(?:фото|photo)\\b", FLAGS);
 
-    private static final Pattern UNIVERSITY_FALLBACK =
-            Pattern.compile(
-                    "(?m)^[^\\n]*\\b(?:университет|институт|академия|колледж|university|institute|academy|college)\\b[^\\n]*$",
-                    FLAGS);
-
-    private static final Pattern GRADUATION_YEAR =
-            Pattern.compile(
-                    "(?:окончил(?:а)?|выпуск|graduated|graduation)[^\\n]{0,30}?\\b((?:19|20)\\d{2})\\b",
-                    FLAGS);
-
     private static final Set<String> RESERVED_GITHUB_PATHS =
             Set.of(
                     "features",
@@ -144,8 +135,6 @@ public class RegexPiiDetector implements PiiDetector {
         addMatches(spans, MARITAL_STATUS, text, PiiType.MARITAL_STATUS, 1);
         addMatches(spans, ADDRESS, text, PiiType.LOCATION, 1);
         addMatches(spans, PHOTO, text, PiiType.PHOTO, 0);
-        addMatches(spans, UNIVERSITY_FALLBACK, text, PiiType.UNIVERSITY, 0);
-        addMatches(spans, GRADUATION_YEAR, text, PiiType.GRADUATION_YEAR, 1);
         return spans;
     }
 

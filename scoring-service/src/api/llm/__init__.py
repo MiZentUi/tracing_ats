@@ -33,4 +33,5 @@ def build_llm_client(settings: Settings) -> LlmClient:
         api_key=settings.llm_api_key.get_secret_value(),
         timeout_seconds=settings.llm_timeout_seconds,
         max_retries=settings.llm_max_retries,
+        max_output_tokens=settings.llm_max_output_tokens,
     )

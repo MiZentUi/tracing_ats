@@ -27,32 +27,15 @@ public class ReportController implements ReportsApi {
             UUID applicationId, String phase) {
         return reportService
                 .report(applicationId, phase)
-                .map(
-                        report ->
-                                ResponseEntity.ok(
-                                        new ApplicationReport()
-                                                .applicationId(report.applicationId())
-                                                .phase(
-                                                        ApplicationReport.PhaseEnum.valueOf(
-                                                                report.phase()))
-                                                .relevance(report.relevance())
-                                                .score(report.score())
-                                                .scoreLow(report.scoreLow())
-                                                .scoreHigh(report.scoreHigh())
-                                                .capApplied(report.capApplied())
-                                                .decision(
-                                                        ApplicationReport.DecisionEnum.valueOf(
-                                                                report.decision()))
-                                                .requirements(
-                                                        report.requirements().stream()
-                                                                .map(this::requirement)
-                                                                .toList())
-                                                .externalEvidence(
-                                                        report.externalEvidence().stream()
-                                                                .map(this::external)
-                                                                .toList())
-                                                .flags(report.flags())
-                                                .blind(report.blind())))
+                .map(report -> ResponseEntity.ok(response(report)))
+                .orElseGet(() -> ResponseEntity.notFound().build());
+    }
+
+    @Override
+    public ResponseEntity<ApplicationReport> getResumeVacancyReport(UUID resumeId, UUID vacancyId) {
+        return reportService
+                .reportForMatch(resumeId, vacancyId, "PRELIMINARY")
+                .map(report -> ResponseEntity.ok(response(report)))
                 .orElseGet(() -> ResponseEntity.notFound().build());
     }
 
@@ -73,6 +56,27 @@ public class ReportController implements ReportsApi {
                                                 .githubUrl(candidate.githubUrl())
                                                 .originalFilename(candidate.originalFilename())))
                 .orElseGet(() -> ResponseEntity.notFound().build());
+    }
+
+    private ApplicationReport response(ReportService.ReportView report) {
+        return new ApplicationReport()
+                .applicationId(report.applicationId())
+                .resumeId(report.resumeId())
+                .vacancyId(report.vacancyId())
+                .phase(ApplicationReport.PhaseEnum.valueOf(report.phase()))
+                .relevance(report.relevance())
+                .score(report.score())
+                .scoreLow(report.scoreLow())
+                .scoreHigh(report.scoreHigh())
+                .capApplied(report.capApplied())
+                .decision(
+                        report.decision() == null
+                                ? null
+                                : ApplicationReport.DecisionEnum.valueOf(report.decision()))
+                .requirements(report.requirements().stream().map(this::requirement).toList())
+                .externalEvidence(report.externalEvidence().stream().map(this::external).toList())
+                .flags(report.flags())
+                .blind(report.blind());
     }
 
     private RequirementReportItem requirement(ReportService.RequirementReportItem item) {
