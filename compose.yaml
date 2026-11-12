@@ -84,6 +84,10 @@ services:
       SCORING_SERVICE_LLM_BASE_URL: ${SCORING_SERVICE_LLM_BASE_URL:-https://openrouter.ai/api/v1}
       SCORING_SERVICE_LLM_API_KEY: ${OPENROUTER_API_KEY:-}
       SCORING_SERVICE_LLM_MODEL: ${SCORING_SERVICE_LLM_MODEL:-}
+      # Reasoning-модели тратят токены на reasoning: без запаса content приходит пустым.
+      SCORING_SERVICE_LLM_MAX_OUTPUT_TOKENS: ${SCORING_SERVICE_LLM_MAX_OUTPUT_TOKENS:-4096}
+      SCORING_SERVICE_LLM_TIMEOUT_SECONDS: ${SCORING_SERVICE_LLM_TIMEOUT_SECONDS:-30}
+      SCORING_SERVICE_LLM_MAX_RETRIES: ${SCORING_SERVICE_LLM_MAX_RETRIES:-1}
     ports:
       - "${SCORING_SERVICE_PORT:-8082}:8082"
     restart: unless-stopped
@@ -136,6 +140,8 @@ services:
       # Внутренние gRPC-вызовы идут в тот же процесс.
       ATS_VACANCY_GRPC_TARGET: localhost:9090
       SCORING_GRPC_TARGET: ${SCORING_GRPC_TARGET:-scoring-service:8082}
+      # Free-reasoning-модели отвечают дольше 60 с: дедлайн должен быть с запасом.
+      ATS_SCORING_DEADLINE: ${ATS_SCORING_DEADLINE:-60s}
       # Сколько вакансий уходит в один gRPC-вызов обратного подбора.
       ATS_RESUME_MATCH_BATCH_SIZE: ${ATS_RESUME_MATCH_BATCH_SIZE:-3}
       ATS_GITHUB_ENABLED: ${ATS_GITHUB_ENABLED:-false}
