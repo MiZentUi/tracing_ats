@@ -32,6 +32,13 @@ import ToastHost from '@/components/ToastHost.vue'
           >
             Подбор
           </RouterLink>
+          <RouterLink
+            to="/analyses"
+            class="rounded-xl px-3 py-2 text-sm font-medium text-slate-600 transition hover:bg-slate-100 hover:text-slate-900"
+            active-class="bg-slate-100 !text-slate-900"
+          >
+            Разборы
+          </RouterLink>
         </nav>
 
         <div class="ml-auto flex items-center gap-2">

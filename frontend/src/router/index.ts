@@ -3,6 +3,7 @@ import VacancyListView from '@/views/VacancyListView.vue'
 import VacancyCreateView from '@/views/VacancyCreateView.vue'
 import VacancyEditView from '@/views/VacancyEditView.vue'
 import MatchView from '@/views/MatchView.vue'
+import AnalysesView from '@/views/AnalysesView.vue'
 import VacancyCandidatesView from '@/views/VacancyCandidatesView.vue'
 import ResumeRankingView from '@/views/ResumeRankingView.vue'
 import ResumeTextView from '@/views/ResumeTextView.vue'
@@ -17,6 +18,7 @@ const router = createRouter({
     { path: '/vacancies/new', name: 'vacancy-create', component: VacancyCreateView },
     { path: '/vacancies/:id', name: 'vacancy-edit', component: VacancyEditView, props: true },
     { path: '/match', name: 'match', component: MatchView },
+    { path: '/analyses', name: 'analyses', component: AnalysesView },
     {
       path: '/vacancies/:id/candidates',
       name: 'vacancy-candidates',

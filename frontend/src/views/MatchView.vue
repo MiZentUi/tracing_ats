@@ -2,7 +2,7 @@
 import { computed, onMounted, ref } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import { FileUp, Loader2, Sparkles } from '@lucide/vue'
-import type { ResumeBatchUploadResponse, ResumeSummary, VacancySummary } from '@/api/generated'
+import type { ResumeBatchUploadResponse, VacancySummary } from '@/api/generated'
 import { apiErrorMessage, resumesApi, vacanciesApi } from '@/api'
 import { useToast } from '@/composables/useToast'
 
@@ -22,8 +22,6 @@ const pastedCounter = ref(0)
 const uploading = ref(false)
 const error = ref('')
 const response = ref<ResumeBatchUploadResponse | null>(null)
-const recent = ref<ResumeSummary[]>([])
-const recentLoading = ref(false)
 const fileInput = ref<HTMLInputElement | null>(null)
 
 const canUpload = computed(
@@ -43,30 +41,7 @@ onMounted(async () => {
   } catch (e) {
     error.value = apiErrorMessage(e)
   }
-  await loadRecent()
 })
-
-async function loadRecent() {
-  recentLoading.value = true
-  try {
-    const page = await resumesApi.listResumes({ limit: 10, offset: 0 })
-    recent.value = page.data.items ?? []
-  } catch {
-    // История не должна мешать основной загрузке.
-    recent.value = []
-  } finally {
-    recentLoading.value = false
-  }
-}
-
-function formatDate(value: string): string {
-  return new Date(value).toLocaleString('ru-RU', {
-    day: '2-digit',
-    month: '2-digit',
-    hour: '2-digit',
-    minute: '2-digit',
-  })
-}
 
 function appendFiles(incoming: File[]) {
   files.value = [...files.value, ...incoming]
@@ -124,11 +99,17 @@ async function upload() {
     const result = await resumesApi.uploadResumes(payload)
     response.value = result.data
     success('Резюме приняты', 'Обработка идёт в фоне')
-    await loadRecent()
     if (fileInput.value) {
       fileInput.value.value = ''
     }
     files.value = []
+    const first = result.data.resumes?.[0]
+    if (mode.value === 'vacancies' && first?.resumeId) {
+      // Сразу уводим в разборы: там видно прогресс и результат.
+      router.push(`/analyses?resumeId=${first.resumeId}`)
+    } else {
+      router.push(`/vacancies/${vacancyId.value}/candidates`)
+    }
   } catch (e) {
     const message = apiErrorMessage(e)
     error.value = message
@@ -303,39 +284,6 @@ function openRanking() {
           <button class="btn-secondary w-full" @click="openRanking">
             Открыть рейтинг
           </button>
-        </div>
-
-        <div class="mt-6 border-t border-slate-200 pt-4">
-          <div class="flex items-center justify-between gap-2">
-            <h2 class="text-sm font-semibold text-slate-900">Последние резюме</h2>
-            <button
-              class="text-xs text-slate-400 transition hover:text-slate-700"
-              :disabled="recentLoading"
-              @click="loadRecent"
-            >
-              Обновить
-            </button>
-          </div>
-          <p v-if="recentLoading && !recent.length" class="mt-2 text-sm text-slate-500">
-            Загрузка…
-          </p>
-          <p v-else-if="!recent.length" class="mt-2 text-sm text-slate-500">
-            Пока ничего не загружено.
-          </p>
-          <ul v-else class="mt-2 space-y-2">
-            <li v-for="item in recent" :key="item.resumeId">
-              <RouterLink
-                :to="`/resumes/${item.resumeId}`"
-                class="flex items-center gap-2 rounded-xl border border-slate-200 px-3 py-2 text-xs transition hover:border-indigo-300 hover:bg-indigo-50/40"
-              >
-                <span class="font-mono text-slate-500">{{ item.resumeId.slice(0, 8) }}…</span>
-                <span class="rounded-full bg-slate-100 px-2 py-0.5 font-medium text-slate-700">
-                  {{ item.status }}
-                </span>
-                <span class="ml-auto text-slate-400">{{ formatDate(item.createdAt) }}</span>
-              </RouterLink>
-            </li>
-          </ul>
         </div>
       </aside>
     </div>
