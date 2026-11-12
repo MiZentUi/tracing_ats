@@ -6,6 +6,35 @@
 версии соответствуют [семантическому версионированию](https://semver.org/lang/ru/).
 
 ## [Unreleased]
+
+### Ветка `feature/scoring-service-mock` — заглушка scoring-service
+
+#### Added
+
+- **Мок scoring-service по актуальному gRPC-контракту.**
+  `infra/mock-scoring-service` реализует `ExtractResume`, `EvaluateResumeMatch`,
+  `EvaluateResumeMatches` и `ScoreResume` из
+  `contracts/proto/scoring_service/v1/scoring.proto`. Модели скоринга нет:
+  навыки, образование и опыт извлекаются по фиксированному словарю, цитаты
+  проверяются как точные срезы текста, статусы `FULL`/`PARTIAL`/`ABSENT`/
+  `NOT_STATED` и пробелы собираются детерминированно.
+- **Режимы для тестов.** Сценарии `unavailable`, `invalid-argument`, `internal`,
+  `slow`, `empty` через маркер в тексте или metadata `x-mock-scenario`; изоляция
+  ошибки одной вакансии в пакетном вызове через `MOCK_VACANCY_ERROR`.
+- **Compose-профиль `mock-scoring` и CI-джоба** `mock-scoring`; адрес скоринга
+  в `ats-service` теперь переопределяется через `SCORING_GRPC_TARGET`.
+
+#### Security
+
+- Заглушка не вызывает LLM и не ходит в БД, файлы и внешние API. В логи пишутся
+  только метод, статус, `request_id`, длительность и счётчики — без текста
+  резюме и цитат.
+
+#### Docs
+
+- `infra/mock-scoring-service/README.md`: правила сопоставления, ограничения,
+  запуск и переменные окружения.
+
 ### Ветка `feature/scoring-service` — пайплайн извлечения
 
 #### Added
