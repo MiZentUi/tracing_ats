@@ -28,16 +28,16 @@ onMounted(async () => {
       <div>
         <p class="text-xs font-medium uppercase tracking-wide text-indigo-600">Резюме</p>
         <h1 class="text-2xl font-semibold tracking-tight text-slate-900">
-          Обезличенный текст
+          Обезличенный текст резюме
         </h1>
         <p class="mt-1 text-sm text-slate-500">
-          {{ props.id.slice(0, 8) }}… · PII заменены плейсхолдерами, исходный текст не показывается
+          {{ props.id.slice(0, 8) }}… · персональные данные заменены плейсхолдерами, оригинал не показывается
         </p>
       </div>
       <div class="flex flex-wrap items-center gap-2">
         <RouterLink :to="`/resumes/${props.id}`" class="btn-secondary">
           <ArrowLeft :size="16" />
-          К рейтингу вакансий
+          К подходящим вакансиям
         </RouterLink>
       </div>
     </header>
@@ -51,7 +51,7 @@ onMounted(async () => {
         class="inline-flex items-center gap-2 rounded-full bg-slate-100 px-3 py-1 text-xs font-medium text-slate-600"
       >
         <ShieldCheck :size="14" />
-        Слепой режим
+        Слепой режим: персональные данные скрыты
       </div>
 
       <div

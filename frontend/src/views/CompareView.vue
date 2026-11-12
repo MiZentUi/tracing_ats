@@ -9,6 +9,7 @@ import type {
   Vacancy,
 } from '@/api/generated'
 import { apiErrorMessage, reportsApi, resumesApi, vacanciesApi } from '@/api'
+import RevealPiiDialog from '@/components/RevealPiiDialog.vue'
 import { useToast } from '@/composables/useToast'
 
 const route = useRoute()
@@ -34,6 +35,8 @@ const report = ref<ApplicationReport | null>(null)
 const revealed = ref<ResumeFullText | null>(null)
 const loading = ref(true)
 const revealing = ref(false)
+const revealOpen = ref(false)
+const revealReason = ref('')
 const error = ref('')
 
 const resumeText = computed(() => revealed.value?.text ?? resume.value?.maskedText ?? '')
@@ -159,11 +162,7 @@ onMounted(async () => {
   }
 })
 
-async function reveal() {
-  const reason = window.prompt('Причина раскрытия PII (обязательно)')
-  if (!reason?.trim()) {
-    return
-  }
+async function reveal(reason: string) {
   revealing.value = true
   try {
     const response = await resumesApi.revealResumeText({
@@ -174,10 +173,12 @@ async function reveal() {
       },
     })
     revealed.value = response.data
+    revealReason.value = reason
+    revealOpen.value = false
   } catch (e) {
     const message = apiErrorMessage(e)
     error.value = message
-    toastError('Не удалось раскрыть текст', message)
+    toastError('Не удалось показать персональные данные', message)
   } finally {
     revealing.value = false
   }
@@ -200,7 +201,7 @@ function back() {
   <section class="space-y-4">
     <header class="flex flex-wrap items-center justify-between gap-3">
       <div>
-        <h1 class="text-xl font-semibold tracking-tight text-slate-900">Тексты для сверки</h1>
+        <h1 class="text-xl font-semibold tracking-tight text-slate-900">Сравнение текстов</h1>
         <p class="text-sm text-slate-500">
           Слева — исходный текст вакансии, справа — текст резюме.
           <span class="inline-flex items-center gap-1 text-emerald-700">
@@ -260,15 +261,15 @@ function back() {
             v-if="!revealed"
             class="btn-secondary"
             :disabled="revealing"
-            @click="reveal"
+            @click="revealOpen = true"
           >
             <Loader2 v-if="revealing" :size="16" class="animate-spin" />
             <Eye v-else :size="16" />
-            Показать оригинал
+            Показать персональные данные
           </button>
           <button v-else class="btn-secondary" @click="hide">
             <EyeOff :size="16" />
-            Скрыть PII
+            Скрыть персональные данные
           </button>
         </header>
         <div class="min-h-0 flex-1 overflow-auto px-5 py-4">
@@ -276,7 +277,7 @@ function back() {
             v-if="revealed"
             class="mb-3 rounded-xl bg-amber-50 px-3 py-2 text-xs text-amber-800"
           >
-            PII раскрыты по указанной причине, действие записано в аудит.
+            Персональные данные показаны. Причина: «{{ revealReason }}». Действие записано в аудит.
           </div>
           <pre
             v-if="resumeText"
@@ -289,5 +290,12 @@ function back() {
         </div>
       </article>
     </div>
+
+    <RevealPiiDialog
+      :open="revealOpen"
+      :submitting="revealing"
+      @close="revealOpen = false"
+      @confirm="reveal"
+    />
   </section>
 </template>

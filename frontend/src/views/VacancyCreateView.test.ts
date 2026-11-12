@@ -58,7 +58,7 @@ describe('VacancyCreateView', () => {
 
     const button = wrapper.get('button[type="submit"]')
     expect(button.attributes('disabled')).toBeDefined()
-    expect(wrapper.text()).toContain('Разбор может занять до 5 минут')
+    expect(wrapper.text()).toContain('Извлечение может занять до 5 минут')
 
     resolveRequest({ data: { vacancy_id: 'vacancy-1' } })
     await flushPromises()
@@ -73,6 +73,7 @@ describe('VacancyCreateView', () => {
     await wrapper.get('button[title="Добавить специализацию"]').trigger('click')
     await wrapper.get('input[placeholder="Например, Аналитика"]').setValue('Аналитика')
     const dialog = wrapper.get('[role="dialog"]')
+    await dialog.findAll('input[type="radio"]')[1].setValue()
     const addButton = dialog
       .findAll('button')
       .find((button) => button.text().trim() === 'Добавить')
@@ -80,7 +81,7 @@ describe('VacancyCreateView', () => {
     await flushPromises()
 
     expect(createSpecialization).toHaveBeenCalledWith({
-      createSpecializationRequest: { name: 'Аналитика', code: null, it: true },
+      createSpecializationRequest: { name: 'Аналитика', code: null, it: false },
     })
     expect((wrapper.findAll('select')[0].element as HTMLSelectElement).value).toBe('analitika')
   })
