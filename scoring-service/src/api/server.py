@@ -10,7 +10,6 @@ from grpc_health.v1 import health, health_pb2, health_pb2_grpc
 import scoring_service.v1.scoring_pb2_grpc as scoring_pb2_grpc
 
 from .config import Settings, get_settings
-from .logging_interceptor import RequestLoggingInterceptor
 from .scoring import ScoringService
 
 logger = logging.getLogger(__name__)
@@ -26,10 +25,7 @@ class ServerHandle:
 def create_server(settings: Settings | None = None) -> ServerHandle:
     """Create a gRPC server with the health and scoring services."""
     settings = settings or get_settings()
-    server = grpc.server(
-        futures.ThreadPoolExecutor(max_workers=settings.max_workers),
-        interceptors=(RequestLoggingInterceptor(),),
-    )
+    server = grpc.server(futures.ThreadPoolExecutor(max_workers=settings.max_workers))
     health_servicer = health.HealthServicer()
     health_pb2_grpc.add_HealthServicer_to_server(health_servicer, server)
 
