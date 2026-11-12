@@ -30,6 +30,8 @@ class Settings(BaseSettings):
     llm_max_retries: int = Field(default=1, ge=0, le=5)
     llm_max_output_tokens: int = Field(default=4096, ge=256, le=32768)
 
+    ignore_invalid_quotes: bool = False
+
     @model_validator(mode="after")
     def _check_llm(self) -> Self:
         if self.llm_provider == "openai":

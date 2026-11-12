@@ -28,8 +28,9 @@ class ExtractionResult:
 class ResumeExtractor:
     """Один LLM-вызов на резюме; невалидные цитаты отбрасываются."""
 
-    def __init__(self, client: LlmClient) -> None:
+    def __init__(self, client: LlmClient, enforce_validity: bool = True) -> None:
         self._client = client
+        self._enforce_quote_provenance = enforce_validity
 
     @property
     def model(self) -> str:
@@ -53,18 +54,20 @@ class ResumeExtractor:
             except (LlmInvalidResponse, ValidationError) as exc:
                 last_error = exc
                 logger.warning(
-                    "resume extraction attempt failed attempt=%d error=%s",
+                    "resume extraction failed attempt=%d error=%s",
                     attempt + 1,
                     type(exc).__name__,
                 )
                 continue
-            extracted = self._drop_invalid(parsed, index)
-            if extracted.dropped > 0:
-                logger.warning(
-                    "some resume features dropped count=%s",
-                    extracted.dropped,
-                )
-            return extracted
+            if self._enforce_quote_provenance:
+                extracted = self._drop_invalid(parsed, index)
+                if extracted.dropped > 0:
+                    logger.warning(
+                        "some resume features dropped count=%s",
+                        extracted.dropped,
+                    )
+                return extracted
+            return ExtractionResult(parsed=parsed, dropped=0)
 
         raise ExtractionError("LLM did not return a valid resume extraction") from last_error
 
@@ -76,6 +79,7 @@ class ResumeExtractor:
         for skill in parsed.skills:
             if index.locate(skill.quote) is None:
                 dropped += 1
+                logger.debug("skill dropped due to a bad quote")
                 continue
             skills.append(skill)
 
@@ -83,6 +87,7 @@ class ResumeExtractor:
         for item in parsed.education:
             if index.locate(item.quote) is None:
                 dropped += 1
+                logger.debug("education dropped due to a bad quote")
                 continue
             education.append(item)
 
@@ -90,6 +95,7 @@ class ResumeExtractor:
         for item in parsed.experience:
             if index.locate(item.quote) is None:
                 dropped += 1
+                logger.debug("experience dropped due to a bad quote")
                 continue
             metrics: list[str] = []
             for metric in item.metrics:
