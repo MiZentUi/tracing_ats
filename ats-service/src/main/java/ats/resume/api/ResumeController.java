@@ -27,7 +27,7 @@ public class ResumeController implements ResumesApi {
 
     @Override
     public ResponseEntity<ResumeBatchUploadResponse> uploadResumes(
-            UUID vacancyId, List<MultipartFile> files, Boolean consentGithub) {
+            List<MultipartFile> files, UUID vacancyId, Boolean consentGithub) {
         List<ResumeUploadResult> results = new ArrayList<>();
         for (MultipartFile file : files) {
             UploadOutcome outcome =
@@ -38,6 +38,9 @@ public class ResumeController implements ResumesApi {
                             .warnings(outcome.warnings());
             if (outcome.resumeId() != null) {
                 result.resumeId(outcome.resumeId());
+            }
+            if (outcome.batchId() != null) {
+                result.batchId(outcome.batchId());
             }
             results.add(result);
         }

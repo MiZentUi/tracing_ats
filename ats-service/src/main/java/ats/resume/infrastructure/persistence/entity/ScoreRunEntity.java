@@ -25,8 +25,22 @@ public class ScoreRunEntity {
     @GeneratedValue(strategy = GenerationType.UUID)
     private UUID id;
 
-    @Column(name = "application_id", nullable = false)
+    @Column(name = "application_id")
     private UUID applicationId;
+
+    /** Для направления «вакансии под резюме» отклика нет: запуск привязан к резюме и вакансии. */
+    @Column(name = "resume_id")
+    private UUID resumeId;
+
+    @Column(name = "vacancy_id")
+    private UUID vacancyId;
+
+    /** Снимок названия вакансии: рейтинг резюме не ходит в таблицы вакансий. */
+    @Column(name = "vacancy_title", length = 512)
+    private String vacancyTitle;
+
+    @Column(nullable = false, length = 32)
+    private String direction = "VACANCY_TO_CANDIDATES";
 
     /** Для запуска при загрузке пакета ещё нет: PRELIMINARY считается вне скрининга. */
     @Column(name = "batch_id")

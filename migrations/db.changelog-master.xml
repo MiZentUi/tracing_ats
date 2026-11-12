@@ -24,4 +24,5 @@
     <include file="changes/002-resume-schema.sql" relativeToChangelogFile="true" />
     <include file="changes/003-demo-vacancy.sql" relativeToChangelogFile="true" />
     <include file="changes/004-scoring-integration.sql" relativeToChangelogFile="true" />
+    <include file="changes/016-resume-vacancy-matching.sql" relativeToChangelogFile="true" />
 </databaseChangeLog>

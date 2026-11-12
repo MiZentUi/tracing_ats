@@ -7,6 +7,38 @@
 
 ## [Unreleased]
 
+### Ветка `feature/resume-to-vacancy-matching` — обратный подбор и новый контракт
+
+#### Added
+
+- **Режим «вакансии под резюме».** `POST /api/v1/resumes` без `vacancyId` принимает
+  пачку резюме, не создаёт отклик и запускает сравнение со всеми вакансиями.
+  `GET /api/v1/resumes/{resumeId}/ranking` отдаёт рейтинг вакансий,
+  `GET /api/v1/resumes/{resumeId}/vacancies/{vacancyId}/report` — отчёт по паре,
+  `POST /api/v1/resumes/{resumeId}/match` пересчитывает без LLM.
+- **Пакетная оценка вакансий.** `EvaluateResumeMatches` вызывается чанками по
+  `ats.resume.match.batch-size` (по умолчанию 3, env `ATS_RESUME_MATCH_BATCH_SIZE`).
+- **Кеш `ParsedResume`.** `ExtractResume` вызывается один раз на резюме, снимок
+  хранится в неизменяемой `resume_extraction`; повторные расчёты LLM не вызывают.
+- **Frontend.** Экран «Подбор» с переключением режимов, загрузка пачки, прогресс
+  пакета, рейтинг кандидатов и вакансий, отчёт и reveal.
+
+#### Changed
+
+- **Java переведена на новый контракт scoring.** Вместо legacy `ScoreResume`
+  используются `ExtractResume` и `EvaluateResumeMatch`/`EvaluateResumeMatches`.
+  Статусы требований теперь различают `COVERED`, `PARTIAL`, `GAP`, `NOT_STATED` и `ABSENT`.
+- **Единое хранилище запусков.** `score_run` и `screening_batch` получили
+  `direction` (`VACANCY_TO_CANDIDATES` / `RESUME_TO_VACANCIES`) и nullable-владельца,
+  чтобы оба рейтинга считались одной моделью и одним отчётом.
+
+#### Security
+
+- **Образование больше не маскируется**: вуз, специальность и годы остаются в
+  `masked_text`, ORG от NER не превращается в `PII_UNIVERSITY`. Инвариант
+  «маскировка до LLM» обновлён в `AGENTS.md` и ADR 0001; вуз не является отдельным
+  сигналом скоринга. Имена, контакты, адреса и документы маскируются как раньше.
+
 ### Ветка `feature/scoring-service-mock` — заглушка scoring-service
 
 #### Added

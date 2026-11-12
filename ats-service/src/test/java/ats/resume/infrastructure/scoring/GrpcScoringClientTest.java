@@ -3,13 +3,14 @@ package ats.resume.infrastructure.scoring;
 import static org.assertj.core.api.Assertions.assertThat;
 
 import ats.resume.config.ScoringGrpcProperties;
+import ats.resume.domain.scoring.ParsedResume;
+import ats.resume.domain.scoring.ScoringBatchItem;
 import ats.resume.domain.scoring.ScoringRequest;
 import ats.resume.domain.scoring.ScoringResult;
 import ats.resume.domain.vacancy.Requirement;
 import ats.resume.domain.vacancy.RequirementKind;
 import ats.resume.domain.vacancy.VacancyTemplate;
 import ats.scoring.proto.ScoringServiceGrpc;
-import ats.vacancy.proto.FeatureAssessment;
 import ats.vacancy.proto.FeatureRequirement;
 import io.grpc.ManagedChannel;
 import io.grpc.Server;
@@ -24,9 +25,7 @@ import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import scoring_service.v1.models.Messages;
-import scoring_service.v1.models.features.Common.FeatureCriticality;
-import scoring_service.v1.models.features.Common.FeatureEvidence;
-import scoring_service.v1.models.features.Skill.SkillPerResume;
+import scoring_service.v1.models.features.Common;
 
 class GrpcScoringClientTest {
 
@@ -34,6 +33,10 @@ class GrpcScoringClientTest {
     private ManagedChannel channel;
     private FakeScoringService fake;
     private GrpcScoringClient client;
+    private VacancyTemplate template;
+    private Requirement java;
+    private Requirement spring;
+    private Requirement kafka;
 
     @BeforeEach
     void start() throws IOException {
@@ -49,20 +52,11 @@ class GrpcScoringClientTest {
         ScoringGrpcProperties properties = new ScoringGrpcProperties();
         properties.setDeadline(Duration.ofSeconds(2));
         client = new GrpcScoringClient(ScoringServiceGrpc.newBlockingStub(channel), properties);
-    }
 
-    @AfterEach
-    void stop() {
-        channel.shutdownNow();
-        server.shutdownNow();
-    }
-
-    @Test
-    void mapsRequestAndValidatesEvidence() {
-        Requirement java =
+        java =
                 new Requirement(
                         UUID.randomUUID(), "Java", "Java", RequirementKind.MUST, 3, true, 3, 5);
-        Requirement spring =
+        spring =
                 new Requirement(
                         UUID.randomUUID(),
                         "Spring Boot",
@@ -72,10 +66,10 @@ class GrpcScoringClientTest {
                         false,
                         2,
                         3);
-        Requirement kafka =
+        kafka =
                 new Requirement(
                         UUID.randomUUID(), "Kafka", "Kafka", RequirementKind.NICE, 1, false, 1, 3);
-        VacancyTemplate template =
+        template =
                 new VacancyTemplate(
                         UUID.randomUUID(),
                         7,
@@ -92,59 +86,61 @@ class GrpcScoringClientTest {
                         "scoring-v1",
                         "weights-v1",
                         List.of(java, spring, kafka));
+    }
+
+    @AfterEach
+    void stop() {
+        channel.shutdownNow();
+        server.shutdownNow();
+    }
+
+    @Test
+    void mapsEvaluationAndValidatesEvidence() {
         String maskedText = "Java developer with 5 years. Spring Boot.";
-        fake.response =
-                Messages.ScoreResumeResponse.newBuilder()
-                        .setRelevance(0.8)
-                        .setScore(0.72)
-                        .setScoreLow(0.6)
-                        .setScoreHigh(0.85)
-                        .setTenure(5)
-                        .setRefine(true)
-                        .putFeatures(
+        fake.match =
+                Messages.EvaluateResumeMatchResponse.newBuilder()
+                        .setGeneralScore(
+                                Messages.GeneralResumeScore.newBuilder()
+                                        .setRelevance(0.8)
+                                        .setScore(0.72)
+                                        .setScoreLow(0.6)
+                                        .setScoreHigh(0.85)
+                                        .setTenure(5))
+                        .putMatches(
                                 java.id().toString(),
-                                FeatureAssessment.newBuilder()
+                                Messages.FeatureMatch.newBuilder()
+                                        .setStatus(Common.Correspondence.CORRESPONDENCE_FULL)
                                         .setRelevance(0.9)
                                         .setCoverage(0.9)
-                                        .setTenure(5)
-                                        .setSkill(
-                                                SkillPerResume.newBuilder()
-                                                        .setName("Java")
-                                                        .setNormalizedName("java")
-                                                        .setEvidence(
-                                                                FeatureEvidence.newBuilder()
-                                                                        .setText(
-                                                                                "Java developer with 5 years.")))
+                                        .setYearsFound(5)
+                                        .setComment("Навык подтверждён")
+                                        .setEvidence(evidence("Java developer with 5 years."))
                                         .build())
-                        .putFeatures(
+                        .putMatches(
                                 spring.id().toString(),
-                                FeatureAssessment.newBuilder()
+                                Messages.FeatureMatch.newBuilder()
+                                        .setStatus(Common.Correspondence.CORRESPONDENCE_PARTIAL)
                                         .setRelevance(0.5)
                                         .setCoverage(0.5)
-                                        .setSkill(
-                                                SkillPerResume.newBuilder()
-                                                        .setName("Spring Boot")
-                                                        .setNormalizedName("spring boot")
-                                                        .setEvidence(
-                                                                FeatureEvidence.newBuilder()
-                                                                        .setText(
-                                                                                "Нет такой цитаты")))
+                                        .setComment("Частично")
+                                        .setEvidence(evidence("Нет такой цитаты"))
                                         .build())
                         .build();
 
         ScoringResult result =
-                client.score(new ScoringRequest(UUID.randomUUID(), maskedText, template));
+                client.score(new ScoringRequest(UUID.randomUUID(), maskedText, template, parsed()));
 
-        assertThat(fake.request.getVacancy().getTenure()).isEqualTo(5);
-        assertThat(fake.request.getVacancy().getTextDescription()).isEqualTo(template.sourceText());
-        assertThat(fake.request.getVacancy().getPosition())
+        assertThat(fake.evaluateRequest.getVacancy().getTenure()).isEqualTo(5);
+        assertThat(fake.evaluateRequest.getVacancy().getTextDescription())
+                .isEqualTo(template.sourceText());
+        assertThat(fake.evaluateRequest.getVacancy().getPosition())
                 .isEqualTo(Messages.JobPositionLevel.JOB_POSITION_MIDDLE);
-        assertThat(fake.request.getVacancy().getCategory()).isEqualTo("java-developer");
-        assertThat(fake.request.getVacancy().getRequirementsMap()).hasSize(3);
+        assertThat(fake.evaluateRequest.getVacancy().getCategory()).isEqualTo("java-developer");
+        assertThat(fake.evaluateRequest.getVacancy().getRequirementsMap()).hasSize(3);
         FeatureRequirement javaProto =
-                fake.request.getVacancy().getRequirementsMap().get(java.id().toString());
+                fake.evaluateRequest.getVacancy().getRequirementsMap().get(java.id().toString());
         assertThat(javaProto.getCriticality())
-                .isEqualTo(FeatureCriticality.FEATURE_CRITICALITY_CRITICAL);
+                .isEqualTo(Common.FeatureCriticality.FEATURE_CRITICALITY_CRITICAL);
         assertThat(javaProto.getSkill().getNormalizedName()).isEqualTo("java");
         assertThat(javaProto.getSkill().getTenure()).isEqualTo(3);
 
@@ -153,14 +149,16 @@ class GrpcScoringClientTest {
         assertThat(result.scoreHigh()).isEqualTo(85);
         assertThat(result.relevance()).isEqualTo(0.8);
         assertThat(result.tenure()).isEqualTo(5);
-        assertThat(result.flags()).containsExactly("REFINE_RECOMMENDED");
+        assertThat(result.flags()).isEmpty();
 
         ScoringResult.RequirementResult javaResult = result.requirements().getFirst();
         assertThat(javaResult.status()).isEqualTo(ScoringResult.RequirementResult.Status.COVERED);
         assertThat(javaResult.coverage()).isEqualTo(0.9);
         assertThat(javaResult.tenure()).isEqualTo(5);
         assertThat(javaResult.evidenceQuote()).isEqualTo("Java developer with 5 years.");
+        assertThat(javaResult.gap()).isEqualTo("Навык подтверждён");
 
+        // Цитаты нет в тексте: покрытие обнуляется, статус становится GAP.
         ScoringResult.RequirementResult springResult = result.requirements().get(1);
         assertThat(springResult.status()).isEqualTo(ScoringResult.RequirementResult.Status.GAP);
         assertThat(springResult.coverage()).isZero();
@@ -168,23 +166,114 @@ class GrpcScoringClientTest {
         assertThat(springResult.evidenceQuote()).isNull();
 
         ScoringResult.RequirementResult kafkaResult = result.requirements().get(2);
-        assertThat(kafkaResult.status()).isEqualTo(ScoringResult.RequirementResult.Status.GAP);
+        assertThat(kafkaResult.status())
+                .isEqualTo(ScoringResult.RequirementResult.Status.NOT_STATED);
         assertThat(kafkaResult.relevance()).isZero();
         assertThat(kafkaResult.coverage()).isZero();
+    }
+
+    @Test
+    void batchKeepsPerVacancyErrors() {
+        VacancyTemplate second = withVacancy(template, UUID.randomUUID(), spring);
+        fake.batch =
+                Messages.EvaluateResumeMatchesResponse.newBuilder()
+                        .putResults(
+                                template.vacancyId().toString(),
+                                Messages.EvaluateResumeMatchResult.newBuilder()
+                                        .setMatch(matchResponse())
+                                        .build())
+                        .putResults(
+                                second.vacancyId().toString(),
+                                Messages.EvaluateResumeMatchResult.newBuilder()
+                                        .setError(
+                                                Messages.BatchItemError.newBuilder()
+                                                        .setCode("INVALID_ARGUMENT")
+                                                        .setMessage("bad vacancy"))
+                                        .build())
+                        .build();
+
+        List<ScoringBatchItem> items =
+                client.scoreBatch(parsed(), "Java developer", List.of(template, second));
+
+        assertThat(items).hasSize(2);
+        assertThat(items.get(0).isFailed()).isFalse();
+        assertThat(items.get(0).result().score()).isEqualTo(72);
+        assertThat(items.get(1).isFailed()).isTrue();
+        assertThat(items.get(1).errorCode()).isEqualTo("INVALID_ARGUMENT");
+    }
+
+    private static Messages.EvaluateResumeMatchResponse matchResponse() {
+        return Messages.EvaluateResumeMatchResponse.newBuilder()
+                .setGeneralScore(
+                        Messages.GeneralResumeScore.newBuilder()
+                                .setRelevance(0.8)
+                                .setScore(0.72)
+                                .setScoreLow(0.6)
+                                .setScoreHigh(0.85))
+                .build();
+    }
+
+    private ParsedResume parsed() {
+        return client.extract("Java developer");
+    }
+
+    private static Common.FeatureEvidence evidence(String text) {
+        return Common.FeatureEvidence.newBuilder().setText(text).build();
+    }
+
+    private static VacancyTemplate withVacancy(VacancyTemplate source, UUID id, Requirement req) {
+        return new VacancyTemplate(
+                id,
+                source.version(),
+                source.title(),
+                source.specializationCode(),
+                source.levelCode(),
+                source.sourceText(),
+                source.tenure(),
+                source.githubWeight(),
+                source.wM(),
+                source.wN(),
+                source.wF(),
+                source.promptVersion(),
+                source.scoringVersion(),
+                source.weightsVersion(),
+                List.of(req));
     }
 
     private static final class FakeScoringService
             extends ScoringServiceGrpc.ScoringServiceImplBase {
 
-        private Messages.ScoreResumeRequest request;
-        private Messages.ScoreResumeResponse response;
+        private Messages.EvaluateResumeMatchRequest evaluateRequest;
+        private Messages.EvaluateResumeMatchResponse match =
+                Messages.EvaluateResumeMatchResponse.getDefaultInstance();
+        private Messages.EvaluateResumeMatchesResponse batch =
+                Messages.EvaluateResumeMatchesResponse.getDefaultInstance();
 
         @Override
-        public void scoreResume(
-                Messages.ScoreResumeRequest request,
-                StreamObserver<Messages.ScoreResumeResponse> observer) {
-            this.request = request;
-            observer.onNext(response);
+        public void extractResume(
+                Messages.ExtractResumeRequest request,
+                StreamObserver<Messages.ExtractResumeResponse> observer) {
+            observer.onNext(
+                    Messages.ExtractResumeResponse.newBuilder()
+                            .setParsed(Messages.ParsedResume.newBuilder().setSchemaVersion(1))
+                            .build());
+            observer.onCompleted();
+        }
+
+        @Override
+        public void evaluateResumeMatch(
+                Messages.EvaluateResumeMatchRequest request,
+                StreamObserver<Messages.EvaluateResumeMatchResponse> observer) {
+            this.evaluateRequest = request;
+            observer.onNext(match);
+            observer.onCompleted();
+        }
+
+        @Override
+        public void evaluateResumeMatches(
+                Messages.EvaluateResumeMatchesRequest request,
+                StreamObserver<Messages.EvaluateResumeMatchesResponse> observer) {
+            observer.onNext(batch);
             observer.onCompleted();
         }
     }

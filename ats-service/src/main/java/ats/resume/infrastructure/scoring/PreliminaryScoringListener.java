@@ -26,6 +26,9 @@ public class PreliminaryScoringListener {
 
     @TransactionalEventListener(phase = TransactionPhase.AFTER_COMMIT)
     public void onResumeMasked(ResumeMaskedEvent event) {
+        if (event.applicationId() == null) {
+            return;
+        }
         String requestId = RequestIds.current();
         try {
             executor.execute(

@@ -1,6 +1,15 @@
 import axios from 'axios'
 import { logger } from '@/lib/logger'
-import { Configuration, ReferenceApi, VacanciesApi } from './generated'
+import {
+  Configuration,
+  RankingApi,
+  ReferenceApi,
+  ReportsApi,
+  ResumesApi,
+  ResumeRankingApi,
+  ScreeningApi,
+  VacanciesApi,
+} from './generated'
 import type { ApiStatusResponse } from './generated'
 
 const basePath = import.meta.env.VITE_API_URL ?? '/api/v1'
@@ -28,6 +37,11 @@ const configuration = new Configuration({ basePath })
 
 export const vacanciesApi = new VacanciesApi(configuration)
 export const referenceApi = new ReferenceApi(configuration)
+export const resumesApi = new ResumesApi(configuration)
+export const resumeRankingApi = new ResumeRankingApi(configuration)
+export const screeningApi = new ScreeningApi(configuration)
+export const rankingApi = new RankingApi(configuration)
+export const reportsApi = new ReportsApi(configuration)
 
 export function apiErrorCode(error: unknown): string | null {
   if (axios.isAxiosError<ApiStatusResponse>(error) && error.response?.data?.status) {

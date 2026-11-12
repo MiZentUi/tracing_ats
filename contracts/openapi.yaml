@@ -286,6 +286,9 @@ paths:
         Принимает PDF, DOCX, TXT или MD. Для каждого файла извлекается текст,
         PII маскируется, prompt injection удаляется. Исходный файл хранится
         в объектном хранилище, PII — в зашифрованном виде.
+        Если `vacancyId` передан, это режим «кандидаты под вакансию»: создаётся
+        отклик и считается Score_pre. Без `vacancyId` — режим «вакансии под
+        резюме»: отклик не создаётся, запускается сравнение со всеми вакансиями.
       operationId: uploadResumes
       requestBody:
         required: true
@@ -294,12 +297,12 @@ paths:
             schema:
               type: object
               required:
-                - vacancyId
                 - files
               properties:
                 vacancyId:
                   type: string
                   format: uuid
+                  description: Вакансия для режима «кандидаты под вакансию». Без неё — обратный режим.
                 consentGithub:
                   type: boolean
                   default: false
@@ -334,6 +337,71 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/ResumeSummary"
+        "404":
+          description: Не найдено
+        default:
+          $ref: "#/components/responses/default"
+
+  /resumes/{resumeId}/ranking:
+    get:
+      tags:
+        - ResumeRanking
+      summary: Рейтинг вакансий для резюме
+      description: |
+        Вакансии, отсортированные по Score, который посчитан при загрузке резюме
+        в режиме «вакансии под резюме».
+      operationId: getResumeVacancyRanking
+      parameters:
+        - $ref: "#/components/parameters/ResumeId"
+      responses:
+        "200":
+          description: Рейтинг
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ResumeVacancyRankingResponse"
+        default:
+          $ref: "#/components/responses/default"
+
+  /resumes/{resumeId}/match:
+    post:
+      tags:
+        - ResumeRanking
+      summary: Пересчитать рейтинг вакансий
+      description: |
+        Повторно сравнивает уже извлечённое резюме со всеми вакансиями.
+        Использует сохранённый ParsedResume: LLM не вызывается.
+      operationId: matchResume
+      parameters:
+        - $ref: "#/components/parameters/ResumeId"
+      responses:
+        "202":
+          description: Пересчёт запущен
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ScreeningBatchAccepted"
+        "404":
+          description: Резюме не найдено
+        default:
+          $ref: "#/components/responses/default"
+
+  /resumes/{resumeId}/vacancies/{vacancyId}/report:
+    get:
+      tags:
+        - Reports
+      summary: Отчёт по паре резюме и вакансия
+      operationId: getResumeVacancyReport
+      parameters:
+        - $ref: "#/components/parameters/ResumeId"
+        - $ref: "#/components/parameters/VacancyPathId"
+      responses:
+        "200":
+          description: Отчёт без PII
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApplicationReport"
         "404":
           description: Не найдено
         default:
@@ -838,12 +906,16 @@ components:
     ResumeBatchUploadResponse:
       type: object
       required:
-        - vacancyId
         - resumes
       properties:
         vacancyId:
           type: string
           format: uuid
+          description: Передана только в режиме «кандидаты под вакансию».
+        batchId:
+          type: string
+          format: uuid
+          description: Пакет сравнения резюме с вакансиями; только в обратном режиме.
         resumes:
           type: array
           description: Результаты в порядке файлов запроса.
@@ -866,6 +938,10 @@ components:
             - TEXT_EMPTY
             - MASKING_FAILED
             - FAILED
+        batchId:
+          type: string
+          format: uuid
+          description: Пакет сравнения с вакансиями; только в обратном режиме.
         warnings:
           type: array
           items:
@@ -894,6 +970,64 @@ components:
           type: string
           format: date-time
         warnings:
+          type: array
+          items:
+            type: string
+
+    ResumeVacancyRankingResponse:
+      type: object
+      required:
+        - resumeId
+        - phase
+        - generatedAt
+        - items
+      properties:
+        resumeId:
+          type: string
+          format: uuid
+        phase:
+          type: string
+          enum:
+            - PRELIMINARY
+            - FINAL
+        generatedAt:
+          type: string
+          format: date-time
+        items:
+          type: array
+          items:
+            $ref: "#/components/schemas/ResumeVacancyRankingItem"
+
+    ResumeVacancyRankingItem:
+      type: object
+      required:
+        - rank
+        - vacancyId
+        - score
+        - scoreLow
+        - scoreHigh
+        - flags
+      properties:
+        rank:
+          type: integer
+        vacancyId:
+          type: string
+          format: uuid
+        title:
+          type: string
+        relevance:
+          type: number
+          format: double
+        score:
+          type: number
+          format: double
+        scoreLow:
+          type: number
+          format: double
+        scoreHigh:
+          type: number
+          format: double
+        flags:
           type: array
           items:
             type: string
@@ -1023,13 +1157,11 @@ components:
     ApplicationReport:
       type: object
       required:
-        - applicationId
         - phase
         - score
         - scoreLow
         - scoreHigh
         - capApplied
-        - decision
         - requirements
         - externalEvidence
         - flags
@@ -1038,6 +1170,15 @@ components:
         applicationId:
           type: string
           format: uuid
+          description: Заполнено только для отчёта по отклику.
+        resumeId:
+          type: string
+          format: uuid
+          description: Заполнено для отчёта по паре резюме и вакансия.
+        vacancyId:
+          type: string
+          format: uuid
+          description: Заполнено для отчёта по паре резюме и вакансия.
         phase:
           type: string
           enum:
@@ -1118,6 +1259,8 @@ components:
             - COVERED
             - PARTIAL
             - GAP
+            - NOT_STATED
+            - ABSENT
         evidenceSource:
           type: string
           enum:

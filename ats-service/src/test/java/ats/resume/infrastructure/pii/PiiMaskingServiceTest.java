@@ -62,7 +62,6 @@ class PiiMaskingServiceTest {
                 new PiiMaskingService(
                         List.of(
                                 new RegexPiiDetector(),
-                                new EducationPiiDetector(educationExtractor),
                                 new NerPiiDetector(ner, new ats.resume.config.PiiProperties())),
                         new PiiSpanResolver(),
                         educationExtractor,
@@ -73,14 +72,14 @@ class PiiMaskingServiceTest {
         assertThat(result.maskedText()).doesNotContain("ivan.petrov@example.com");
         assertThat(result.maskedText()).doesNotContain("+7 999 123-45-67");
         assertThat(result.maskedText()).doesNotContain("Иван Петров");
-        assertThat(result.maskedText()).doesNotContain("Московский государственный университет");
         assertThat(result.maskedText()).contains("[PII_EMAIL_1]");
         assertThat(result.maskedText()).contains("[PII_NAME_1]");
-        assertThat(result.maskedText()).contains("[PII_UNIVERSITY_1]");
-        assertThat(result.maskedText()).contains("[PII_GRADUATION_YEAR_1]");
+        // Образование не маскируется: вуз остаётся в тексте и не попадает в PII-payload.
+        assertThat(result.maskedText()).contains("Московский государственный университет");
+        assertThat(result.maskedText()).doesNotContain("[PII_UNIVERSITY_1]");
+        assertThat(result.maskedText()).doesNotContain("[PII_GRADUATION_YEAR_1]");
         assertThat(result.payload().originalFilename()).isEqualTo("resume.pdf");
-        assertThat(result.payload().university())
-                .contains("Московский государственный университет");
+        assertThat(result.payload().university()).isNull();
         assertThat(result.payload().graduationYear()).isEqualTo(2022);
         assertThat(result.education().years()).isEqualTo(4);
         assertThat(
@@ -90,7 +89,7 @@ class PiiMaskingServiceTest {
     }
 
     @Test
-    void masksWholeUniversityLineWithoutNer() {
+    void keepsEducationBlockWithoutNer() {
         String text =
                 """
                 Высшее образование
@@ -105,7 +104,6 @@ class PiiMaskingServiceTest {
                 new PiiMaskingService(
                         List.of(
                                 new RegexPiiDetector(),
-                                new EducationPiiDetector(educationExtractor),
                                 new NerPiiDetector(
                                         new NoOpNerModel(), new ats.resume.config.PiiProperties())),
                         new PiiSpanResolver(),
@@ -114,10 +112,9 @@ class PiiMaskingServiceTest {
 
         MaskingResult result = service.mask(text, "resume.txt", null);
 
-        assertThat(result.maskedText()).doesNotContain("Московский государственный университет");
-        assertThat(result.maskedText()).contains("[PII_UNIVERSITY_1]");
-        assertThat(result.payload().university())
-                .contains("Московский государственный университет");
+        assertThat(result.maskedText()).contains("Московский государственный университет");
+        assertThat(result.maskedText()).doesNotContain("[PII_UNIVERSITY_1]");
+        assertThat(result.payload().university()).isNull();
         assertThat(result.payload().graduationYear()).isEqualTo(2022);
     }
 }

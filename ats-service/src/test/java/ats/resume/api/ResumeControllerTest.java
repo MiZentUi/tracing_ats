@@ -38,7 +38,7 @@ class ResumeControllerTest {
 
         ResponseEntity<ResumeBatchUploadResponse> response =
                 new ResumeController(ingestion, query)
-                        .uploadResumes(vacancyId, List.of(file), false);
+                        .uploadResumes(List.of(file), vacancyId, false);
 
         assertThat(response.getStatusCode().value()).isEqualTo(202);
         assertThat(response.getBody()).isNotNull();

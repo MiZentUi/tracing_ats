@@ -24,8 +24,15 @@ public class ScreeningBatchEntity {
     @GeneratedValue(strategy = GenerationType.UUID)
     private UUID id;
 
-    @Column(name = "vacancy_id", nullable = false)
+    @Column(name = "vacancy_id")
     private UUID vacancyId;
+
+    /** Направление «вакансии под резюме» опирается на резюме, а не на вакансию. */
+    @Column(name = "resume_id")
+    private UUID resumeId;
+
+    @Column(nullable = false, length = 32)
+    private String direction = "VACANCY_TO_CANDIDATES";
 
     @Column(nullable = false, length = 16)
     private String status;

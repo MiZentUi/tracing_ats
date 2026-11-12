@@ -14,4 +14,8 @@ public interface VacancyRepository
     @Lock(LockModeType.PESSIMISTIC_WRITE)
     @Query("select v from VacancyEntity v where v.id = :id")
     Optional<VacancyEntity> findByIdForUpdate(@Param("id") UUID id);
+
+    /** Идентификаторы всех вакансий: обратный режим сравнивает резюме со всеми. */
+    @Query("select v.id from VacancyEntity v")
+    java.util.List<UUID> findAllIds();
 }

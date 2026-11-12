@@ -5,7 +5,6 @@ import ats.resume.domain.privacy.PiiDetector;
 import ats.resume.domain.privacy.PiiMaskingException;
 import ats.resume.domain.privacy.PiiSpan;
 import ats.resume.domain.privacy.PiiType;
-import ats.resume.infrastructure.pii.EducationContext;
 import java.util.ArrayList;
 import java.util.Comparator;
 import java.util.List;
@@ -14,8 +13,8 @@ import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Component;
 
 /**
- * Превращает PER/LOC/ORG в PII-спаны. ORG маскируется только в контексте образования: компании
- * остаются в опыте, иначе пострадает домен и объяснимость стажа.
+ * Превращает PER/LOC в PII-спаны. ORG не маскируется: образование и работодатели остаются в тексте,
+ * иначе страдает объяснимость стажа и требований к образованию.
  */
 @Slf4j
 @Component
@@ -44,8 +43,6 @@ public class NerPiiDetector implements PiiDetector {
                     switch (entity.type()) {
                         case NerEntity.PERSON -> PiiType.NAME;
                         case NerEntity.LOCATION -> PiiType.LOCATION;
-                        case NerEntity.ORGANIZATION ->
-                                isEducationOrganization(text, entity) ? PiiType.UNIVERSITY : null;
                         default -> null;
                     };
             if (type != null) {
@@ -59,11 +56,6 @@ public class NerPiiDetector implements PiiDetector {
             }
         }
         return spans;
-    }
-
-    private boolean isEducationOrganization(String text, NerEntity entity) {
-        return EducationContext.isUniversityLine(text, entity.start())
-                || EducationContext.isInEducationBlock(text, entity.start());
     }
 
     private List<NerEntity> mergeAdjacent(List<NerEntity> entities) {

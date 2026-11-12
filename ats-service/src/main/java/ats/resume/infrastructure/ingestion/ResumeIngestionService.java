@@ -7,6 +7,7 @@ import ats.extraction.domain.TextExtractionService;
 import ats.extraction.domain.UploadedFile;
 import ats.extraction.domain.error.ExtractionException;
 import ats.resume.domain.ingestion.ResumeMaskedEvent;
+import ats.resume.domain.ingestion.ResumeMatchRequestedEvent;
 import ats.resume.domain.ingestion.UploadOutcome;
 import ats.resume.domain.privacy.MaskingResult;
 import ats.resume.domain.privacy.SanitizedText;
@@ -27,6 +28,7 @@ import ats.resume.infrastructure.persistence.repository.ResumeRepository;
 import ats.resume.infrastructure.pii.PiiMaskingService;
 import ats.resume.infrastructure.pii.PromptInjectionSanitizer;
 import ats.resume.infrastructure.pii.ner.NerModel;
+import ats.resume.infrastructure.screening.ResumeMatchService;
 import java.io.IOException;
 import java.math.BigDecimal;
 import java.security.MessageDigest;
@@ -63,6 +65,7 @@ public class ResumeIngestionService {
     private final PiiVaultRepository piiVaultRepository;
     private final ParsedResumeRepository parsedResumeRepository;
     private final ApplicationRepository applicationRepository;
+    private final ResumeMatchService resumeMatchService;
     private final ApplicationEventPublisher eventPublisher;
 
     @Transactional
@@ -171,12 +174,20 @@ public class ResumeIngestionService {
                         candidateId,
                         consentGithub,
                         UploadOutcome.Status.MASKED.name());
-        eventPublisher.publishEvent(new ResumeMaskedEvent(application.getId()));
+        UUID batchId = null;
+        if (application != null) {
+            eventPublisher.publishEvent(new ResumeMaskedEvent(application.getId(), resumeId));
+        } else {
+            // Режим «вакансии под резюме»: отклика нет, сравниваем со всеми вакансиями.
+            batchId = resumeMatchService.createBatch(resumeId);
+            eventPublisher.publishEvent(new ResumeMatchRequestedEvent(batchId, resumeId));
+        }
         log.info(
-                "resume_ingested resume_id={} application_id={} status=MASKED file_type={}"
-                        + " size_bytes={} text_chars={} warnings={}",
+                "resume_ingested resume_id={} application_id={} batch_id={} status=MASKED"
+                        + " file_type={} size_bytes={} text_chars={} warnings={}",
                 resumeId,
-                application.getId(),
+                application == null ? null : application.getId(),
+                batchId,
                 fileType,
                 content.length,
                 extracted.text().length(),
@@ -185,7 +196,8 @@ public class ResumeIngestionService {
         return new UploadOutcome(
                 resumeId,
                 UploadOutcome.Status.MASKED,
-                extracted.warnings().stream().map(Enum::name).toList());
+                extracted.warnings().stream().map(Enum::name).toList(),
+                batchId);
     }
 
     private ResumeEntity newResume(UUID candidateId, FileType fileType, byte[] content) {
@@ -202,6 +214,9 @@ public class ResumeIngestionService {
 
     private ApplicationEntity createApplication(
             UUID vacancyId, UUID resumeId, UUID candidateId, boolean consentGithub, String status) {
+        if (vacancyId == null) {
+            return null;
+        }
         ApplicationEntity application = new ApplicationEntity();
         application.setVacancyId(vacancyId);
         application.setResumeId(resumeId);

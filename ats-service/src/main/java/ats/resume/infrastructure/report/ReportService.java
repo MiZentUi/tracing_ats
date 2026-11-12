@@ -17,7 +17,7 @@ import java.util.UUID;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
 
-/** Отчёт «требование → доказательство → пробел». PII сюда не попадает. */
+/** Отчёт «требование → доказательство → пробел» для обоих направлений. PII сюда не попадает. */
 @Service
 @RequiredArgsConstructor
 public class ReportService {
@@ -34,42 +34,61 @@ public class ReportService {
             return Optional.empty();
         }
         String normalizedPhase = normalizePhase(phase);
-        Optional<ScoreRunEntity> run =
-                scoreRunRepository.findFirstByApplicationIdAndPhaseOrderByCreatedAtDesc(
-                        applicationId, normalizedPhase);
-        if (run.isEmpty()) {
-            return Optional.empty();
-        }
+        return scoreRunRepository
+                .findFirstByApplicationIdAndPhaseOrderByCreatedAtDesc(
+                        applicationId, normalizedPhase)
+                .map(
+                        run ->
+                                view(
+                                        applicationId,
+                                        null,
+                                        null,
+                                        normalizedPhase,
+                                        run,
+                                        application.get().getScreeningDecision()));
+    }
+
+    /** Отчёт направления «вакансии под резюме»: отклика нет, есть пара резюме × вакансия. */
+    public Optional<ReportView> reportForMatch(UUID resumeId, UUID vacancyId, String phase) {
+        String normalizedPhase = normalizePhase(phase);
+        return scoreRunRepository
+                .findFirstByResumeIdAndVacancyIdAndDirectionAndPhaseOrderByCreatedAtDesc(
+                        resumeId, vacancyId, "RESUME_TO_VACANCIES", normalizedPhase)
+                .map(run -> view(null, resumeId, vacancyId, normalizedPhase, run, null));
+    }
+
+    private ReportView view(
+            UUID applicationId,
+            UUID resumeId,
+            UUID vacancyId,
+            String phase,
+            ScoreRunEntity run,
+            String decision) {
         List<RequirementReportItem> requirements =
                 requirementResultRepository
-                        .findByScoreRunIdOrderByRequirementId(run.get().getId())
+                        .findByScoreRunIdOrderByRequirementId(run.getId())
                         .stream()
                         .map(this::toRequirement)
                         .toList();
         List<ExternalEvidenceItem> external =
-                externalEvidenceRepository
-                        .findByScoreRunIdOrderByCreatedAtAsc(run.get().getId())
-                        .stream()
+                externalEvidenceRepository.findByScoreRunIdOrderByCreatedAtAsc(run.getId()).stream()
                         .map(this::toExternal)
                         .toList();
-        return Optional.of(
-                new ReportView(
-                        applicationId,
-                        normalizedPhase,
-                        run.get().getRelevance() == null
-                                ? null
-                                : run.get().getRelevance().doubleValue(),
-                        run.get().getScore().doubleValue(),
-                        run.get().getScoreLow().doubleValue(),
-                        run.get().getScoreHigh().doubleValue(),
-                        run.get().isCapApplied(),
-                        application.get().getScreeningDecision() == null
-                                ? "NOT_SHORTLISTED"
-                                : application.get().getScreeningDecision(),
-                        requirements,
-                        external,
-                        flags(run.get()),
-                        true));
+        return new ReportView(
+                applicationId,
+                resumeId,
+                vacancyId,
+                phase,
+                run.getRelevance() == null ? null : run.getRelevance().doubleValue(),
+                run.getScore().doubleValue(),
+                run.getScoreLow().doubleValue(),
+                run.getScoreHigh().doubleValue(),
+                run.isCapApplied(),
+                decision,
+                requirements,
+                external,
+                flags(run),
+                true);
     }
 
     private RequirementReportItem toRequirement(RequirementResultEntity entity) {
@@ -124,6 +143,8 @@ public class ReportService {
 
     public record ReportView(
             UUID applicationId,
+            UUID resumeId,
+            UUID vacancyId,
             String phase,
             Double relevance,
             double score,

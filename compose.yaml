@@ -136,6 +136,8 @@ services:
       # Внутренние gRPC-вызовы идут в тот же процесс.
       ATS_VACANCY_GRPC_TARGET: localhost:9090
       SCORING_GRPC_TARGET: ${SCORING_GRPC_TARGET:-scoring-service:8082}
+      # Сколько вакансий уходит в один gRPC-вызов обратного подбора.
+      ATS_RESUME_MATCH_BATCH_SIZE: ${ATS_RESUME_MATCH_BATCH_SIZE:-3}
       ATS_GITHUB_ENABLED: ${ATS_GITHUB_ENABLED:-false}
       ATS_GITHUB_TOKEN: ${ATS_GITHUB_TOKEN:-}
       # Для запуска без ключа: ATS_PROFILES=mock-llm

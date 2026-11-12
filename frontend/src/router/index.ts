@@ -2,6 +2,10 @@ import { createRouter, createWebHistory } from 'vue-router'
 import VacancyListView from '@/views/VacancyListView.vue'
 import VacancyCreateView from '@/views/VacancyCreateView.vue'
 import VacancyEditView from '@/views/VacancyEditView.vue'
+import MatchView from '@/views/MatchView.vue'
+import VacancyCandidatesView from '@/views/VacancyCandidatesView.vue'
+import ResumeRankingView from '@/views/ResumeRankingView.vue'
+import ReportView from '@/views/ReportView.vue'
 
 const router = createRouter({
   history: createWebHistory(),
@@ -10,6 +14,24 @@ const router = createRouter({
     { path: '/vacancies', name: 'vacancies', component: VacancyListView },
     { path: '/vacancies/new', name: 'vacancy-create', component: VacancyCreateView },
     { path: '/vacancies/:id', name: 'vacancy-edit', component: VacancyEditView, props: true },
+    { path: '/match', name: 'match', component: MatchView },
+    {
+      path: '/vacancies/:id/candidates',
+      name: 'vacancy-candidates',
+      component: VacancyCandidatesView,
+      props: true,
+    },
+    { path: '/resumes/:id', name: 'resume-ranking', component: ResumeRankingView, props: true },
+    {
+      path: '/applications/:id/report',
+      name: 'application-report',
+      component: ReportView,
+    },
+    {
+      path: '/resumes/:resumeId/vacancies/:vacancyId/report',
+      name: 'resume-vacancy-report',
+      component: ReportView,
+    },
   ],
 })
 

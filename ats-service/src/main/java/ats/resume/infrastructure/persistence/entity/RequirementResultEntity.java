@@ -51,7 +51,7 @@ public class RequirementResultEntity {
     @Column(name = "c_r", nullable = false, precision = 4, scale = 3)
     private BigDecimal cR;
 
-    @Column(nullable = false, length = 8)
+    @Column(nullable = false, length = 16)
     private String status;
 
     /** Стаж по требованию, если scoring-service его вернул. */

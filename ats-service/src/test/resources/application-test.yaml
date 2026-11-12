@@ -34,6 +34,10 @@ ats:
     worker-threads: 1
     scoring-wait: 5s
     scoring-poll: 50ms
+  resume:
+    match:
+      # Маленький батч в тестах: проверяем нарезку вакансий на несколько вызовов.
+      batch-size: 2
 
 vacancy:
   llm:

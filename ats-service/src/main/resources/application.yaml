@@ -106,7 +106,11 @@ ats:
       max-text-chars: 200000
       timeout: 10s
       pool-size: 4
-
+  resume:
+    match:
+      # Сколько вакансий уходит в один gRPC-вызов EvaluateResumeMatches.
+      # Маленький батч нужен, чтобы быстрее видеть первые результаты в рейтинге.
+      batch-size: ${ATS_RESUME_MATCH_BATCH_SIZE:3}
 vacancy:
   llm:
     base-url: https://openrouter.ai/api/v1

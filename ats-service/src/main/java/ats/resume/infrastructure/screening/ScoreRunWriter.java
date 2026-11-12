@@ -1,5 +1,6 @@
 package ats.resume.infrastructure.screening;
 
+import ats.resume.domain.scoring.ScoringDirection;
 import ats.resume.domain.scoring.ScoringResult;
 import ats.resume.domain.vacancy.VacancyTemplate;
 import ats.resume.infrastructure.json.JsonCodec;
@@ -9,6 +10,7 @@ import ats.resume.infrastructure.persistence.repository.RequirementResultReposit
 import ats.resume.infrastructure.persistence.repository.ScoreRunRepository;
 import java.math.BigDecimal;
 import java.math.RoundingMode;
+import java.util.List;
 import java.util.UUID;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Component;
@@ -33,6 +35,45 @@ public class ScoreRunWriter {
         run.setApplicationId(applicationId);
         run.setBatchId(batchId);
         run.setPhase(phase);
+        run.setDirection(ScoringDirection.VACANCY_TO_CANDIDATES.name());
+        run.setVacancyId(template.vacancyId());
+        run.setVacancyTitle(template.title());
+        apply(run, template, modelVersion, result);
+        return save(run, result);
+    }
+
+    /** Запуск направления «вакансии под резюме»: отклика нет, есть пара резюме × вакансия. */
+    public ScoreRunEntity writeMatch(
+            UUID resumeId,
+            UUID batchId,
+            String phase,
+            VacancyTemplate template,
+            String modelVersion,
+            ScoringResult result) {
+        ScoreRunEntity run = new ScoreRunEntity();
+        run.setResumeId(resumeId);
+        run.setVacancyId(template.vacancyId());
+        run.setVacancyTitle(template.title());
+        run.setBatchId(batchId);
+        run.setPhase(phase);
+        run.setDirection(ScoringDirection.RESUME_TO_VACANCIES.name());
+        apply(run, template, modelVersion, result);
+        return save(run, result);
+    }
+
+    private ScoreRunEntity save(ScoreRunEntity run, ScoringResult result) {
+        run = scoreRunRepository.save(run);
+        for (ScoringResult.RequirementResult requirement : result.requirements()) {
+            requirementResultRepository.save(requirementResult(run.getId(), requirement));
+        }
+        return run;
+    }
+
+    private void apply(
+            ScoreRunEntity run,
+            VacancyTemplate template,
+            String modelVersion,
+            ScoringResult result) {
         run.setTemplateVersion(template.version());
         run.setScoringVersion(template.scoringVersion());
         run.setPromptVersion(template.promptVersion());
@@ -44,13 +85,13 @@ public class ScoreRunWriter {
         run.setScoreHigh(decimal(result.scoreHigh(), 2));
         run.setCapApplied(false);
         run.setFlags(jsonCodec.write(result.flags()));
-        run.setParsed("{}");
-        run = scoreRunRepository.save(run);
-
-        for (ScoringResult.RequirementResult requirement : result.requirements()) {
-            requirementResultRepository.save(requirementResult(run.getId(), requirement));
-        }
-        return run;
+        run.setParsed(
+                jsonCodec.write(
+                        new Explanations(
+                                result.strengths(),
+                                result.risks(),
+                                result.questions(),
+                                result.recruiterNote())));
     }
 
     /**
@@ -60,6 +101,10 @@ public class ScoreRunWriter {
     public ScoreRunEntity copy(ScoreRunEntity source, UUID batchId, String phase) {
         ScoreRunEntity run = new ScoreRunEntity();
         run.setApplicationId(source.getApplicationId());
+        run.setResumeId(source.getResumeId());
+        run.setVacancyId(source.getVacancyId());
+        run.setVacancyTitle(source.getVacancyTitle());
+        run.setDirection(source.getDirection());
         run.setBatchId(batchId);
         run.setPhase(phase);
         run.setTemplateVersion(source.getTemplateVersion());
@@ -125,4 +170,7 @@ public class ScoreRunWriter {
     private BigDecimal decimal(double value, int scale) {
         return BigDecimal.valueOf(value).setScale(scale, RoundingMode.HALF_UP);
     }
+
+    private record Explanations(
+            List<String> strengths, List<String> risks, List<String> questions, String note) {}
 }
