@@ -41,8 +41,8 @@ public class ReportService {
                         run ->
                                 view(
                                         applicationId,
-                                        null,
-                                        null,
+                                        application.get().getResumeId(),
+                                        application.get().getVacancyId(),
                                         normalizedPhase,
                                         run,
                                         application.get().getScreeningDecision()));

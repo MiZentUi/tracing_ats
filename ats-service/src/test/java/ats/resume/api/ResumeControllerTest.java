@@ -15,6 +15,7 @@ import ats.resume.infrastructure.ingestion.ResumeQueryService;
 import java.nio.charset.StandardCharsets;
 import java.time.Instant;
 import java.util.List;
+import java.util.Optional;
 import java.util.UUID;
 import org.junit.jupiter.api.Test;
 import org.springframework.http.ResponseEntity;
@@ -49,6 +50,28 @@ class ResumeControllerTest {
         assertThat(response.getBody().getItems()).hasSize(1);
         assertThat(response.getBody().getItems().getFirst().getResumeId()).isEqualTo(resumeId);
         assertThat(response.getBody().getItems().getFirst().getStatus()).isEqualTo("MATCHED");
+    }
+
+    @Test
+    void returnsMaskedResumeText() {
+        ResumeIngestionService ingestion = mock(ResumeIngestionService.class);
+        ResumeQueryService query = mock(ResumeQueryService.class);
+        UUID resumeId = UUID.randomUUID();
+        when(query.text(resumeId))
+                .thenReturn(
+                        Optional.of(
+                                new ResumeQueryService.ResumeTextView(
+                                        resumeId,
+                                        "Java developer, email [PII_EMAIL_1]",
+                                        List.of())));
+
+        ResponseEntity<ats.gateway.model.ResumeText> response =
+                new ResumeController(ingestion, query).getResumeText(resumeId);
+
+        assertThat(response.getStatusCode().value()).isEqualTo(200);
+        assertThat(response.getBody()).isNotNull();
+        assertThat(response.getBody().getMaskedText()).contains("[PII_EMAIL_1]");
+        assertThat(response.getBody().getBlind()).isTrue();
     }
 
     @Test

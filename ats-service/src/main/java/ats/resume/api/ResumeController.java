@@ -4,6 +4,7 @@ import ats.api.ResumesApi;
 import ats.gateway.model.ResumeBatchUploadResponse;
 import ats.gateway.model.ResumeList;
 import ats.gateway.model.ResumeSummary;
+import ats.gateway.model.ResumeText;
 import ats.gateway.model.ResumeUploadResult;
 import ats.resume.domain.ingestion.UploadOutcome;
 import ats.resume.infrastructure.ingestion.ResumeIngestionService;
@@ -65,6 +66,21 @@ public class ResumeController implements ResumesApi {
         return queryService
                 .find(resumeId)
                 .map(view -> ResponseEntity.ok(summary(view)))
+                .orElseGet(() -> ResponseEntity.notFound().build());
+    }
+
+    @Override
+    public ResponseEntity<ResumeText> getResumeText(UUID resumeId) {
+        return queryService
+                .text(resumeId)
+                .map(
+                        view ->
+                                ResponseEntity.ok(
+                                        new ResumeText()
+                                                .resumeId(view.resumeId())
+                                                .maskedText(view.maskedText())
+                                                .warnings(view.warnings())
+                                                .blind(true)))
                 .orElseGet(() -> ResponseEntity.notFound().build());
     }
 

@@ -371,6 +371,27 @@ paths:
         default:
           $ref: "#/components/responses/default"
 
+  /resumes/{resumeId}/text:
+    get:
+      tags:
+        - Resumes
+      summary: Обезличенный текст резюме
+      description: Текст после маскировки PII и очистки prompt injection. Для визуальной проверки.
+      operationId: getResumeText
+      parameters:
+        - $ref: "#/components/parameters/ResumeId"
+      responses:
+        "200":
+          description: Текст резюме без PII
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ResumeText"
+        "404":
+          description: Не найдено
+        default:
+          $ref: "#/components/responses/default"
+
   /resumes/{resumeId}/ranking:
     get:
       tags:
@@ -975,6 +996,26 @@ components:
           type: array
           items:
             type: string
+
+    ResumeText:
+      type: object
+      required:
+        - resumeId
+        - maskedText
+        - blind
+      properties:
+        resumeId:
+          type: string
+          format: uuid
+        maskedText:
+          type: string
+          description: Обезличенный текст; PII заменены плейсхолдерами.
+        warnings:
+          type: array
+          items:
+            type: string
+        blind:
+          type: boolean
 
     ResumeList:
       type: object

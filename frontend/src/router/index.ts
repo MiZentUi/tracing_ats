@@ -5,6 +5,7 @@ import VacancyEditView from '@/views/VacancyEditView.vue'
 import MatchView from '@/views/MatchView.vue'
 import VacancyCandidatesView from '@/views/VacancyCandidatesView.vue'
 import ResumeRankingView from '@/views/ResumeRankingView.vue'
+import ResumeTextView from '@/views/ResumeTextView.vue'
 import ReportView from '@/views/ReportView.vue'
 
 const router = createRouter({
@@ -22,6 +23,12 @@ const router = createRouter({
       props: true,
     },
     { path: '/resumes/:id', name: 'resume-ranking', component: ResumeRankingView, props: true },
+    {
+      path: '/resumes/:id/text',
+      name: 'resume-text',
+      component: ResumeTextView,
+      props: true,
+    },
     {
       path: '/applications/:id/report',
       name: 'application-report',

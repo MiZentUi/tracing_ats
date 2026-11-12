@@ -2,6 +2,7 @@ package ats.resume.infrastructure.ingestion;
 
 import ats.resume.infrastructure.json.JsonCodec;
 import ats.resume.infrastructure.persistence.entity.ResumeEntity;
+import ats.resume.infrastructure.persistence.repository.ParsedResumeRepository;
 import ats.resume.infrastructure.persistence.repository.ResumeRepository;
 import com.fasterxml.jackson.core.type.TypeReference;
 import java.time.Instant;
@@ -21,10 +22,27 @@ public class ResumeQueryService {
     private static final int MAX_PAGE_SIZE = 100;
 
     private final ResumeRepository resumeRepository;
+    private final ParsedResumeRepository parsedResumeRepository;
     private final JsonCodec jsonCodec;
 
     public Optional<ResumeView> find(UUID resumeId) {
         return resumeRepository.findById(resumeId).map(this::view);
+    }
+
+    /** Обезличенный текст для визуальной проверки: PII уже заменены плейсхолдерами. */
+    public Optional<ResumeTextView> text(UUID resumeId) {
+        return resumeRepository
+                .findById(resumeId)
+                .flatMap(
+                        resume ->
+                                parsedResumeRepository
+                                        .findByResumeId(resumeId)
+                                        .map(
+                                                parsed ->
+                                                        new ResumeTextView(
+                                                                resumeId,
+                                                                parsed.getMaskedText(),
+                                                                warnings(resume))));
     }
 
     /** История загрузок: новые сначала. `offset` кратен размеру страницы. */
@@ -65,4 +83,6 @@ public class ResumeQueryService {
             List<String> warnings) {}
 
     public record ResumePage(List<ResumeView> items, long total) {}
+
+    public record ResumeTextView(UUID resumeId, String maskedText, List<String> warnings) {}
 }

@@ -19,6 +19,13 @@ const applicationId = computed(() => route.params.id as string | undefined)
 const resumeId = computed(() => route.params.resumeId as string | undefined)
 const vacancyId = computed(() => route.params.vacancyId as string | undefined)
 
+const resumeLink = computed(() =>
+  report.value?.resumeId ? `/resumes/${report.value.resumeId}/text` : null,
+)
+const vacancyLink = computed(() =>
+  report.value?.vacancyId ? `/vacancies/${report.value.vacancyId}` : null,
+)
+
 const statusLabel: Record<string, string> = {
   COVERED: 'Подтверждено',
   PARTIAL: 'Частично',
@@ -107,6 +114,12 @@ onMounted(load)
           <ShieldCheck :size="14" />
           Слепой режим
         </span>
+        <RouterLink v-if="resumeLink" :to="resumeLink" class="btn-secondary">
+          Открыть резюме
+        </RouterLink>
+        <RouterLink v-if="vacancyLink" :to="vacancyLink" class="btn-secondary">
+          Открыть вакансию
+        </RouterLink>
         <button
           v-if="applicationId"
           class="btn-secondary"
