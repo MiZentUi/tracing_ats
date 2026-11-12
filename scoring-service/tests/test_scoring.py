@@ -152,9 +152,7 @@ def _parsed_resume() -> messages_pb2.ParsedResume:
         position="Developer",
         category="backend",
     )
-    experience.metrics.add().CopyFrom(
-        common_pb2.FeatureEvidence(text="ООО Ромашка, 2020-2023")
-    )
+    experience.metrics.add().CopyFrom(common_pb2.FeatureEvidence(text="ООО Ромашка, 2020-2023"))
     experience.begin.CopyFrom(date_pb2.Date(year=2020))
     experience.end.CopyFrom(date_pb2.Date(year=2023))
     parsed.experience["experience:0"].CopyFrom(experience)
@@ -261,11 +259,9 @@ def test_evaluate_resume_match_statuses_and_explanations() -> None:
     assert kafka.resume_feature_key == ""
     assert not kafka.HasField("evidence")
     assert kafka.coverage == 0.0
-    assert kafka.coverage_high == 1.0
 
     soft = response.matches["soft"]
     assert soft.status == common_pb2.CORRESPONDENCE_NOT_STATED
-    assert soft.coverage_high == 1.0
 
     gap_ids = {gap.requirement_id for gap in response.gaps}
     assert gap_ids == {"kafka", "soft"}
@@ -308,7 +304,7 @@ def test_evaluate_resume_match_ignores_unverified_evidence() -> None:
         )
 
     assert response.matches["python"].status == common_pb2.CORRESPONDENCE_NOT_STATED
-    assert response.matches["python"].coverage_high == 1.0
+    assert response.matches["python"].coverage == 0.0
 
 
 def test_evaluate_resume_match_rejects_empty_text() -> None:

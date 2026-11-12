@@ -75,8 +75,5 @@ def test_score_resume_logs_error_status(caplog) -> None:
         stub.ScoreResume(_request("   "), timeout=2)
 
     assert exc_info.value.code() == grpc.StatusCode.INVALID_ARGUMENT
-    assert (
-        f"grpc request end method={METHOD} request_id=- status=INVALID_ARGUMENT"
-        in caplog.text
-    )
+    assert f"grpc request end method={METHOD} request_id=- status=INVALID_ARGUMENT" in caplog.text
     assert "error=" in caplog.text
