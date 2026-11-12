@@ -114,12 +114,21 @@
   запроса и ответа не логируется.
 - **Ошибки gRPC.** `INVALID_ARGUMENT` для пустого текста, `UNAVAILABLE` при
   недоступной LLM, `INTERNAL` после невалидного ответа — без «0 баллов».
+- **Детерминированные объяснения скоринга.** `EvaluateResumeMatch` и
+  `EvaluateResumeMatches` заполняют `strengths`, `risks`, `questions` и
+  `recruiter_note` по каталогу `feedback-templates.v1` из 30 шаблонов.
+  Генерация не вызывает LLM и не меняет формулы; вариант шаблона выбирается
+  стабильным хешем `fact_id`, цитаты берутся только из проверенного
+  `match.evidence`, `gaps` остаются структурированными. Правила и каталог —
+  в `docs/rfc/rfc-feedback-generation.md`.
 
 #### Changed
 
 - `ScoringService` принимает `ResumeExtractor`; `create_server` собирает
   LLM-клиент из настроек. Заглушка `api/scoring.py` заменена пакетом
   `api/scoring/`.
+- `ResumeEvaluator` собирает объяснения через `FeedbackBuilder`; старые
+  заглушки `_strengths`, `_risks`, `_questions` и `_recruiter_note` удалены.
 
 #### Security
 
@@ -127,6 +136,9 @@
   модели не логируются, в логах только счётчики.
 - Ключ LLM читается из окружения, хранится как `SecretStr` и не попадает в
   логи.
+- Лог `evaluate resume match` содержит только количества и версию каталога
+  объяснений; тексты резюме, цитаты и сгенерированные формулировки не
+  логируются.
 
 ### Ветка `feature/scoring-service-impl` — пайплайн извлечения
 
