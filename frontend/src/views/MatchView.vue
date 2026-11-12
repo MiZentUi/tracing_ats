@@ -17,6 +17,8 @@ const vacancies = ref<VacancySummary[]>([])
 const vacancyId = ref<string>('')
 const consentGithub = ref(false)
 const files = ref<File[]>([])
+const pastedText = ref('')
+const pastedCounter = ref(0)
 const uploading = ref(false)
 const error = ref('')
 const response = ref<ResumeBatchUploadResponse | null>(null)
@@ -41,13 +43,44 @@ onMounted(async () => {
   }
 })
 
+function appendFiles(incoming: File[]) {
+  files.value = [...files.value, ...incoming]
+}
+
 function pickFiles(event: Event) {
   const input = event.target as HTMLInputElement
-  files.value = Array.from(input.files ?? [])
+  appendFiles(Array.from(input.files ?? []))
+  input.value = ''
 }
 
 function dropFiles(event: DragEvent) {
-  files.value = Array.from(event.dataTransfer?.files ?? [])
+  appendFiles(Array.from(event.dataTransfer?.files ?? []))
+}
+
+/** Вставленный текст отправляется как обычный .txt: бэкенд уже умеет TEXT. */
+function addPastedText() {
+  const text = pastedText.value.trim()
+  if (!text) {
+    toastError('Пустой текст', 'Вставьте текст резюме')
+    return
+  }
+  pastedCounter.value += 1
+  appendFiles([
+    new File([text], `pasted-resume-${pastedCounter.value}.txt`, { type: 'text/plain' }),
+  ])
+  pastedText.value = ''
+  success('Текст добавлен', `Резюме №${pastedCounter.value}`)
+}
+
+function removeFile(index: number) {
+  files.value = files.value.filter((_, current) => current !== index)
+}
+
+function formatSize(bytes: number): string {
+  if (bytes < 1024) {
+    return `${bytes} Б`
+  }
+  return `${(bytes / 1024).toFixed(1)} КБ`
 }
 
 async function upload() {
@@ -65,7 +98,7 @@ async function upload() {
     }
     const result = await resumesApi.uploadResumes(payload)
     response.value = result.data
-    success('Файлы приняты', 'Обработка идёт в фоне')
+    success('Резюме приняты', 'Обработка идёт в фоне')
     if (fileInput.value) {
       fileInput.value.value = ''
     }
@@ -134,7 +167,9 @@ function openRanking() {
           <span class="text-sm font-medium text-slate-700">
             Перетащите PDF, DOCX, TXT или MD
           </span>
-          <span class="text-xs text-slate-500">Можно выбрать несколько файлов сразу</span>
+          <span class="text-xs text-slate-500">
+            Можно выбрать несколько файлов сразу или вставить текст ниже
+          </span>
           <input
             ref="fileInput"
             type="file"
@@ -145,9 +180,47 @@ function openRanking() {
           />
         </label>
 
-        <p v-if="files.length" class="mt-3 text-sm text-slate-600">
-          Выбрано файлов: {{ files.length }}
-        </p>
+        <div class="mt-4 rounded-2xl border border-slate-200 bg-white p-4">
+          <div class="flex items-center justify-between gap-3">
+            <p class="text-sm font-medium text-slate-700">Или вставьте текст резюме</p>
+            <span class="text-xs text-slate-400">{{ pastedText.length }} символов</span>
+          </div>
+          <textarea
+            v-model="pastedText"
+            rows="6"
+            class="input mt-2 w-full resize-y font-mono text-sm"
+            placeholder="Вставьте текст резюме: опыт, навыки, образование…"
+          />
+          <div class="mt-2 flex justify-end">
+            <button
+              type="button"
+              class="btn-secondary"
+              :disabled="!pastedText.trim()"
+              @click="addPastedText"
+            >
+              Добавить текст
+            </button>
+          </div>
+        </div>
+
+        <ul v-if="files.length" class="mt-4 space-y-2">
+          <li
+            v-for="(file, index) in files"
+            :key="`${file.name}-${index}`"
+            class="flex items-center gap-3 rounded-xl border border-slate-200 px-3 py-2 text-sm"
+          >
+            <span class="truncate text-slate-700">{{ file.name }}</span>
+            <span class="ml-auto shrink-0 text-xs text-slate-400">{{ formatSize(file.size) }}</span>
+            <button
+              type="button"
+              class="shrink-0 text-slate-400 transition hover:text-rose-600"
+              title="Убрать"
+              @click="removeFile(index)"
+            >
+              ×
+            </button>
+          </li>
+        </ul>
 
         <div v-if="mode === 'candidates'" class="mt-6 space-y-2">
           <label class="text-sm font-medium text-slate-700">Вакансия</label>
