@@ -7,9 +7,25 @@ option java_multiple_files = true;
 option java_outer_classname = "ScoringServiceProto";
 option java_package = "ats.scoring.proto";
 
-// Сервис оценки соответствия резюме вакансии
+// Сервис извлечения резюме и оценки соответствия вакансии
 service ScoringService {
-  // Оценивает соответствие резюме вакансии
+  // Извлекает резюме и сразу оценивает его соответствие вакансии.
+  // Эквивалентен последовательному вызову ExtractResume и EvaluateResumeMatch.
   rpc ScoreResume(scoring_service.v1.models.ScoreResumeRequest)
       returns (scoring_service.v1.models.ScoreResumeResponse);
+
+  // Оценивает соответствие уже извлечённого резюме вакансии.
+  // LLM не вызывается: используются переданные ParsedResume и исходный текст.
+  rpc EvaluateResumeMatch(scoring_service.v1.models.EvaluateResumeMatchRequest)
+      returns (scoring_service.v1.models.EvaluateResumeMatchResponse);
+
+  // Пакетно оценивает одно извлечённое резюме по нескольким вакансиям.
+  // LLM не вызывается. Ошибка по одной вакансии не отменяет остальные
+  // результаты: она возвращается в EvaluateResumeMatchResult.error.
+  rpc EvaluateResumeMatches(scoring_service.v1.models.EvaluateResumeMatchesRequest)
+      returns (scoring_service.v1.models.EvaluateResumeMatchesResponse);
+
+  // Извлекает структурированные данные из резюме без сверки с вакансией
+  rpc ExtractResume(scoring_service.v1.models.ExtractResumeRequest)
+      returns (scoring_service.v1.models.ExtractResumeResponse);
 }

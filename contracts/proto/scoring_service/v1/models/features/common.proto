@@ -17,6 +17,53 @@ enum FeatureCriticality {
   FEATURE_CRITICALITY_CRITICAL = 4;
 }
 
+// Категория требования вакансии. Нужна, чтобы представлять не только
+// IT-навыки, но и стаж, образование, soft skills и прочие требования.
+enum RequirementCategory {
+  REQUIREMENT_CATEGORY_UNSPECIFIED = 0;
+  REQUIREMENT_CATEGORY_SKILL = 1;
+  REQUIREMENT_CATEGORY_EXPERIENCE = 2;
+  REQUIREMENT_CATEGORY_EDUCATION = 3;
+  REQUIREMENT_CATEGORY_SOFT = 4;
+  REQUIREMENT_CATEGORY_OTHER = 5;
+}
+
+// Источник требования в тексте вакансии.
+enum RequirementSource {
+  REQUIREMENT_SOURCE_UNSPECIFIED = 0;
+  // Явное требование из раздела «Требования»
+  REQUIREMENT_SOURCE_REQUIREMENT = 1;
+  // Производное требование из раздела «Обязанности»
+  REQUIREMENT_SOURCE_DUTY = 2;
+}
+
+// Соответствие требования вакансии тексту резюме.
+enum Correspondence {
+  // В резюме нет сведений по требованию
+  CORRESPONDENCE_NOT_STATED = 0;
+  // Полное соответствие
+  CORRESPONDENCE_FULL = 1;
+  // Частичное соответствие
+  CORRESPONDENCE_PARTIAL = 2;
+  // Отсутствие соответствия
+  CORRESPONDENCE_ABSENT = 3;
+}
+
+// Причина, по которой требование попало в список пробелов.
+enum GapReason {
+  GAP_REASON_UNSPECIFIED = 0;
+  // В резюме нет сведений по требованию
+  GAP_REASON_NOT_STATED = 1;
+  // Сведения есть, но требование не выполнено
+  GAP_REASON_ABSENT = 2;
+  // Подтверждение частичное
+  GAP_REASON_PARTIAL = 3;
+  // Стажа меньше требуемого
+  GAP_REASON_INSUFFICIENT_TENURE = 4;
+  // Факты в резюме противоречат друг другу
+  GAP_REASON_CONTRADICTION = 5;
+}
+
 // Текстовое подтверждение наличия фичи.
 // Содержит ссылки на поддиапазон текста резюме,
 // откуда взято подтверждение.

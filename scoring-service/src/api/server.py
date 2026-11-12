@@ -6,11 +6,19 @@ from dataclasses import dataclass
 
 import grpc
 from grpc_health.v1 import health, health_pb2, health_pb2_grpc
+from grpc_reflection.v1alpha import reflection
 
 import scoring_service.v1.scoring_pb2_grpc as scoring_pb2_grpc
+from scoring_service.v1 import scoring_pb2
 
 from .config import Settings, get_settings
-from .scoring import ScoringService
+from .extraction.extractor import ResumeExtractor
+from .interceptors import RequestLoggingInterceptor
+from .llm import build_llm_client
+from .scoring import ScoringService, build_evaluator, build_scoring_service
+from .scoring.evaluator import ResumeEvaluator
+from .scoring.mapping import ExtractionMapper
+from .scoring.policies import Clock, SystemClock
 
 logger = logging.getLogger(__name__)
 
@@ -22,10 +30,19 @@ class ServerHandle:
     port: int
 
 
-def create_server(settings: Settings | None = None) -> ServerHandle:
+def create_server(
+    settings: Settings | None = None,
+    extractor: ResumeExtractor | None = None,
+    evaluator: ResumeEvaluator | None = None,
+    mapper: ExtractionMapper | None = None,
+    clock: Clock | None = None,
+) -> ServerHandle:
     """Create a gRPC server with the health and scoring services."""
     settings = settings or get_settings()
-    server = grpc.server(futures.ThreadPoolExecutor(max_workers=settings.max_workers))
+    server = grpc.server(
+        futures.ThreadPoolExecutor(max_workers=settings.max_workers),
+        interceptors=[RequestLoggingInterceptor()],
+    )
     health_servicer = health.HealthServicer()
     health_pb2_grpc.add_HealthServicer_to_server(health_servicer, server)
 
@@ -35,8 +52,24 @@ def create_server(settings: Settings | None = None) -> ServerHandle:
         health_pb2.HealthCheckResponse.SERVING,
     )
 
-    scoring_servicer = ScoringService()
+    if extractor is None and evaluator is None and mapper is None and clock is None:
+        scoring_servicer = build_scoring_service(settings)
+    else:
+        scoring_servicer = ScoringService(
+            extractor=extractor or ResumeExtractor(build_llm_client(settings)),
+            evaluator=evaluator or build_evaluator(),
+            mapper=mapper or ExtractionMapper(),
+            clock=clock or SystemClock(),
+        )
     scoring_pb2_grpc.add_ScoringServiceServicer_to_server(scoring_servicer, server)
+
+    GRPC_SERVICES = [
+        *[x.full_name for x in scoring_pb2.DESCRIPTOR.services_by_name.values()],
+        *[x.full_name for x in health_pb2.DESCRIPTOR.services_by_name.values()],
+        reflection.SERVICE_NAME,
+    ]
+
+    reflection.enable_server_reflection(GRPC_SERVICES, server)
 
     address = f"{settings.grpc_host}:{settings.grpc_port}"
     bound_port = server.add_insecure_port(address)

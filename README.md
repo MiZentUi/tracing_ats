@@ -273,9 +273,7 @@ flowchart LR
 - **Обучение не активируется само.** Java импортирует артефакт как версию `WEIGHT_PROFILE` со статусом `candidate`; активирует человек. Активные вакансии и сохранённые запуски не пересчитываются.
 - **Маскировка до любого LLM.** Java маскирует PII до передачи текста в Python, поэтому и Java, и Python отправляют модели только обезличенный текст.
 - **Кого обогащать GitHub, решает Java**, а не обученная модель.
-- **Контракты.** Публичный REST — OpenAPI (`contracts/openapi.yaml`), внутренний ML — gRPC (`contracts/ml-internal.proto`), обучение — JSON Schema (`contracts/training-artifact.schema.json`). Шаблон вакансии и решение о шорт-листе приходят из `vacancy-service` по `contracts/vacancy-internal.proto`.
-- **Пайплайн `resume-service`.** Загрузка → извлечение текста → маскировка PII → очистка prompt injection → `Score_pre` сразу после загрузки → ожидание готовых запусков в скрининге → один вызов `DecideScreening` на пачку → GitHub только для шорт-листа с согласием → `Score_final` → рейтинг и отчёт. Подробности — `docs/resume-pipeline.md`.
-- **Скоринг через gRPC.** `resume-service` вызывает `scoring-service` по `contracts/proto/scoring_service/v1`. Java не содержит формул. Пока во внешнем контракте нет `Refine`, `Score_final` копирует готовые факты `Score_pre`, а GitHub влияет только на отчёт. Это ограничение контракта, а не модели (ADR 0006).
+- **Контракты.** Публичный REST — OpenAPI (`contracts/openapi.yaml`), обучение — JSON Schema (`contracts/training-artifact.schema.json`). gRPC-контракт — `contracts/proto/scoring_service/v1/scoring.proto`; он закоммичен, но до фиксации модели считается черновиком.
 
 ---
 
@@ -419,7 +417,7 @@ Score = 100 · (0.70·0.706 + 0.15·0.45 + 0.15·0.867) ≈ 69
 
 Цитата, которой нет в исходном тексте, отбрасывается, а требование остаётся без покрытия. Это защита от галлюцинаций.
 
-Вся арифметика живёт в `scoring-service/app/scoring/`: Java передаёт туда обезличенный текст резюме и шаблон, Python сам вызывает LLM для разбора и категорий `m`/`t`, а затем возвращает балл, вилку и матрицу требований.
+Вся арифметика живёт в `scoring-service/src/api/scoring/`: Java передаёт туда обезличенный текст резюме и шаблон, Python сам вызывает LLM для разбора и категорий `m`/`t`, а затем возвращает балл, вилку и матрицу требований.
 
 ---
 
@@ -623,7 +621,7 @@ erDiagram
 
 ## 10. Контракты API и JSON
 
-Источник истины — OpenAPI для публичного REST, gRPC-прото для внутреннего ML и JSON Schema для датасета и артефакта обучения. Ниже черновик для ориентира.
+Источник истины — OpenAPI для публичного REST и JSON Schema для датасета и артефакта обучения. gRPC-контракт закоммичен, но до фиксации модели считается черновиком. Ниже — рабочая версия для ориентира.
 
 ### Публичный API (Java)
 
@@ -646,30 +644,18 @@ erDiagram
 
 ### Внутренний API ML (gRPC, только из сети Java)
 
-Контракт — `contracts/proto/scoring_service/v1/scoring.proto`; Java вызывает Python
-через gRPC client (`GrpcScoringClient`, ADR 0006).
-**Статус:** контракт реализован, но `scoring-service` пока возвращает заглушку.
+Рабочая версия gRPC-контракта — `contracts/proto/scoring_service/v1/scoring.proto`; она закоммичена, но до фиксации модели считается черновиком. Java вызывает Python через Spring gRPC client.
 
 | RPC | Вход | Выход |
 |---|---|---|
-| `ScoreResume` | обезличенный текст резюме + шаблон вакансии | `Score_pre`, вилка, релевантность, матрица требований |
+| `ExtractResume` | обезличенный текст резюме, `reference_date` | `ParsedResume`, `warnings`, `dropped`; вызывает LLM |
+| `EvaluateResumeMatch` | `ParsedResume`, исходный текст, одна вакансия, `reference_date` | `GeneralResumeScore`, `FeatureMatch` по требованиям, `Gap`, объяснения; LLM не вызывает |
+| `EvaluateResumeMatches` | `ParsedResume`, исходный текст, несколько вакансий, `reference_date` | результаты по каждой вакансии; ошибка одной не отменяет остальные; LLM не вызывает |
+| `ScoreResume` | обезличенный текст, одна вакансия, `reference_date` | одношаговый legacy-вызов: `GeneralResumeScore` + `FeatureAssessment`; вызывает LLM |
 
-`ScoreResume` сам вызывает LLM для разбора резюме, неявных навыков и категорий
-сходства/убедительности. RPC `Refine` в текущем контракте нет: `Score_final`
-создаётся копированием готовых фактов `Score_pre` и LLM повторно не вызывает.
+Требования вакансии передаются как `FeatureRequirement`: структурированные `skill`/`education`/`experience` или `TextRequirement` для soft/other. Результат по каждому требованию — `FeatureMatch`, пробелы — `Gap` с причиной.
 
-### Внутренний API вакансии (gRPC)
-
-Контракт — `contracts/vacancy-internal.proto`. `resume-service` — клиент,
-`vacancy-service` — сервер.
-
-| RPC | Вход | Выход |
-|---|---|---|
-| `GetTemplate` | `vacancyId` | версия шаблона, требования, веса и версия весов, версии промптов |
-| `DecideScreening` | `vacancyId` + баллы всей пачки | решение `SHORTLISTED` / `BORDERLINE` / `NOT_SHORTLISTED` и флаг обогащения |
-
-`DecideScreening` вызывается один раз на пакет: top-N нельзя решить по одному
-кандидату. Политика порога, top-N и borderline живёт в `vacancy-service` (ADR 0004).
+`EvaluateResumeMatch` и `EvaluateResumeMatches` используют одну и ту же математику; различие — в количестве вакансий. Передача внешних `q_i^l` и отдельные `Score_pre`/`Score_final` пока не зафиксированы в контракте: это следующий шаг после RFC по модели.
 
 ### Контракт обучения весов (Python, офлайн)
 
@@ -764,27 +750,29 @@ erDiagram
 ```json
 {
   "phase": "PRELIMINARY",
-  "score": 69,
-  "score_low": 62,
-  "score_high": 82,
-  "cap_applied": false,
+  "score": 0.69,
+  "score_low": 0.62,
+  "score_high": 0.82,
+  "relevance": 0.71,
+  "tenure": 5,
   "requirements": [
     {
       "requirement_id": "req-1",
-      "c_r": 0.72,
-      "status": "COVERED",
-      "m": 1.0,
-      "t": 0.8,
-      "rho": 0.9,
-      "evidence": { "source": "resume", "quote": "разработал сервис на FastAPI, 5k rps" },
-      "gap": null
+      "status": "CORRESPONDENCE_FULL",
+      "coverage": 0.72,
+      "recency_unknown": false,
+      "tenure": 3,
+      "evidence": { "source": "resume", "quote": "разработал сервис на FastAPI, 5k rps" }
     }
   ],
-  "flags": ["external_skipped"]
+  "gaps": [
+    { "requirement_id": "req-2", "reason": "GAP_REASON_NOT_STATED" }
+  ],
+  "flags": []
 }
 ```
 
-Пороги статусов (гипотеза): `c_r ≥ 0.7` — закрыто, от 0.3 до 0.7 — частично, ниже 0.3 — пробел.
+`coverage` — это `c_i`, `relevance` — `Rv`, `score_low`/`score_high` — `Score_l`/`Score_h`. Числа приведены для иллюстрации; шкала и округление `Score` уточняются в RFC. Статусы отчёта («закрыто», «частично», «пробел») — отдельная политика отображения, она не влияет на `Score` и будет уточнена вместе с порогами.
 
 ---
 
@@ -863,24 +851,24 @@ tracing-ats/
 │       └── ats/resume/          # резюме, PII, vault, gRPC-скоринг, рейтинг, отчёт
 ├── text-extraction/             # Java-библиотека: PDF, DOCX, TXT, MD → текст
 │   ├── build.gradle
-│   └── src/main/java/ats/extraction/
-├── scoring-service/             # Python 3.12, gRPC: LLM и математическая модель
-│   ├── app/
-│   │   ├── api/                 # gRPC-сервер
-│   │   ├── llm/                 # клиент LLM и промпты резюме
-│   │   ├── analyze/             # разбор резюме, неявные навыки, m/t
-│   │   ├── scoring/             # q, E, D, c_r, M/N/F, Score, cap, вилка, refine
-│   │   └── models/              # Pydantic-схемы
-│   └── tests/golden/            # эталонные резюме и ожидаемый порядок
-├── ml-trainer/                  # Python 3.12, только офлайн-обучение
+│   ├── gradlew
+│   ├── Dockerfile
+│   └── src/main/java/ats/vacancy/
+├── scoring-service/             # Python 3.14, uv, gRPC: LLM и математическая модель
+│   ├── pyproject.toml
+│   ├── uv.lock
+│   ├── Dockerfile
+│   ├── src/api/                 # gRPC-сервер, конфигурация и scoring
+│   ├── src/scoring_service/     # сгенерированные protobuf/gRPC-модули
+│   └── tests/                   # golden и контрактные проверки
+├── ml-trainer/                  # Python 3.14, только офлайн-обучение
 │   ├── train/                   # обучение λ, wM, wN, wF
 │   ├── datasets/                # локальные снапшоты для прогонов
 │   ├── artifacts/               # weight-profile.json
 │   └── tests/                   # воспроизводимость и метрики
 ├── contracts/
 │   ├── openapi.yaml             # публичный REST-контракт
-│   ├── ml-internal.proto        # gRPC-контракт Java ↔ scoring-service
-│   ├── vacancy-internal.proto   # gRPC-контракт Java ↔ vacancy-service
+│   ├── proto/scoring_service/v1/scoring.proto # gRPC-контракт (до фиксации модели — черновик)
 │   └── training-artifact.schema.json
 ├── frontend/                    # Vue 3 + TypeScript
 ├── infra/
@@ -903,8 +891,8 @@ tracing-ats/
 | Утечка PII | Тест исходящих запросов к LLM из Java и из `scoring-service`: ни имён, ни контактов |
 | Порядок кандидатов | 10–15 синтетических резюме с заранее известным порядком. Таблица «наш рейтинг против эталона» |
 | Устойчивость весов | Сдвигаем веса на ±20 % и смотрим, меняется ли топ-5. Если нет, рейтингу можно доверять |
-| Калибровка (после хакатона) | 100–300 пар «резюме — вакансия» с оценками рекрутёров. Метрики: корреляция Спирмена, NDCG@10. Веса `M`, `N`, `F` подбираются логистической регрессией или попарным ранжированием |
-| gRPC-контракт | Contract-тест Java ↔ `scoring-service`: `AnalyzeAndScore` и `Refine` соответствуют `contracts/ml-internal.proto` |
+| Калибровка (после хакатона) | 100–300 пар «резюме — вакансия» с оценками рекрутёров. Метрики: корреляция Спирмена, NDCG@10. Набор гиперпараметров модели и процедура калибровки — отдельная задача, фиксируется в RFC/ADR |
+| gRPC-контракт | После фиксации модели — contract-тест Java ↔ `scoring-service`; контракт закоммичен, но до этого считается черновиком |
 | Обучение | Датасет и артефакт соответствуют JSON Schema, в датасете нет PII, у `ml-trainer` нет клиентов PostgreSQL и внешних API, кроме тренировочного бакета MinIO |
 | Воспроизводимость обучения | Один датасет и фиксированный seed дают один и тот же `weight-profile.json`; метрики на holdout не хуже активной версии |
 
@@ -927,7 +915,7 @@ tracing-ats/
 | Судьи не поймут формулу | Один экран «как считается» с примером из раздела 6 |
 | Обученные веса ухудшают ранжирование | Артефакт импортируется как `candidate`, активируется вручную, метрики на holdout сравниваются с активной версией |
 | `scoring-service` ходит в LLM | Только обезличенный текст, таймауты и кеш `parsed`, mock-LLM в CI, лимит на размер запроса |
-| Рассинхрон gRPC-контракта | `contracts/ml-internal.proto` — источник истины, contract-тест Java ↔ Python в CI |
+| Рассинхрон gRPC-контракта | После фиксации модели — contract-тест Java ↔ Python в CI; контракт закоммичен, но до этого не стабилен |
 
 ---
 
@@ -972,9 +960,9 @@ tracing-ats/
 | **Вилка** | Диапазон `Score_low–Score_high`, честный интервал оценки |
 | **Cap** | Ограничение итога при непокрытом критичном требовании |
 | **Слепой режим** | Просмотр оценки без PII до аудируемого раскрытия |
-| **Профиль весов** | Набор `λ`, `wM`, `wN`, `wF` под уровень позиции |
-| **`scoring-service`** | Онлайн-ML: принимает обезличенный текст и шаблон по gRPC, сам вызывает LLM для разбора резюме и `m/t`, считает `Score_pre`, `Score_final`, cap и вилку. Stateless |
-| **gRPC** | Внутренний контракт Java ↔ `scoring-service` (`contracts/ml-internal.proto`): `AnalyzeAndScore`, `Refine` |
-| **Офлайн-обучение** | Отдельный сервис `ml-trainer`: подбирает `λ`, `wM`, `wN`, `wF` по обезличенному датасету и отдаёт артефакт |
-| **Артефакт весов** | `weight-profile.json` с версией профиля, метриками и хешем датасета; импортируется в Java как `candidate` |
+| **Профиль весов** | Набор стартовых гиперпараметров модели под уровень позиции; значения калибруются |
+| **`scoring-service`** | Онлайн-ML: принимает обезличенный текст и шаблон, сам вызывает LLM для разбора резюме и категорий, считает `S^{ij}`, `R_i`, `Rv`, `τ`, `t`, `c_i`, `R'`, `Score` и границы; `F` — после фиксации в RFC. Stateless |
+| **gRPC** | Внутренний контракт Java ↔ `scoring-service`: `ExtractResume`, `EvaluateResumeMatch`, `EvaluateResumeMatches`, `ScoreResume`; закоммичен, до фиксации модели — черновик |
+| **Офлайн-обучение** | Отдельный сервис `ml-trainer`: подбирает гиперпараметры модели по обезличенному датасету и отдаёт артефакт |
+| **Артефакт весов** | `weight-profile.json` с версией профиля, гиперпараметрами, метриками и хешем датасета; импортируется в Java как `candidate` |
 | **Память весов** | История расстановки HR (`kind`, `weight`, `critical`) по паре «специализация × уровень × навык»; источник плейсхолдеров в новых шаблонах |

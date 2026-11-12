@@ -2,6 +2,11 @@ syntax = "proto3";
 
 package scoring_service.v1.models;
 import "scoring_service/v1/models/features.proto";
+import "scoring_service/v1/models/features/common.proto";
+import "scoring_service/v1/models/features/education.proto";
+import "scoring_service/v1/models/features/experience.proto";
+import "scoring_service/v1/models/features/skill.proto";
+import "google/type/date.proto";
 
 // Уровень должности
 enum JobPositionLevel {
@@ -35,14 +40,42 @@ message UnprocessedResume {
   string text = 1;
 }
 
+// Структурированные данные, извлечённые из резюме.
+message ParsedResume {
+  // Версия схемы извлечения
+  uint32 schema_version = 1;
+  // Навыки, образование и опыт, извлечённые из текста.
+  // Ключи стабильны в пределах ответа и имеют префикс типа:
+  // `skill:<n>`, `education:<n>`, `experience:<n>`.
+  map<string, scoring_service.v1.models.features.SkillPerResume> skills = 2;
+  map<string, scoring_service.v1.models.features.EducationPerResume> education = 3;
+  map<string, scoring_service.v1.models.features.PriorExperiencePerResume> experience = 4;
+}
+
+message ExtractResumeRequest {
+  UnprocessedResume resume = 1;
+  // Дата, на которую считается стаж; если не задана, используется текущая дата
+  google.type.Date reference_date = 2;
+}
+
+message ExtractResumeResponse {
+  ParsedResume parsed = 1;
+  // Сколько признаков отброшено из-за невалидной цитаты
+  uint32 dropped = 2;
+  // Предупреждения извлечения, например расхождение заявленного стажа и дат
+  repeated string warnings = 3;
+}
+
 // Запрос для оценки соответствия резюме вакансии
 message ScoreResumeRequest {
   Vacancy vacancy = 1;
   UnprocessedResume resume = 2;
+  // Дата, на которую считается стаж; если не задана, используется текущая дата
+  google.type.Date reference_date = 3;
 }
 
-// Соответствие резюме и вакансии
-message ScoreResumeResponse {
+// Общая оценка соответствия резюме вакансии.
+message GeneralResumeScore {
   // Общая релевантность резюме (`Rv`)
   double relevance = 1;
   // Нижняя граница диапазона скора (`Score_l`)
@@ -53,10 +86,101 @@ message ScoreResumeResponse {
   double score = 4;
   // Общий стаж работы, если известен
   optional int32 tenure = 5;
-  // Рекомендация к дополнительной обработке
-  bool refine = 6;
+}
+
+// Соответствие резюме и вакансии
+message ScoreResumeResponse {
+  GeneralResumeScore general_score = 1;
   // Результаты оценки соответствия требований.
   // Ключи соответствуют ключам таблицы `requirements`
   // в запросе.
-  map<string, FeatureAssessment> features = 7;
+  map<string, FeatureAssessment> features = 2;
+}
+
+message EvaluateResumeMatchRequest {
+  // Распаршенное резюме; ключи `skills`/`education`/`experience`
+  // используются в `FeatureMatch.resume_feature_key`.
+  ParsedResume resume = 1;
+  // Исходный обезличенный текст нужен для проверки цитат как подстрок
+  UnprocessedResume unprocessed_resume = 2;
+  Vacancy vacancy = 3;
+  // Дата, на которую считается стаж; если не задана, используется текущая дата
+  google.type.Date reference_date = 4;
+}
+
+// Результат сопоставления одного требования с резюме.
+message FeatureMatch {
+  // Статус соответствия требования
+  scoring_service.v1.models.features.Correspondence status = 1;
+  // Релевантность (`R_i`)
+  double relevance = 2;
+  // Покрытие (`c_i`)
+  double coverage = 3;
+  // Ключ подтверждающей фичи в `ParsedResume`; пусто, если подтверждения нет
+  string resume_feature_key = 4;
+  // Цитата из резюме; пусто, если подтверждения нет
+  scoring_service.v1.models.features.FeatureEvidence evidence = 5;
+  // Пояснение статуса для рекрутера
+  string comment = 6;
+  // Найденный стаж в годах; не задан, если стаж не применим или не найден
+  optional double years_found = 7;
+}
+
+// Пробел по конкретному требованию. Детали (статус, цитата,
+// комментарий, найденный стаж) берутся из `matches[requirement_id]`.
+message Gap {
+  // Ключ требования из `Vacancy.requirements`.
+  string requirement_id = 1;
+  // Причина попадания требования в пробелы.
+  scoring_service.v1.models.features.GapReason reason = 2;
+}
+
+message EvaluateResumeMatchResponse {
+  GeneralResumeScore general_score = 1;
+  // Результаты по требованиям. Ключи совпадают с `Vacancy.requirements`.
+  map<string, FeatureMatch> matches = 2;
+  // Сильные стороны кандидата по этой вакансии
+  repeated string strengths = 3;
+  // Пробелы. Детали каждого пробела — в `matches[requirement_id]`.
+  repeated Gap gaps = 4;
+  // Риски и противоречия, которые стоит уточнить
+  repeated string risks = 5;
+  // Вопросы кандидату
+  repeated string questions = 6;
+  // Короткий текст для рекрутера
+  string recruiter_note = 7;
+}
+
+// Запрос на пакетную оценку одного резюме по нескольким вакансиям.
+message EvaluateResumeMatchesRequest {
+  // Распаршенное резюме; парсится один раз.
+  ParsedResume resume = 1;
+  // Исходный обезличенный текст нужен для проверки цитат как подстрок
+  UnprocessedResume unprocessed_resume = 2;
+  // Вакансии. Ключ задаёт клиент и получает его же в ответе.
+  map<string, Vacancy> vacancies = 3;
+  // Дата, на которую считается стаж; если не задана, используется текущая дата
+  google.type.Date reference_date = 4;
+}
+
+// Результат по одной вакансии в пакетном вызове.
+message EvaluateResumeMatchResult {
+  oneof result {
+    EvaluateResumeMatchResponse match = 1;
+    BatchItemError error = 2;
+  }
+}
+
+// Ошибка обработки одной вакансии. Остальные результаты пакета
+// остаются доступными.
+message BatchItemError {
+  // Код ошибки, например INVALID_ARGUMENT или INTERNAL.
+  string code = 1;
+  // Человекочитаемое описание без PII.
+  string message = 2;
+}
+
+message EvaluateResumeMatchesResponse {
+  // Результаты по вакансиям. Ключи совпадают с `vacancies`.
+  map<string, EvaluateResumeMatchResult> results = 1;
 }

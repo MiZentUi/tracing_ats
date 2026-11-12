@@ -32,10 +32,25 @@ message FeatureAssessment {
 message FeatureRequirement {
   // Критичность
   scoring_service.v1.models.features.FeatureCriticality criticality = 2;
-  // Требование по конкретной фиче
+  // Требование по конкретной фиче или текстовое требование.
+  // Для soft skills и прочих требований без структуры используется
+  // text_requirement.
   oneof feature {
     scoring_service.v1.models.features.EducationRequirement education = 3;
     scoring_service.v1.models.features.SkillRequirement skill = 4;
     scoring_service.v1.models.features.PriorExperienceRequirement experience = 5;
+    scoring_service.v1.models.TextRequirement text_requirement = 6;
   }
+  // Источник требования: явное требование или обязанность
+  scoring_service.v1.models.features.RequirementSource source = 7;
+}
+
+// Требование, для которого нет отдельной структуры:
+// soft skills, произвольные требования из обязанностей и т.п.
+message TextRequirement {
+  // Категория требования. Для SKILL/EXPERIENCE/EDUCATION используются
+  // структурированные варианты FeatureRequirement.
+  scoring_service.v1.models.features.RequirementCategory category = 1;
+  // Исходная формулировка требования
+  string text = 2;
 }
