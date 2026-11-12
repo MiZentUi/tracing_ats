@@ -7,6 +7,81 @@
 
 ## [Unreleased]
 
+### Ветка `feature/unified-ats-service` — event logging
+
+#### Added
+
+- Единый `request_id` для HTTP, gRPC и фоновых задач: MDC `request_id`, заголовок ответа
+  `X-Request-Id`, metadata `x-request-id` при исходящих gRPC-вызовах.
+- `GrpcServerLoggingInterceptor` и `GrpcClientLoggingInterceptor`: парные события
+  `inbound_request_received`/`inbound_response_sent` и `outbound_request_sent`/
+  `outbound_response_received`/`outbound_request_failed`, health/reflection исключены.
+- События LLM и шаблона в стабильном формате `event_name key=value`: `llm_chain_started`,
+  `llm_request_sent`, `llm_response_received`, `llm_rate_limited`, `llm_timeout`,
+  `llm_model_exhausted`, `template_extraction_started/finished`,
+  `template_requirements_all_dropped`.
+- Фоновые задачи: `screening_batch_started/finished/failed`,
+  `preliminary_scoring_started/finished/failed`, `scoring_wait_timed_out`,
+  `github_enrichment_failed/skipped`.
+- `resume_ingested` в `ResumeIngestionService`: статус, тип файла, размер, предупреждения.
+- `request_id` переносится в фоновые задачи (`PreliminaryScoringListener`, `ScreeningService`),
+  поэтому скоринг и скрининг связаны с исходным HTTP-запросом.
+- `scoring-service`: gRPC interceptor с теми же событиями и `score_resume_completed`.
+- Frontend: модуль `src/lib/logger.ts`, логирование ошибок API с `method`, `status`,
+  `request_id`; глобальные обработчики `ui_error` и `ui_unhandled_rejection`.
+- `infra/mock-llm`: событие `mock_llm_request method= path= status= scenario= elapsed_ms=`
+  без тел запросов.
+
+#### Changed
+
+- События переведены с фраз на snake_case; `requestId` в MDC переименован в `request_id`.
+- Из логов убраны фрагменты ответа LLM и цитаты требований: остаются только причины,
+  счётчики и длины.
+
+
+### Ветка `feature/unified-ats-service` — единый Java-сервис
+
+#### Breaking changes
+
+- `vacancy-service` и `resume-service` объединены в один проект `ats-service`
+  (пакеты `ats.vacancy` и `ats.resume`); отдельные каталоги и compose-сервисы удалены.
+  REST обоих контуров доступен на `:8080`, внутренний gRPC — на `:9090`.
+- В compose сервис называется `ats-service`; переменные `VACANCY_SERVICE_PORT`,
+  `VACANCY_GRPC_PORT`, `VACANCY_PROFILES`, `VACANCY_SERVICE_URL` заменены на
+  `ATS_SERVICE_PORT`, `ATS_GRPC_PORT`, `ATS_PROFILES`, `ATS_SERVICE_URL`.
+- Исправлен публичный контракт после слияния main: восстановлены
+  `GET/DELETE /vacancies/{id}` и `PUT /vacancies/{id}/template`, тело и ответы
+  `POST /vacancies`, разделены path-параметры `{id}` и `{vacancyId}`, восстановлены
+  схемы `RankingItem`, `ApplicationReport`, `RequirementReportItem`
+  и тела `/resumes`, `/vacancies/{vacancyId}/screen`.
+
+#### Changed
+
+- Единый `build.gradle`: OpenAPI-генерация снова включена (`ats.api`,
+  `ats.gateway.model`), proto-контракты scoring и vacancy-internal собираются в одном
+  модуле, объединены зависимости (LLM, PII/NER, MinIO, gRPC server/client, actuator).
+- `db.changelog-master.xml` собран в рабочий порядок (`001`, `009–015`, `002–004`);
+  демо-вакансия из `003` переписана под актуальную схему (`kind`, без `weight`,
+  навыки берутся из справочника).
+- В CI одна Java-джоба `ats-service` вместо двух; frontend ходит в `ats-service`.
+
+#### Fixed
+
+- `VacancyTemplateQuery` больше не читает удалённую в `009` колонку `weight`: вес требования
+  выводится из `kind` (MUST=3, NICE=2, OPTIONAL=1). Из-за этого gRPC `GetTemplate` падал,
+  и предварительный скоринг резюме оставался в `SCORING_FAILED`.
+- `scoring-service/Dockerfile` генерирует protobuf-модули при сборке; контейнер больше не
+  падает с `ModuleNotFoundError: scoring_service.v1`.
+- LLM-клиент явно передаёт таймаут в `OpenAiChatOptions`: Spring AI по умолчанию ставит 60 с и
+  перекрывал `read-timeout`/`total-timeout`, из-за чего реальные ответы обрывались.
+- `max-tokens` поднят до 20000: reasoning-модель `dots-studio/dots-3-note-preview:free`
+  расходовала 6000 токенов на reasoning и возвращала пустой `content` (`finish_reason=length`).
+- `fallback-models` очищен: free-модели Google отдают `429` из общего пула, поэтому при
+  ошибке основной модели возвращается `LLM_UNAVAILABLE`, без переключения.
+- `compose.yaml`: `ATS_STORAGE_TYPE` можно переопределить из окружения (например, `memory`
+  без MinIO); сборка `scoring-service` идёт из корня репозитория.
+
+
 ### Ветка `feature/specialization-it-flag`
 
 #### Breaking changes

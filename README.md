@@ -854,21 +854,13 @@ tracing-ats/
 ├── compose.yaml                 # запуск всей системы
 ├── scripts/
 │   └── download-ner.sh          # ONNX int8 для локальной маскировки PII
-├── resume-service/              # Java 21, Spring Boot 4, Gradle
+├── ats-service/                 # единый Java 21 / Spring Boot 4 сервис
 │   ├── build.gradle
 │   ├── gradlew
 │   ├── Dockerfile
-│   └── src/main/java/ats/resume/
-│       ├── api/                 # REST-контроллеры из OpenAPI
-│       ├── domain/              # privacy, scoring, vacancy, vault, enrichment
-│       └── infrastructure/      # PII, NER, storage, gRPC, screening, report
-├── vacancy-service/             # Java 21, Spring Boot 4, Gradle
-│   ├── build.gradle
-│   ├── gradlew
-│   ├── Dockerfile
-│   └── src/main/java/ats/vacancy/
-│       ├── template/            # выдача шаблона по gRPC
-│       └── screening/           # порог, top-N, borderline
+│   └── src/main/java/
+│       ├── ats/vacancy/         # REST вакансий, LLM-шаблон, kind, screening, gRPC
+│       └── ats/resume/          # резюме, PII, vault, gRPC-скоринг, рейтинг, отчёт
 ├── text-extraction/             # Java-библиотека: PDF, DOCX, TXT, MD → текст
 │   ├── build.gradle
 │   └── src/main/java/ats/extraction/

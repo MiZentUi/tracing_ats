@@ -26,9 +26,8 @@ jobs:
           # У text-extraction нет wrapper: Gradle ставит setup-gradle.
           - module: text-extraction
             gradle: gradle
-          - module: resume-service
-            gradle: ./gradlew
-          - module: vacancy-service
+          # Единый Java-сервис: вакансии, резюме, PII, скрининг.
+          - module: ats-service
             gradle: ./gradlew
     steps:
       - name: Checkout

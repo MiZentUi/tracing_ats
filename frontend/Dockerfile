@@ -21,5 +21,5 @@ RUN npx vue-tsc -b && npx vite build
 FROM nginx:1.27-alpine
 COPY frontend/nginx/templates/default.conf.template /etc/nginx/templates/default.conf.template
 COPY --from=build /app/frontend/dist /usr/share/nginx/html
-ENV VACANCY_SERVICE_URL=http://vacancy-service:8080
+ENV ATS_SERVICE_URL=http://ats-service:8080
 EXPOSE 80

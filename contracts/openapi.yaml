@@ -160,16 +160,6 @@ paths:
         - Vacancies
       summary: Создать вакансию и получить черновик шаблона
       operationId: createVacancy
-  /resumes:
-    post:
-      tags:
-        - Resumes
-      summary: Загрузить пачку резюме
-      description: |
-        Принимает PDF, DOCX, TXT или MD. Для каждого файла извлекается текст,
-        PII маскируется, prompt injection удаляется. Исходный файл хранится
-        в объектном хранилище, PII — в зашифрованном виде.
-      operationId: uploadResumes
       requestBody:
         required: true
         content:
@@ -177,10 +167,9 @@ paths:
             schema:
               type: object
               required:
-                - vacancyId
-                - files
+                - specialization
               properties:
-                vacancyId:
+                specialization:
                   type: string
                   description: Код специализации из справочника
                   example: backend
@@ -203,6 +192,123 @@ paths:
                   format: binary
                   nullable: true
                   description: PDF, DOCX, TXT или MD, если не передан текст
+      responses:
+        "201":
+          description: Вакансия создана, шаблон в статусе черновика
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Vacancy"
+        "409":
+          $ref: "#/components/responses/conflict"
+        "413":
+          $ref: "#/components/responses/payloadTooLarge"
+        "415":
+          $ref: "#/components/responses/unsupportedMediaType"
+        "422":
+          $ref: "#/components/responses/unprocessable"
+        "502":
+          $ref: "#/components/responses/badGateway"
+        "503":
+          $ref: "#/components/responses/serviceUnavailable"
+        default:
+          $ref: "#/components/responses/error"
+  /vacancies/{id}/template:
+    put:
+      tags:
+        - Vacancies
+      summary: Сохранить шаблон, создать новую версию и обновить статистику
+      operationId: updateVacancyTemplate
+      parameters:
+        - $ref: "#/components/parameters/VacancyId"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/UpdateTemplateRequest"
+      responses:
+        "200":
+          description: Новая подтверждённая версия шаблона
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Vacancy"
+        "404":
+          $ref: "#/components/responses/notFound"
+        "409":
+          $ref: "#/components/responses/conflict"
+        "422":
+          $ref: "#/components/responses/unprocessable"
+        default:
+          $ref: "#/components/responses/error"
+
+  /vacancies/{id}:
+    get:
+      tags:
+        - Vacancies
+      summary: Вакансия с текущей версией шаблона
+      operationId: getVacancy
+      parameters:
+        - $ref: "#/components/parameters/VacancyId"
+      responses:
+        "200":
+          description: Вакансия с текущей версией шаблона
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Vacancy"
+        "404":
+          $ref: "#/components/responses/notFound"
+        default:
+          $ref: "#/components/responses/error"
+    delete:
+      tags:
+        - Vacancies
+      summary: Удалить вакансию и убрать её вклад из истории типов
+      operationId: deleteVacancy
+      parameters:
+        - $ref: "#/components/parameters/VacancyId"
+      responses:
+        "204":
+          description: Вакансия удалена
+        "404":
+          $ref: "#/components/responses/notFound"
+        default:
+          $ref: "#/components/responses/error"
+
+  /resumes:
+    post:
+      tags:
+        - Resumes
+      summary: Загрузить пачку резюме
+      description: |
+        Принимает PDF, DOCX, TXT или MD. Для каждого файла извлекается текст,
+        PII маскируется, prompt injection удаляется. Исходный файл хранится
+        в объектном хранилище, PII — в зашифрованном виде.
+      operationId: uploadResumes
+      requestBody:
+        required: true
+        content:
+          multipart/form-data:
+            schema:
+              type: object
+              required:
+                - vacancyId
+                - files
+              properties:
+                vacancyId:
+                  type: string
+                  format: uuid
+                consentGithub:
+                  type: boolean
+                  default: false
+                  description: Согласие кандидата на обогащение из GitHub.
+                files:
+                  type: array
+                  items:
+                    type: string
+                    format: binary
       responses:
         "202":
           description: Файлы приняты
@@ -239,13 +345,12 @@ paths:
         - Screening
       summary: Запустить предварительный скрининг
       description: |
-        Асинхронно применяет политику шорт-листа к готовым Score_pre, посчитанным
-        при загрузке резюме. Если запуск ещё считается, ждёт до дедлайна; запуск,
-        посчитанный по устаревшей версии шаблона, пересчитывает. При согласии
-        обогащает шорт-лист из GitHub и создаёт Score_final без повторного вызова LLM.
+        Асинхронно считает Score_pre по обезличенному тексту, применяет политику
+        шорт-листа из vacancy-service и при согласии обогащает шорт-лист из GitHub,
+        после чего считает Score_final.
       operationId: startScreening
       parameters:
-        - $ref: "#/components/parameters/VacancyId"
+        - $ref: "#/components/parameters/VacancyPathId"
       requestBody:
         required: false
         content:
@@ -289,7 +394,7 @@ paths:
       summary: Рейтинг кандидатов по вакансии
       operationId: getRanking
       parameters:
-        - $ref: "#/components/parameters/VacancyId"
+        - $ref: "#/components/parameters/VacancyPathId"
         - $ref: "#/components/parameters/Phase"
       responses:
         "200":
@@ -352,6 +457,13 @@ paths:
 components:
   parameters:
     VacancyId:
+      name: id
+      in: path
+      required: true
+      schema:
+        type: string
+        format: uuid
+    VacancyPathId:
       name: vacancyId
       in: path
       required: true
