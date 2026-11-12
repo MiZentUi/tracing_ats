@@ -50,9 +50,20 @@ def test_score_resume_logs_method_start_and_end(caplog) -> None:
     with caplog.at_level(logging.INFO, logger="api.interceptors"), _running() as stub:
         stub.ScoreResume(_request("Python"), timeout=2)
 
-    assert f"grpc request start method={METHOD}" in caplog.text
-    assert f"grpc request end method={METHOD} status=OK" in caplog.text
+    assert f"grpc request start method={METHOD} request_id=-" in caplog.text
+    assert f"grpc request end method={METHOD} request_id=- status=OK" in caplog.text
     assert "elapsed_ms=" in caplog.text
+
+
+def test_score_resume_logs_request_id_from_metadata(caplog) -> None:
+    with caplog.at_level(logging.INFO, logger="api.interceptors"), _running() as stub:
+        stub.ScoreResume(
+            _request("Python"),
+            timeout=2,
+            metadata=(("x-request-id", "req-42"),),
+        )
+
+    assert "request_id=req-42" in caplog.text
 
 
 def test_score_resume_logs_error_status(caplog) -> None:
@@ -64,5 +75,8 @@ def test_score_resume_logs_error_status(caplog) -> None:
         stub.ScoreResume(_request("   "), timeout=2)
 
     assert exc_info.value.code() == grpc.StatusCode.INVALID_ARGUMENT
-    assert f"grpc request end method={METHOD} status=INVALID_ARGUMENT" in caplog.text
+    assert (
+        f"grpc request end method={METHOD} request_id=- status=INVALID_ARGUMENT"
+        in caplog.text
+    )
     assert "error=" in caplog.text

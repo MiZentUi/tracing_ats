@@ -36,29 +36,36 @@ class RequestLoggingInterceptor(grpc.ServerInterceptor):
             return handler
 
         inner = handler.unary_unary
+        request_id = _request_id(handler_call_details)
 
         def unary_unary(request: Any, context: grpc.ServicerContext) -> Any:
             started = time.perf_counter()
-            logger.info("grpc request start method=%s", method)
+            logger.info(
+                "grpc request start method=%s request_id=%s",
+                method,
+                request_id,
+            )
             try:
                 response = inner(request, context)
             except Exception as exc:
-                code = context.code() # type: ignore
+                code = context.code()  # type: ignore
                 status = code.name if code is not None else "UNKNOWN"
                 logger.warning(
-                    "grpc request end method=%s status=%s error=%s elapsed_ms=%.1f",
+                    "grpc request end method=%s request_id=%s status=%s error=%s elapsed_ms=%.1f",
                     method,
+                    request_id,
                     status,
                     type(exc).__name__,
                     (time.perf_counter() - started) * 1000,
                 )
                 raise
 
-            code = context.code() # type: ignore
+            code = context.code()  # type: ignore
             status = code.name if code is not None else "OK"
             logger.info(
-                "grpc request end method=%s status=%s elapsed_ms=%.1f",
+                "grpc request end method=%s request_id=%s status=%s elapsed_ms=%.1f",
                 method,
+                request_id,
                 status,
                 (time.perf_counter() - started) * 1000,
             )
@@ -69,3 +76,11 @@ class RequestLoggingInterceptor(grpc.ServerInterceptor):
             request_deserializer=handler.request_deserializer,
             response_serializer=handler.response_serializer,
         )
+
+
+def _request_id(handler_call_details: grpc.HandlerCallDetails) -> str:
+    """Достать `x-request-id` из metadata, не логируя остальные заголовки."""
+    for key, value in handler_call_details.invocation_metadata:
+        if key.lower() == "x-request-id":
+            return value
+    return "-"

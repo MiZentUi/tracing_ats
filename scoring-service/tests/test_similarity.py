@@ -1,53 +1,49 @@
 from __future__ import annotations
 
-from api.scoring.similarity import best_match, resume_seed, similarity, similarity_matrix
+import pytest
+
+from api.scoring.similarity import DeterministicSimilarity, tokenize
 
 
-def test_resume_seed_is_stable_and_not_process_random() -> None:
-    # Значение зафиксировано, чтобы поймать переход на встроенный hash().
-    assert resume_seed("Python") == 1767767477899464722
-    assert resume_seed("Python") != resume_seed("Java")
+@pytest.fixture
+def similarity() -> DeterministicSimilarity:
+    return DeterministicSimilarity()
 
 
-def test_similarity_is_deterministic_and_bounded() -> None:
-    seed = resume_seed("Python developer")
-
-    first = similarity(seed, "python", "skill:0:python")
-    second = similarity(seed, "python", "skill:0:python")
-
-    assert first == second
-    assert 0.0 <= first < 1.0
-    assert first != similarity(seed, "python", "skill:1:java")
+def test_exact_normalized_match_is_one(similarity: DeterministicSimilarity) -> None:
+    assert similarity.score("Python", " python ") == 1.0
+    assert similarity.score("C++", "c++") == 1.0
 
 
-def test_best_match_selects_maximum() -> None:
-    seed = resume_seed("Python developer")
-    features = [("a", "first"), ("b", "second")]
-
-    match = best_match(seed, "python", features)
-
-    assert match is not None
-    value, score = match
-    assert score == max(similarity(seed, "python", key) for key, _ in features)
-    assert value == (
-        "first" if similarity(seed, "python", "a") >= similarity(seed, "python", "b") else "second"
-    )
+def test_strong_match_for_token_subset_and_close_names(
+    similarity: DeterministicSimilarity,
+) -> None:
+    assert similarity.score("React", "React Native") == 0.85
+    assert similarity.score("Postgres", "PostgreSQL") == 0.85
 
 
-def test_best_match_returns_none_without_features() -> None:
-    assert best_match(1, "python", []) is None
+def test_partial_match_for_close_but_different_names(
+    similarity: DeterministicSimilarity,
+) -> None:
+    assert similarity.score("Node.js", "Node") == 0.5
 
 
-def test_similarity_matrix_covers_all_pairs_and_is_deterministic() -> None:
-    seed = resume_seed("Python developer")
-    requirements = ["python", "kafka"]
-    features = ["skill:0:python", "skill:1:kafka"]
+def test_java_does_not_match_javascript(similarity: DeterministicSimilarity) -> None:
+    assert similarity.score("Java", "JavaScript") == 0.0
+    assert similarity.score("C++", "C#") == 0.0
 
-    first = similarity_matrix(seed, requirements, features)
-    second = similarity_matrix(seed, requirements, features)
 
-    assert first == second
-    assert set(first) == {
-        (requirement, feature) for requirement in requirements for feature in features
-    }
-    assert all(0.0 <= value < 1.0 for value in first.values())
+def test_unrelated_skills_do_not_match(similarity: DeterministicSimilarity) -> None:
+    assert similarity.score("Kafka", "RabbitMQ") == 0.0
+    assert similarity.score("", "Python") == 0.0
+
+
+def test_text_score_uses_significant_token_overlap(
+    similarity: DeterministicSimilarity,
+) -> None:
+    assert similarity.text_score("Python backend", "Python developer") == 0.5
+    assert similarity.text_score("коммуникация", "Python developer") == 0.0
+
+
+def test_tokenize_drops_stopwords_and_short_tokens() -> None:
+    assert tokenize("Опыт работы с Python и SQL") == {"опыт", "работы", "python", "sql"}

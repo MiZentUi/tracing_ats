@@ -8,7 +8,7 @@ from pydantic import ValidationError
 from api.extraction.extractor import ExtractionError, ResumeExtractor
 from api.extraction.normalize import normalize_key
 from api.extraction.quotes import QuoteIndex
-from api.extraction.schema import ParsedResume
+from api.extraction.schema import METRIC_QUOTE_MAX_CHARS, SKILL_QUOTE_MAX_CHARS, ParsedResume
 from api.prompts.resume_extraction import PROMPT_VERSION, system_prompt, user_prompt
 
 
@@ -28,7 +28,7 @@ class ScriptedLlm:
 TEXT = "Python developer\nМГУ, 2019\nООО Ромашка, 2020-2023"
 
 VALID_PAYLOAD = {
-    "schema_version": 1,
+    "schema_version": 2,
     "skills": [{"name": "Python", "years": 3, "quote": "Python developer"}],
     "education": [
         {
@@ -138,7 +138,7 @@ def test_extract_fails_after_second_invalid_response() -> None:
 
 def test_schema_rejects_unknown_education_level() -> None:
     payload = {
-        "schema_version": 1,
+        "schema_version": 2,
         "education": [{"level": "phd", "quote": "МГУ"}],
     }
 
@@ -148,17 +148,50 @@ def test_schema_rejects_unknown_education_level() -> None:
 
 def test_schema_rejects_wrong_schema_version() -> None:
     with pytest.raises(ValidationError):
-        ParsedResume.model_validate({"schema_version": 2})
+        ParsedResume.model_validate({"schema_version": 1})
+
+
+def test_schema_rejects_long_skill_quote() -> None:
+    payload = {
+        "schema_version": 2,
+        "skills": [
+            {
+                "name": "Python",
+                "quote": "x" * (SKILL_QUOTE_MAX_CHARS + 1),
+            }
+        ],
+    }
+
+    with pytest.raises(ValidationError):
+        ParsedResume.model_validate(payload)
+
+
+def test_schema_rejects_long_metric_quote() -> None:
+    payload = {
+        "schema_version": 2,
+        "experience": [
+            {
+                "quote": "Опыт",
+                "metrics": ["x" * (METRIC_QUOTE_MAX_CHARS + 1)],
+            }
+        ],
+    }
+
+    with pytest.raises(ValidationError):
+        ParsedResume.model_validate(payload)
 
 
 def test_prompt_contains_schema_and_marks_resume_as_data() -> None:
     prompt = system_prompt()
 
-    assert PROMPT_VERSION == "resume-extraction.v1"
+    assert PROMPT_VERSION == "resume-extraction.v2"
     assert '"skills"' in prompt
     assert '"education"' in prompt
     assert '"experience"' in prompt
     assert "не ставь баллов" in prompt
+    assert "не весь абзац" in prompt
+    assert "не более одного предложения" in prompt
+    assert str(SKILL_QUOTE_MAX_CHARS) in prompt
     assert user_prompt("Python developer") == "<resume_text>\nPython developer\n</resume_text>"
 
 

@@ -1,12 +1,14 @@
-"""Онлайн-скоринг. Арифметика модели будет жить в этом пакете."""
+"""Онлайн-скоринг: сопоставление требований и математика модели."""
 
+from .container import build_evaluator, build_scoring_service
+from .model import Evaluation, GeneralScore, RequirementScore
 from .service import ScoringService
-from .similarity import best_match, resume_seed, similarity, similarity_matrix
 
 __all__ = [
+    "Evaluation",
+    "GeneralScore",
+    "RequirementScore",
     "ScoringService",
-    "best_match",
-    "resume_seed",
-    "similarity",
-    "similarity_matrix",
+    "build_evaluator",
+    "build_scoring_service",
 ]

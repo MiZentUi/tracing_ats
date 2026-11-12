@@ -1,57 +1,120 @@
-"""Заглушка `S^{ij}`: детерминированная псевдослучайная матрица.
+"""Детерминированное сходство признаков и текста.
 
-Здесь намеренно нет модели сходства. Матрица нужна, чтобы пайплайн и контракт
-работали до появления формулы из `docs/rfc/rfc-scoring-model.md`. Seed — SHA-256
-текста резюме, а не встроенный `hash()`, иначе результат зависел бы от процесса.
+`S^{ij}` не вызывает LLM. Для структурированных признаков используются
+четыре категории из `docs/rfc/rfc-feature-extraction.md`:
+exact = 1.0, strong = 0.85, partial = 0.5, none = 0.0. Точное совпадение
+нормализованных имён всегда даёт 1.0 (`exact-override`).
 """
 
 from __future__ import annotations
 
-import hashlib
-from collections.abc import Sequence
+import re
+from difflib import SequenceMatcher
+from typing import Protocol
 
-_SCALE = 1 << 64
+from ..extraction.normalize import normalize_key
+
+_TOKEN = re.compile(r"[a-zа-я0-9+#.]+", re.IGNORECASE)
+_STOPWORDS = frozenset(
+    {
+        "а",
+        "без",
+        "в",
+        "во",
+        "для",
+        "до",
+        "и",
+        "из",
+        "или",
+        "к",
+        "как",
+        "на",
+        "не",
+        "но",
+        "о",
+        "от",
+        "по",
+        "с",
+        "со",
+        "у",
+        "что",
+        "a",
+        "an",
+        "and",
+        "as",
+        "at",
+        "by",
+        "for",
+        "from",
+        "in",
+        "is",
+        "of",
+        "on",
+        "or",
+        "the",
+        "to",
+        "with",
+    }
+)
 
 
-def resume_seed(text: str) -> int:
-    """Стабильный seed из текста резюме."""
-    return int.from_bytes(hashlib.sha256(text.encode("utf-8")).digest()[:8], "big")
+class SimilarityScorer(Protocol):
+    """Контракт сходства, чтобы матрицу можно было заменить без правок ядра."""
+
+    def score(self, left: str, right: str) -> float: ...
+
+    def text_score(self, requirement: str, text: str) -> float: ...
 
 
-def similarity(seed: int, requirement_key: str, feature_key: str) -> float:
-    """Псевдослучайное `S^{ij}` в `[0, 1)`; порядок пар не важен."""
-    digest = hashlib.sha256(f"{seed}:{requirement_key}:{feature_key}".encode()).digest()
-    return int.from_bytes(digest[:8], "big") / _SCALE
-
-
-def similarity_matrix(
-    seed: int,
-    requirement_keys: Sequence[str],
-    feature_keys: Sequence[str],
-) -> dict[tuple[str, str], float]:
-    """Материализовать заглушку `S` для требований × признаков."""
+def tokenize(text: str) -> set[str]:
+    """Токены для текстового сходства без стоп-слов."""
     return {
-        (requirement_key, feature_key): similarity(seed, requirement_key, feature_key)
-        for requirement_key in requirement_keys
-        for feature_key in feature_keys
+        token.lower()
+        for token in _TOKEN.findall(text)
+        if len(token) > 1 and token.lower() not in _STOPWORDS
     }
 
 
-def best_match[T](
-    seed: int,
-    requirement_key: str,
-    features: Sequence[tuple[str, T]],
-) -> tuple[T, float] | None:
-    """Вернуть признак с максимальным `S^{ij}` или `None`, если признаков нет."""
-    best_value: T | None = None
-    best_score = -1.0
+class DeterministicSimilarity:
+    """Сходство имён признаков без сети, эмбеддингов и случайности."""
 
-    for feature_key, value in features:
-        score = similarity(seed, requirement_key, feature_key)
-        if score > best_score:
-            best_value = value
-            best_score = score
+    EXACT = 1.0
+    STRONG = 0.85
+    PARTIAL = 0.5
+    NONE = 0.0
 
-    if best_value is None:
-        return None
-    return best_value, best_score
+    def score(self, left: str, right: str) -> float:
+        first = normalize_key(left)
+        second = normalize_key(right)
+        if not first or not second:
+            return self.NONE
+        if first == second:
+            return self.EXACT
+
+        first_tokens = tokenize(first)
+        second_tokens = tokenize(second)
+        if first_tokens and second_tokens:
+            shorter, longer = (
+                (first_tokens, second_tokens)
+                if len(first_tokens) <= len(second_tokens)
+                else (second_tokens, first_tokens)
+            )
+            if shorter < longer:
+                return self.STRONG
+
+        ratio = SequenceMatcher(None, first, second).ratio()
+        if ratio >= 0.8:
+            return self.STRONG
+        if ratio >= 0.7:
+            return self.PARTIAL
+        return self.NONE
+
+    def text_score(self, requirement: str, text: str) -> float:
+        """Доля значимых токенов требования, найденных в тексте."""
+        required = tokenize(requirement)
+        if not required:
+            return self.NONE
+        found = tokenize(text)
+        if not found:
+            return self.NONE
+        return len(required & found) / len(required)

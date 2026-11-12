@@ -15,7 +15,10 @@ from .config import Settings, get_settings
 from .extraction.extractor import ResumeExtractor
 from .interceptors import RequestLoggingInterceptor
 from .llm import build_llm_client
-from .scoring import ScoringService
+from .scoring import ScoringService, build_evaluator, build_scoring_service
+from .scoring.evaluator import ResumeEvaluator
+from .scoring.mapping import ExtractionMapper
+from .scoring.policies import Clock, SystemClock
 
 logger = logging.getLogger(__name__)
 
@@ -30,6 +33,9 @@ class ServerHandle:
 def create_server(
     settings: Settings | None = None,
     extractor: ResumeExtractor | None = None,
+    evaluator: ResumeEvaluator | None = None,
+    mapper: ExtractionMapper | None = None,
+    clock: Clock | None = None,
 ) -> ServerHandle:
     """Create a gRPC server with the health and scoring services."""
     settings = settings or get_settings()
@@ -46,14 +52,19 @@ def create_server(
         health_pb2.HealthCheckResponse.SERVING,
     )
 
-    scoring_servicer = ScoringService(extractor or ResumeExtractor(build_llm_client(settings)))
+    if extractor is None and evaluator is None and mapper is None and clock is None:
+        scoring_servicer = build_scoring_service(settings)
+    else:
+        scoring_servicer = ScoringService(
+            extractor=extractor or ResumeExtractor(build_llm_client(settings)),
+            evaluator=evaluator or build_evaluator(),
+            mapper=mapper or ExtractionMapper(),
+            clock=clock or SystemClock(),
+        )
     scoring_pb2_grpc.add_ScoringServiceServicer_to_server(scoring_servicer, server)
 
     GRPC_SERVICES = [
-        *[
-            x.full_name
-            for x in scoring_pb2.DESCRIPTOR.services_by_name.values()
-        ],
+        *[x.full_name for x in scoring_pb2.DESCRIPTOR.services_by_name.values()],
         *[x.full_name for x in health_pb2.DESCRIPTOR.services_by_name.values()],
         reflection.SERVICE_NAME,
     ]

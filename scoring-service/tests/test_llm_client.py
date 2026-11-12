@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import json
 import logging
 
 import httpx2
@@ -7,7 +8,11 @@ import pytest
 from openai import OpenAI
 
 from api.extraction.quotes import QuoteIndex
-from api.extraction.schema import ParsedResume
+from api.extraction.schema import (
+    ITEM_QUOTE_MAX_CHARS,
+    SKILL_QUOTE_MAX_CHARS,
+    ParsedResume,
+)
 from api.llm.client import LlmInvalidResponse, LlmUnavailable, OpenAiCompatibleClient
 from api.llm.mock import MockLlmClient
 
@@ -48,6 +53,8 @@ def _client(handler, max_retries: int = 0) -> OpenAiCompatibleClient:
 
 def test_client_returns_message_content(caplog) -> None:
     def handler(request: httpx2.Request) -> httpx2.Response:
+        body = json.loads(request.content)
+        assert body["max_tokens"] == 4096
         return httpx2.Response(200, json=_completion("{}"))
 
     with caplog.at_level(logging.INFO, logger="api.llm.client"):
@@ -154,3 +161,19 @@ def test_mock_client_returns_only_quotes_from_text() -> None:
     assert all(index.locate(item.quote) for item in parsed.skills)
     assert all(index.locate(item.quote) for item in parsed.education)
     assert all(index.locate(item.quote) for item in parsed.experience)
+    assert all(len(item.quote) <= SKILL_QUOTE_MAX_CHARS for item in parsed.skills)
+    assert all(len(item.quote) <= ITEM_QUOTE_MAX_CHARS for item in parsed.education)
+    assert all(len(item.quote) <= ITEM_QUOTE_MAX_CHARS for item in parsed.experience)
+
+
+def test_mock_client_shortens_long_lines_to_schema_limits() -> None:
+    long_line = "Python developer " + ("x" * 500)
+    text = f"{long_line}\nУниверситет МГУ, 2019\nООО Ромашка, 2020-2023"
+    raw = MockLlmClient().complete("system", f"<resume_text>\n{text}\n</resume_text>")
+
+    parsed = ParsedResume.model_validate_json(raw)
+    index = QuoteIndex(text)
+
+    assert parsed.skills
+    assert all(len(item.quote) <= SKILL_QUOTE_MAX_CHARS for item in parsed.skills)
+    assert all(index.locate(item.quote) for item in parsed.skills)

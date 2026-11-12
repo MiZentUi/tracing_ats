@@ -10,6 +10,8 @@ from __future__ import annotations
 import re
 
 from ..extraction.schema import (
+    ITEM_QUOTE_MAX_CHARS,
+    SKILL_QUOTE_MAX_CHARS,
     EducationLevel,
     ExtractedEducation,
     ExtractedExperience,
@@ -83,6 +85,22 @@ def _first_skill(line: str) -> str | None:
     return None
 
 
+def _short_quote(line: str, limit: int, anchor: str | None = None) -> str:
+    """Вернуть короткую подстроку, чтобы mock не нарушал лимиты схемы."""
+    if len(line) <= limit:
+        return line
+
+    lowered = line.lower()
+    position = lowered.find(anchor.lower()) if anchor else 0
+    if position < 0:
+        position = 0
+
+    start = max(0, position - limit // 3)
+    end = min(len(line), start + limit)
+    start = max(0, end - limit)
+    return line[start:end].strip()
+
+
 def _parse(text: str) -> ParsedResume:
     skills: list[ExtractedSkill] = []
     education: list[ExtractedEducation] = []
@@ -98,20 +116,31 @@ def _parse(text: str) -> ParsedResume:
         skill = _first_skill(line)
         if skill is not None and skill.lower() not in seen:
             seen.add(skill.lower())
-            skills.append(ExtractedSkill(name=skill, years=_years_of(line), quote=line))
+            skills.append(
+                ExtractedSkill(
+                    name=skill,
+                    years=_years_of(line),
+                    quote=_short_quote(line, SKILL_QUOTE_MAX_CHARS, anchor=skill),
+                )
+            )
 
         if any(marker in lowered for marker in _EDUCATION_MARKERS):
             year = _YEAR.search(line)
             education.append(
                 ExtractedEducation(
-                    institution=line,
+                    institution=_short_quote(line, 256),
                     level=EducationLevel.UNKNOWN,
                     graduation_year=int(year.group(0)) if year else None,
-                    quote=line,
+                    quote=_short_quote(line, ITEM_QUOTE_MAX_CHARS),
                 )
             )
         elif any(marker in lowered for marker in _EXPERIENCE_MARKERS):
-            experience.append(ExtractedExperience(company=line, quote=line))
+            experience.append(
+                ExtractedExperience(
+                    company=_short_quote(line, 256),
+                    quote=_short_quote(line, ITEM_QUOTE_MAX_CHARS),
+                )
+            )
 
     return ParsedResume(skills=skills, education=education, experience=experience)
 

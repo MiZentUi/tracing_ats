@@ -41,6 +41,10 @@ class QuoteIndex:
         self._text = text
         self._collapsed, self._index_map = collapse(text)
 
+    @property
+    def text(self) -> str:
+        return self._text
+
     def locate(self, quote: str) -> tuple[int, int] | None:
         """Вернуть `[start, end)` в исходном тексте или `None`, если цитаты нет."""
         needle, _ = collapse(quote.strip())

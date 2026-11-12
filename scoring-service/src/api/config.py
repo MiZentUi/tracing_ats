@@ -28,6 +28,7 @@ class Settings(BaseSettings):
     llm_model: str = ""
     llm_timeout_seconds: float = Field(default=30.0, gt=0, le=300)
     llm_max_retries: int = Field(default=1, ge=0, le=5)
+    llm_max_output_tokens: int = Field(default=4096, ge=256, le=32768)
 
     @model_validator(mode="after")
     def _check_llm(self) -> Self:
