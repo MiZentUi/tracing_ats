@@ -163,3 +163,48 @@ Workflow не настраивает TLS. Для production поставь пе�
 - Если `GHCR_TOKEN` не задан и пакеты приватные, `docker compose pull` упадёт.
 - `.env.example` не хранит реальные секреты: только локальные значения по
   умолчанию и пустые placeholders.
+
+## 8. Если `migrations` завершился с ошибкой
+
+Deploy теперь сам печатает `docker compose ps` и последние строки логов
+`migrations`/`postgres`. Посмотреть вручную:
+
+```bash
+cd /opt/tracing-ats
+docker compose \
+  --env-file .env.example \
+  --env-file .env.production \
+  -f compose.yaml -f compose.prod.yaml logs --tail=100 migrations postgres
+```
+
+Самые частые причины:
+
+- **`password authentication failed for user "ats"`** — том Postgres уже был
+  создан с другим паролем. `POSTGRES_PASSWORD` не меняет пароль существующей
+  базы. Укажи в GitHub Secret старый пароль или, если данные не нужны, удали
+  только том Postgres и запусти деплой снова:
+
+  ```bash
+  cd /opt/tracing-ats
+  docker compose \
+    --env-file .env.example \
+    --env-file .env.production \
+    -f compose.yaml -f compose.prod.yaml down
+
+  docker volume ls | grep ats-pgdata
+  # проверь имя тома, затем:
+  docker volume rm tracing-ats_ats-pgdata
+  ```
+
+  После удаления тома БД создастся заново с паролем из GitHub Secret. Все данные
+  Postgres будут потеряны.
+
+- **`Connection refused`** — Postgres не успел подняться или упал. Проверь
+  `docker compose ps` и логи `postgres`.
+
+- **Пароль с `$`, `#`, кавычками или переводом строки** может неверно разобраться
+  в `.env`. Для `POSTGRES_PASSWORD` безопаснее hex-пароль:
+
+  ```bash
+  openssl rand -hex 24
+  ```

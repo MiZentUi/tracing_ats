@@ -199,12 +199,24 @@ jobs:
               postgres minio minio-init migrations \
               dictionary-service scoring-service ats-service frontend
 
-            docker compose \
+            if ! docker compose \
               --env-file .env.example \
               --env-file .env.production \
               -f compose.yaml -f compose.prod.yaml up -d --no-build --remove-orphans \
               migrations postgres minio minio-init \
-              dictionary-service scoring-service ats-service frontend
+              dictionary-service scoring-service ats-service frontend; then
+              echo "Deployment failed; collecting service logs" >&2
+              docker compose \
+                --env-file .env.example \
+                --env-file .env.production \
+                -f compose.yaml -f compose.prod.yaml ps || true
+              docker compose \
+                --env-file .env.example \
+                --env-file .env.production \
+                -f compose.yaml -f compose.prod.yaml logs \
+                --no-color --tail=200 migrations postgres || true
+              exit 1
+            fi
 
             docker compose \
               --env-file .env.example \
