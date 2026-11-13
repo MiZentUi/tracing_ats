@@ -26,18 +26,18 @@ const vacancyId = computed(() => route.params.vacancyId as string | undefined)
 const analysisLink = computed(() => {
   const value = report.value
   if (value?.applicationId && value.vacancyId) {
-    return `/vacancies/${value.vacancyId}/candidates`
+    return `/vacancies/${value.vacancyId}`
   }
   if (value?.resumeId) {
     return `/resumes/${value.resumeId}`
   }
   if (value?.vacancyId) {
-    return `/vacancies/${value.vacancyId}/candidates`
+    return `/vacancies/${value.vacancyId}`
   }
   return null
 })
 
-const analysisLabel = computed(() => (report.value?.applicationId ? 'К кандидатам' : 'К резюме'))
+const analysisLabel = computed(() => (report.value?.applicationId ? 'К вакансии' : 'К резюме'))
 
 const compareLink = computed(() => {
   const value = report.value

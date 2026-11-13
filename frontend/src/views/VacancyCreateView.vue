@@ -1,17 +1,18 @@
 <script setup lang="ts">
-import { computed, onMounted, ref, watch } from 'vue'
+import { computed, nextTick, onMounted, ref, watch } from 'vue'
 import { useRouter } from 'vue-router'
 import {
   ArrowLeft,
   Building2,
   FileText,
+  Layers,
   LoaderCircle,
   Plus,
   Sparkles,
   UploadCloud,
   X,
 } from '@lucide/vue'
-import type { ReferenceItem, Specialization } from '@/api/generated'
+import type { ReferenceItem, Specialization, Vacancy, VacancySummary } from '@/api/generated'
 import { apiErrorMessage, referenceApi, vacanciesApi } from '@/api'
 import AppModal from '@/components/AppModal.vue'
 import { useToast } from '@/composables/useToast'
@@ -21,6 +22,12 @@ const { success, error: toastError } = useToast()
 
 const specializations = ref<Specialization[]>([])
 const levels = ref<ReferenceItem[]>([])
+const templates = ref<VacancySummary[]>([])
+const templateId = ref('')
+const templateVacancy = ref<Vacancy | null>(null)
+const templateSource = ref('')
+const templateHint = ref('')
+const loadingTemplate = ref(false)
 const specialization = ref('')
 const level = ref('')
 const title = ref('')
@@ -48,6 +55,14 @@ watch(needsLevel, () => {
   level.value = ''
 })
 
+watch(templateId, (value) => {
+  if (!value) {
+    templateVacancy.value = null
+    templateSource.value = ''
+    templateHint.value = ''
+  }
+})
+
 const canSubmit = computed(
   () =>
     !loading.value &&
@@ -67,16 +82,45 @@ const sourceSummary = computed(() => {
 
 onMounted(async () => {
   try {
-    const [specs, levelList] = await Promise.all([
+    const [specs, levelList, templatePage] = await Promise.all([
       referenceApi.listSpecializations(),
       referenceApi.listLevels(),
+      vacanciesApi.listVacancies({ limit: 200, offset: 0 }),
     ])
     specializations.value = specs.data
     levels.value = levelList.data
+    templates.value = templatePage.data.items.filter((item) => item.is_confirmed)
   } catch (e) {
     error.value = apiErrorMessage(e)
   }
 })
+
+async function applyTemplate() {
+  if (!templateId.value || loadingTemplate.value) {
+    return
+  }
+  loadingTemplate.value = true
+  templateHint.value = ''
+  try {
+    const response = await vacanciesApi.getVacancy({ id: templateId.value })
+    const template = response.data
+    templateVacancy.value = template
+    templateSource.value = template.source_text ?? ''
+    title.value = template.title ?? ''
+    specialization.value = template.specialization
+    mode.value = 'text'
+    file.value = null
+    text.value = template.source_text ?? ''
+    // watch(needsLevel) сбрасывает уровень при смене специализации, поэтому ставим после него.
+    await nextTick()
+    level.value = template.level
+    templateHint.value = `Заполнено по шаблону «${template.title || 'Без названия'}». Если не менять текст и параметры, требования и приоритеты перенесутся.`
+  } catch (e) {
+    templateHint.value = apiErrorMessage(e)
+  } finally {
+    loadingTemplate.value = false
+  }
+}
 
 function onFile(event: Event) {
   const selected = (event.target as HTMLInputElement).files?.[0] ?? null
@@ -149,12 +193,46 @@ async function submit() {
       text: mode.value === 'text' ? text.value : undefined,
       file: mode.value === 'file' ? file.value : undefined,
     })
-    success('Вакансия создана', 'Проверьте требования и установите шаблон')
-    await router.push(`/vacancies/${response.data.vacancy_id}`)
+    const created = response.data
+    const canCopyTemplate =
+      templateVacancy.value !== null &&
+      mode.value === 'text' &&
+      text.value.trim() === templateSource.value.trim() &&
+      created.specialization === templateVacancy.value.specialization &&
+      created.level === templateVacancy.value.level
+
+    if (canCopyTemplate && templateVacancy.value) {
+      try {
+        await vacanciesApi.updateVacancyTemplate({
+          id: created.vacancy_id,
+          updateTemplateRequest: {
+            base_version: created.template.version,
+            specialization: created.specialization,
+            level: needsLevel.value ? created.level : undefined,
+            title: created.title ?? null,
+            confirm: false,
+            requirements: templateVacancy.value.template.requirements.map((item) => ({
+              id: null,
+              skill: item.skill ?? null,
+              kind: item.kind,
+              years_required: item.years_required ?? null,
+              quote: item.quote ?? null,
+              clarity_warning: item.clarity_warning ?? null,
+            })),
+          },
+        })
+        success('Вакансия создана', 'Требования и приоритеты взяты из шаблона')
+      } catch (copyError) {
+        toastError('Вакансия создана без шаблона', apiErrorMessage(copyError))
+      }
+    } else {
+      success('Вакансия создана', 'Проверьте требования и назначьте приоритеты')
+    }
+    await router.push(`/vacancies/${created.vacancy_id}`)
   } catch (e) {
     const message = apiErrorMessage(e)
     error.value = message
-    toastError('Не удалось извлечь требования', message)
+    toastError('Не удалось создать вакансию', message)
   } finally {
     loading.value = false
   }
@@ -185,6 +263,40 @@ async function submit() {
 
     <div class="grid gap-5 lg:grid-cols-[minmax(0,1fr)_20rem] lg:items-start">
       <form id="create-form" class="space-y-5" @submit.prevent="submit">
+        <div v-if="templates.length" class="card p-5">
+          <div class="flex items-start gap-3">
+            <span class="grid h-9 w-9 shrink-0 place-items-center rounded-xl bg-emerald-50 text-emerald-600">
+              <Layers :size="18" />
+            </span>
+            <div>
+              <h2 class="text-base font-semibold text-slate-900">Начать с шаблона</h2>
+              <p class="text-sm text-slate-500">
+                Шаблон заполнит название, специализацию, уровень и текст. Его требования и
+                приоритеты можно перенести в новую вакансию.
+              </p>
+            </div>
+          </div>
+          <div class="mt-4 flex flex-col gap-2 sm:flex-row">
+            <select v-model="templateId" class="input" aria-label="Шаблон вакансии">
+              <option value="">Без шаблона</option>
+              <option v-for="item in templates" :key="item.id" :value="item.id">
+                {{ item.title || 'Без названия' }} · {{ item.requirements_count }} требований
+              </option>
+            </select>
+            <button
+              type="button"
+              class="btn-secondary shrink-0"
+              :disabled="!templateId || loadingTemplate"
+              @click="applyTemplate"
+            >
+              <LoaderCircle v-if="loadingTemplate" :size="16" class="animate-spin" />
+              <Layers v-else :size="16" />
+              Заполнить
+            </button>
+          </div>
+          <p v-if="templateHint" class="hint">{{ templateHint }}</p>
+        </div>
+
         <div class="card p-5">
           <div class="flex items-start gap-3">
             <span class="grid h-9 w-9 shrink-0 place-items-center rounded-xl bg-indigo-50 text-indigo-600">
@@ -193,7 +305,7 @@ async function submit() {
             <div>
               <h2 class="text-base font-semibold text-slate-900">Параметры вакансии</h2>
               <p class="text-sm text-slate-500">
-                Название видно в списке, специализация задаёт шаблон, уровень — профиль весов.
+                Название видно в списке, специализация и уровень задают профиль требований.
               </p>
             </div>
           </div>
@@ -209,7 +321,7 @@ async function submit() {
                 class="input"
                 placeholder="Например, Backend-разработчик"
               />
-              <p class="hint">Если не заполнить, в списке будет название специализации.</p>
+              <p class="hint">Если не заполнить, карточка будет называться «Без названия».</p>
             </div>
 
             <div class="grid gap-4 sm:grid-cols-2">
@@ -338,7 +450,8 @@ async function submit() {
         <div class="border-b border-slate-100 px-5 py-4">
           <h2 class="text-sm font-semibold text-slate-900">Что будет дальше</h2>
           <p class="mt-0.5 text-xs text-slate-500">
-            Модель извлечёт требования. Проверить и установить шаблон можно на следующем экране.
+            Модель извлечёт требования, а проверить и сохранить вакансию можно на следующем
+            экране.
           </p>
         </div>
         <dl class="space-y-3 px-5 py-4 text-sm">
@@ -366,7 +479,7 @@ async function submit() {
         <div class="border-t border-slate-100 px-5 py-4">
           <button type="submit" form="create-form" class="btn-accent w-full" :disabled="!canSubmit">
             <Sparkles :size="17" />
-            Извлечь требования
+            Создать вакансию
           </button>
           <div
             v-if="loading"
@@ -374,7 +487,7 @@ async function submit() {
             role="status"
           >
             <LoaderCircle :size="16" class="mt-0.5 shrink-0 animate-spin" />
-            <span>Извлечение может занять до 5 минут. Не закрывайте страницу.</span>
+            <span>Создание может занять до 5 минут. Не закрывайте страницу.</span>
           </div>
           <p v-else class="mt-3 text-center text-xs text-slate-400">
             Обычно занимает 10–60 секунд

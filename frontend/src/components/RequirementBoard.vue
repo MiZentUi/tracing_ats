@@ -1,6 +1,6 @@
 <script setup lang="ts">
-import { computed, ref } from 'vue'
-import { AlertTriangle, GripVertical, History, Quote, Trash2 } from '@lucide/vue'
+import { ref } from 'vue'
+import { AlertTriangle, GripVertical, History, Plus, Quote, Trash2 } from '@lucide/vue'
 import type { SkillKind } from '@/api/generated'
 import type { EditableRequirement } from '@/types'
 import { kindLabels } from '@/lib/labels'
@@ -14,6 +14,7 @@ const props = defineProps<{
 const emit = defineEmits<{
   update: [key: string, patch: Partial<EditableRequirement>]
   remove: [key: string]
+  add: [kind: SkillKind]
 }>()
 
 const columns: Array<{ kind: SkillKind; title: string; hint: string; accent: string; dot: string }> = [
@@ -69,6 +70,11 @@ function displayName(item: EditableRequirement): string {
   return item.skill?.trim() || item.quote?.slice(0, 48) || 'Без названия'
 }
 
+function updateSkill(event: Event, item: EditableRequirement) {
+  const value = (event.target as HTMLInputElement).value
+  emit('update', item.key, { skill: value.trim() === '' ? null : value })
+}
+
 const kindOptions = (Object.keys(kindLabels) as SkillKind[]).map((kind) => ({
   value: kind,
   label: kindLabels[kind],
@@ -98,8 +104,6 @@ function onMove(event: Event, item: EditableRequirement) {
     emit('update', item.key, { kind })
   }
 }
-
-const total = computed(() => props.requirements.length)
 </script>
 
 <template>
@@ -134,7 +138,7 @@ const total = computed(() => props.requirements.length)
           <span class="badge-neutral shrink-0">{{ requirementsFor(column.kind).length }}</span>
         </header>
 
-        <div class="space-y-2">
+        <div class="flex-1 space-y-2">
           <article
             v-for="item in requirementsFor(column.kind)"
             :key="item.key"
@@ -148,9 +152,13 @@ const total = computed(() => props.requirements.length)
             <div class="flex items-start gap-2">
               <GripVertical :size="14" class="mt-0.5 shrink-0 text-slate-300" />
               <div class="min-w-0 flex-1">
-                <p class="truncate text-sm font-semibold text-slate-900">
-                  {{ displayName(item) }}
-                </p>
+                <input
+                  :value="item.skill ?? ''"
+                  class="w-full rounded-md border border-transparent bg-transparent px-1 py-0.5 text-sm font-semibold text-slate-900 outline-none transition placeholder:font-normal placeholder:text-slate-400 hover:border-slate-200 focus:border-indigo-300 focus:bg-white"
+                  aria-label="Название навыка"
+                  placeholder="Название навыка"
+                  @input="updateSkill($event, item)"
+                />
                 <div class="mt-1 flex flex-wrap items-center gap-1.5">
                   <span
                     :class="item.kindSource === 'HISTORY' ? 'badge-info' : 'badge-neutral'"
@@ -210,16 +218,21 @@ const total = computed(() => props.requirements.length)
 
           <p
             v-if="requirementsFor(column.kind).length === 0"
-            class="rounded-xl border border-dashed border-slate-300 bg-white/60 px-3 py-8 text-center text-xs text-slate-400"
+            class="rounded-lg border border-dashed border-slate-300 bg-white/60 px-3 py-8 text-center text-xs text-slate-400"
           >
             Перетащите сюда карточку
           </p>
         </div>
+
+        <button
+          type="button"
+          class="mt-3 flex w-full items-center justify-center gap-1.5 rounded-lg border border-dashed border-slate-300 bg-white/70 px-3 py-2 text-xs font-medium text-slate-500 transition hover:border-indigo-300 hover:bg-indigo-50/60 hover:text-indigo-700"
+          @click="emit('add', column.kind)"
+        >
+          <Plus :size="14" />
+          Добавить
+        </button>
       </section>
     </div>
-
-    <p v-if="total === 0" class="rounded-2xl border border-dashed border-slate-300 px-4 py-6 text-center text-sm text-slate-500">
-      Пока нет требований. Добавьте первое требование, и оно появится в колонке «Обязательно».
-    </p>
   </div>
 </template>

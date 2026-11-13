@@ -148,7 +148,7 @@ public class VacancyStore {
         if (command.title() != null && !command.title().isBlank()) {
             vacancy.setTitle(trimTitle(command.title()));
         }
-        vacancy.setStatus("ACTIVE");
+        vacancy.setStatus(command.confirm() ? "ACTIVE" : "DRAFT");
         vacancy.setUpdatedAt(now);
 
         TemplateVersionEntity version =
@@ -162,7 +162,7 @@ public class VacancyStore {
                         .llmPromptVersion(previous.getLlmPromptVersion())
                         .llmModel(previous.getLlmModel())
                         .droppedRequirements(previous.getDroppedRequirements())
-                        .confirmed(true)
+                        .confirmed(command.confirm())
                         .createdAt(now)
                         .build();
         versionRepository.save(version);
@@ -189,7 +189,9 @@ public class VacancyStore {
         vacancy.setCurrentVersion(version.getVersionNo());
         vacancyRepository.save(vacancy);
 
-        updateStats(oldConfirmed, version, prepared, specialization.getId(), level.getId());
+        if (command.confirm()) {
+            updateStats(oldConfirmed, version, prepared, specialization.getId(), level.getId());
+        }
         return assembler.assemble(vacancy, version);
     }
 
