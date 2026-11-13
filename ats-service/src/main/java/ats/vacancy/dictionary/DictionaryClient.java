@@ -1,19 +1,27 @@
 package ats.vacancy.dictionary;
 
+import ats.dictionary.proto.AddQualificationAliasRequest;
 import ats.dictionary.proto.Alias;
 import ats.dictionary.proto.AliasInput;
 import ats.dictionary.proto.ApplySkillInput;
 import ats.dictionary.proto.ApplySkillsRequest;
 import ats.dictionary.proto.ApplySkillsResponse;
+import ats.dictionary.proto.CreateQualificationRequest;
+import ats.dictionary.proto.CreateRelationRequest;
 import ats.dictionary.proto.CreateSkillRequest;
 import ats.dictionary.proto.DeleteAliasRequest;
+import ats.dictionary.proto.DeleteQualificationAliasRequest;
+import ats.dictionary.proto.DeleteRelationRequest;
 import ats.dictionary.proto.DeleteSkillRequest;
 import ats.dictionary.proto.DeprecateSkillRequest;
 import ats.dictionary.proto.DictionaryServiceGrpc;
 import ats.dictionary.proto.GetVersionRequest;
+import ats.dictionary.proto.ListQualificationsRequest;
+import ats.dictionary.proto.ListRelationsRequest;
 import ats.dictionary.proto.ListReviewItemsRequest;
 import ats.dictionary.proto.ListSkillsRequest;
 import ats.dictionary.proto.RawSkill;
+import ats.dictionary.proto.RelationKind;
 import ats.dictionary.proto.ResolveBatchRequest;
 import ats.dictionary.proto.ResolveBatchResponse;
 import ats.dictionary.proto.ResolveReviewItemRequest;
@@ -22,6 +30,7 @@ import ats.dictionary.proto.ResolveSource;
 import ats.dictionary.proto.ReviewAction;
 import ats.dictionary.proto.ReviewStatus;
 import ats.dictionary.proto.SetCanonicalAliasRequest;
+import ats.dictionary.proto.SetCanonicalQualificationAliasRequest;
 import ats.dictionary.proto.SkillType;
 import io.grpc.StatusRuntimeException;
 import java.util.ArrayList;
@@ -320,6 +329,158 @@ public class DictionaryClient {
         log.info("dictionary_skill_deleted skill_id={}", skillId);
     }
 
+    public List<DictionaryModels.Qualification> listQualifications(
+            String query, String status, int limit, int offset) {
+        var response =
+                call(
+                        () ->
+                                stub.withDeadlineAfter(
+                                                properties.getDeadline().toMillis(),
+                                                TimeUnit.MILLISECONDS)
+                                        .listQualifications(
+                                                ListQualificationsRequest.newBuilder()
+                                                        .setQuery(query == null ? "" : query)
+                                                        .setStatus(status == null ? "" : status)
+                                                        .setLimit(limit)
+                                                        .setOffset(offset)
+                                                        .build()));
+        return response.getItemsList().stream().map(DictionaryClient::toQualification).toList();
+    }
+
+    public DictionaryModels.Qualification createQualification(
+            String canonicalName, String qualificationType) {
+        var item =
+                call(
+                        () ->
+                                stub.withDeadlineAfter(
+                                                properties.getDeadline().toMillis(),
+                                                TimeUnit.MILLISECONDS)
+                                        .createQualification(
+                                                CreateQualificationRequest.newBuilder()
+                                                        .setCanonicalName(canonicalName)
+                                                        .setQualificationType(
+                                                                qualificationType == null
+                                                                        ? "OTHER"
+                                                                        : qualificationType)
+                                                        .setActor("hr")
+                                                        .build()));
+        log.info("dictionary_qualification_created qualification_id={}", item.getId());
+        return toQualification(item);
+    }
+
+    public DictionaryModels.QualificationAlias addQualificationAlias(
+            UUID qualificationId, String raw, String lang, String lemmaMode) {
+        var alias =
+                call(
+                        () ->
+                                stub.withDeadlineAfter(
+                                                properties.getDeadline().toMillis(),
+                                                TimeUnit.MILLISECONDS)
+                                        .addQualificationAlias(
+                                                AddQualificationAliasRequest.newBuilder()
+                                                        .setQualificationId(
+                                                                qualificationId.toString())
+                                                        .setAliasRaw(raw)
+                                                        .setLang(lang == null ? "mixed" : lang)
+                                                        .setLemmaMode(
+                                                                "RAW_ONLY".equals(lemmaMode)
+                                                                        ? ats.dictionary.proto
+                                                                                .LemmaMode
+                                                                                .LEMMA_MODE_RAW_ONLY
+                                                                        : ats.dictionary.proto
+                                                                                .LemmaMode
+                                                                                .LEMMA_MODE_AUTO)
+                                                        .setActor("hr")
+                                                        .build()));
+        return toQualificationAlias(alias);
+    }
+
+    public DictionaryModels.Qualification setCanonicalQualificationAlias(
+            UUID qualificationId, UUID aliasId) {
+        var item =
+                call(
+                        () ->
+                                stub.withDeadlineAfter(
+                                                properties.getDeadline().toMillis(),
+                                                TimeUnit.MILLISECONDS)
+                                        .setCanonicalQualificationAlias(
+                                                SetCanonicalQualificationAliasRequest.newBuilder()
+                                                        .setQualificationId(
+                                                                qualificationId.toString())
+                                                        .setAliasId(aliasId.toString())
+                                                        .setActor("hr")
+                                                        .build()));
+        return toQualification(item);
+    }
+
+    public void deleteQualificationAlias(UUID aliasId) {
+        call(
+                () ->
+                        stub.withDeadlineAfter(
+                                        properties.getDeadline().toMillis(), TimeUnit.MILLISECONDS)
+                                .deleteQualificationAlias(
+                                        DeleteQualificationAliasRequest.newBuilder()
+                                                .setAliasId(aliasId.toString())
+                                                .setActor("hr")
+                                                .build()));
+    }
+
+    public List<DictionaryModels.Relation> listRelations(int limit, int offset) {
+        var response =
+                call(
+                        () ->
+                                stub.withDeadlineAfter(
+                                                properties.getDeadline().toMillis(),
+                                                TimeUnit.MILLISECONDS)
+                                        .listRelations(
+                                                ListRelationsRequest.newBuilder()
+                                                        .setLimit(limit)
+                                                        .setOffset(offset)
+                                                        .build()));
+        return response.getItemsList().stream()
+                .map(
+                        item ->
+                                new DictionaryModels.Relation(
+                                        UUID.fromString(item.getLeftSkillId()),
+                                        UUID.fromString(item.getRightSkillId()),
+                                        item.getKind().name().replace("RELATION_KIND_", "")))
+                .toList();
+    }
+
+    public DictionaryModels.Relation createRelation(
+            UUID leftSkillId, UUID rightSkillId, String kind) {
+        var item =
+                call(
+                        () ->
+                                stub.withDeadlineAfter(
+                                                properties.getDeadline().toMillis(),
+                                                TimeUnit.MILLISECONDS)
+                                        .createRelation(
+                                                CreateRelationRequest.newBuilder()
+                                                        .setLeftSkillId(leftSkillId.toString())
+                                                        .setRightSkillId(rightSkillId.toString())
+                                                        .setKind(relationKind(kind))
+                                                        .setActor("hr")
+                                                        .build()));
+        return new DictionaryModels.Relation(
+                UUID.fromString(item.getLeftSkillId()),
+                UUID.fromString(item.getRightSkillId()),
+                item.getKind().name().replace("RELATION_KIND_", ""));
+    }
+
+    public void deleteRelation(UUID leftSkillId, UUID rightSkillId) {
+        call(
+                () ->
+                        stub.withDeadlineAfter(
+                                        properties.getDeadline().toMillis(), TimeUnit.MILLISECONDS)
+                                .deleteRelation(
+                                        DeleteRelationRequest.newBuilder()
+                                                .setLeftSkillId(leftSkillId.toString())
+                                                .setRightSkillId(rightSkillId.toString())
+                                                .setActor("hr")
+                                                .build()));
+    }
+
     private <T> T call(java.util.concurrent.Callable<T> action) {
         try {
             return action.call();
@@ -358,6 +519,15 @@ public class DictionaryClient {
         };
     }
 
+    private static RelationKind relationKind(String kind) {
+        return switch (kind == null ? "" : kind) {
+            case "SAME_GROUP" -> RelationKind.RELATION_KIND_SAME_GROUP;
+            case "PARENT" -> RelationKind.RELATION_KIND_PARENT;
+            case "CHILD" -> RelationKind.RELATION_KIND_CHILD;
+            default -> RelationKind.RELATION_KIND_RELATED;
+        };
+    }
+
     private static ReviewStatus reviewStatus(String status) {
         return switch (status == null ? "" : status) {
             case "RESOLVED_ALIAS" -> ReviewStatus.REVIEW_STATUS_RESOLVED_ALIAS;
@@ -388,6 +558,32 @@ public class DictionaryClient {
         return new DictionaryModels.Alias(
                 UUID.fromString(alias.getId()),
                 UUID.fromString(alias.getSkillId()),
+                alias.getRaw(),
+                alias.getIsCanonical(),
+                alias.getLang(),
+                alias.getSource().name().replace("ALIAS_SOURCE_", ""),
+                alias.getLemmaMode().name().replace("LEMMA_MODE_", ""),
+                alias.getCreatedBy(),
+                alias.getCreatedAt());
+    }
+
+    private static DictionaryModels.Qualification toQualification(
+            ats.dictionary.proto.Qualification item) {
+        return new DictionaryModels.Qualification(
+                UUID.fromString(item.getId()),
+                item.getCanonicalName(),
+                item.getStatus(),
+                item.getQualificationType(),
+                item.getAliasesList().stream()
+                        .map(DictionaryClient::toQualificationAlias)
+                        .toList());
+    }
+
+    private static DictionaryModels.QualificationAlias toQualificationAlias(
+            ats.dictionary.proto.QualificationAlias alias) {
+        return new DictionaryModels.QualificationAlias(
+                UUID.fromString(alias.getId()),
+                UUID.fromString(alias.getQualificationId()),
                 alias.getRaw(),
                 alias.getIsCanonical(),
                 alias.getLang(),

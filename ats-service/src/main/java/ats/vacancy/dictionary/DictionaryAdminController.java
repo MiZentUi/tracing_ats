@@ -83,6 +83,58 @@ public class DictionaryAdminController {
         dictionaryClient.deleteAlias(id);
     }
 
+    @GetMapping("/qualifications")
+    public List<DictionaryModels.Qualification> qualifications(
+            @RequestParam(defaultValue = "") String query,
+            @RequestParam(defaultValue = "ACTIVE") String status,
+            @RequestParam(defaultValue = "50") int limit,
+            @RequestParam(defaultValue = "0") int offset) {
+        return dictionaryClient.listQualifications(query, status, limit, offset);
+    }
+
+    @PostMapping("/qualifications")
+    public DictionaryModels.Qualification createQualification(
+            @RequestBody CreateQualificationRequest request) {
+        return dictionaryClient.createQualification(
+                request.canonicalName(), request.qualificationType());
+    }
+
+    @PostMapping("/qualifications/{id}/aliases")
+    public DictionaryModels.QualificationAlias addQualificationAlias(
+            @PathVariable UUID id, @RequestBody AddQualificationAliasRequest request) {
+        return dictionaryClient.addQualificationAlias(
+                id, request.raw(), request.lang(), request.lemmaMode());
+    }
+
+    @PostMapping("/qualifications/{id}/canonical")
+    public DictionaryModels.Qualification setCanonicalQualificationAlias(
+            @PathVariable UUID id, @RequestBody SetCanonicalRequest request) {
+        return dictionaryClient.setCanonicalQualificationAlias(id, request.aliasId());
+    }
+
+    @DeleteMapping("/qualification-aliases/{id}")
+    public void deleteQualificationAlias(@PathVariable UUID id) {
+        dictionaryClient.deleteQualificationAlias(id);
+    }
+
+    @GetMapping("/relations")
+    public List<DictionaryModels.Relation> relations(
+            @RequestParam(defaultValue = "500") int limit,
+            @RequestParam(defaultValue = "0") int offset) {
+        return dictionaryClient.listRelations(limit, offset);
+    }
+
+    @PostMapping("/relations")
+    public DictionaryModels.Relation createRelation(@RequestBody CreateRelationRequest request) {
+        return dictionaryClient.createRelation(
+                request.leftSkillId(), request.rightSkillId(), request.kind());
+    }
+
+    @DeleteMapping("/relations")
+    public void deleteRelation(@RequestParam UUID left, @RequestParam UUID right) {
+        dictionaryClient.deleteRelation(left, right);
+    }
+
     @PostMapping("/skills/{id}/deprecate")
     public DictionaryModels.Skill deprecate(@PathVariable UUID id) {
         return dictionaryClient.deprecateSkill(id);
@@ -132,4 +184,10 @@ public class DictionaryAdminController {
     public record AddAliasRequest(String raw, String lang, String lemmaMode) {}
 
     public record SetCanonicalRequest(UUID aliasId) {}
+
+    public record CreateQualificationRequest(String canonicalName, String qualificationType) {}
+
+    public record AddQualificationAliasRequest(String raw, String lang, String lemmaMode) {}
+
+    public record CreateRelationRequest(UUID leftSkillId, UUID rightSkillId, String kind) {}
 }
