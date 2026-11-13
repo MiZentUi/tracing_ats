@@ -66,3 +66,6 @@ databaseChangeLog:
   - include:
       file: changes/024-education-requirement.sql
       relativeToChangelogFile: true
+  - include:
+      file: changes/025-hh-integration.sql
+      relativeToChangelogFile: true

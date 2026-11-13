@@ -42,6 +42,10 @@ class ResumeControllerTest {
                                                 "TEXT",
                                                 1024,
                                                 Instant.parse("2026-11-12T19:11:18Z"),
+                                                false,
+                                                null,
+                                                null,
+                                                "MANUAL",
                                                 List.of())),
                                 1));
 
@@ -171,6 +175,10 @@ class ResumeControllerTest {
                                 "TEXT",
                                 1024,
                                 Instant.parse("2026-11-12T19:11:18Z"),
+                                false,
+                                null,
+                                null,
+                                "MANUAL",
                                 List.of()));
 
         ResponseEntity<ats.gateway.model.ResumeSummary> response =

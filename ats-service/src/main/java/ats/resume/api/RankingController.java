@@ -56,6 +56,14 @@ public class RankingController implements RankingApi {
                                                                                         .valueOf(
                                                                                                 item
                                                                                                         .decision()))
+                                                                .source(
+                                                                        item.source() == null
+                                                                                ? null
+                                                                                : RankingItem
+                                                                                        .SourceEnum
+                                                                                        .valueOf(
+                                                                                                item
+                                                                                                        .source()))
                                                                 .flags(item.flags()))
                                         .toList());
         return ResponseEntity.ok(response);

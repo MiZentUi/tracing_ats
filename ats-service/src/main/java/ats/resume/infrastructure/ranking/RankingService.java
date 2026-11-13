@@ -70,7 +70,8 @@ public class RankingService {
                             application.getId(),
                             application.getResumeId(),
                             run,
-                            application.getScreeningDecision()));
+                            application.getScreeningDecision(),
+                            application.getSource()));
         }
 
         if ("PRELIMINARY".equals(normalizedPhase)) {
@@ -84,7 +85,7 @@ public class RankingService {
                 if (!seenResumes.add(entry.getKey())) {
                     continue;
                 }
-                items.add(item(0, null, entry.getKey(), entry.getValue(), null));
+                items.add(item(0, null, entry.getKey(), entry.getValue(), null, null));
             }
         }
 
@@ -112,6 +113,7 @@ public class RankingService {
                                             item.scoreHigh(),
                                             item.capApplied(),
                                             item.decision(),
+                                            item.source(),
                                             item.flags());
                                 })
                         .sorted(
@@ -140,13 +142,19 @@ public class RankingService {
                             item.scoreHigh(),
                             item.capApplied(),
                             item.decision(),
+                            item.source(),
                             item.flags()));
         }
         return new RankingView(vacancyId, normalizedPhase, Instant.now(), ranked);
     }
 
     private RankingItem item(
-            int rank, UUID applicationId, UUID resumeId, ScoreRunEntity run, String decision) {
+            int rank,
+            UUID applicationId,
+            UUID resumeId,
+            ScoreRunEntity run,
+            String decision,
+            String source) {
         return new RankingItem(
                 rank,
                 applicationId,
@@ -159,6 +167,7 @@ public class RankingService {
                 run.getScoreHigh().doubleValue(),
                 run.isCapApplied(),
                 decision,
+                source,
                 flags(run));
     }
 
@@ -196,5 +205,6 @@ public class RankingService {
             double scoreHigh,
             boolean capApplied,
             String decision,
+            String source,
             List<String> flags) {}
 }

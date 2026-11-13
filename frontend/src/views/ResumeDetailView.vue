@@ -2,6 +2,7 @@
 import { computed, nextTick, onBeforeUnmount, onMounted, ref } from 'vue'
 import {
   ArrowLeft,
+  ArrowRight,
   Eye,
   EyeOff,
   Loader2,
@@ -44,13 +45,14 @@ const error = ref('')
 let timer: number | null = null
 
 const inProgress = computed(() => {
-  const status = resume.value?.status
-  return (
-    status === 'UPLOADED' ||
-    status === 'MASKED' ||
-    status === 'EXTRACTED' ||
-    status === 'MATCHING'
-  )
+  return resume.value?.matching === true || resume.value?.status === 'UPLOADED'
+})
+
+const isHhResume = computed(() => resume.value?.source === 'HH')
+
+const applicationReportLink = computed(() => {
+  const applicationId = resume.value?.applicationId
+  return applicationId ? `/applications/${applicationId}/report?phase=PRELIMINARY` : null
 })
 
 const vacancies = computed(() => ranking.value?.items ?? [])
@@ -542,10 +544,23 @@ onBeforeUnmount(stopPolling)
                 <h2 class="text-base font-semibold text-slate-900">Подходящие вакансии</h2>
                 <span v-if="vacancies.length" class="badge-neutral">{{ vacancies.length }}</span>
               </div>
-              <button class="btn-primary mt-3 w-full" :disabled="matching || inProgress" @click="rematch">
+              <RouterLink
+                v-if="applicationReportLink"
+                :to="applicationReportLink"
+                class="btn-primary mt-3 w-full"
+              >
+                <ArrowRight :size="16" />
+                Открыть сравнение 1:1
+              </RouterLink>
+              <button
+                class="mt-3 w-full"
+                :class="applicationReportLink ? 'btn-secondary' : 'btn-primary'"
+                :disabled="matching || inProgress"
+                @click="rematch"
+              >
                 <Loader2 v-if="matching" :size="16" class="animate-spin" />
                 <RefreshCcw v-else :size="16" />
-                Подобрать вакансии
+                {{ applicationReportLink ? 'Подобрать другие вакансии' : 'Подобрать вакансии' }}
               </button>
             </div>
 
@@ -558,7 +573,11 @@ onBeforeUnmount(stopPolling)
             </div>
 
             <div v-if="!vacancies.length" class="px-4 py-8 text-center text-sm text-slate-500">
-              <p>Пока нет подходящих вакансий.</p>
+              <p v-if="isHhResume">
+                Это резюме пришло из hh.ru. Нажмите «Открыть сравнение 1:1», чтобы увидеть отчёт
+                по вакансии, на которую пришёл отклик.
+              </p>
+              <p v-else>Пока нет подходящих вакансий.</p>
             </div>
 
             <ul v-else class="divide-y divide-slate-100">

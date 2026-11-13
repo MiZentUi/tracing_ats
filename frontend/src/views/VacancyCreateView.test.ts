@@ -33,6 +33,7 @@ async function mountCreate() {
     routes: [
       { path: '/vacancies/new', component: VacancyCreateView },
       { path: '/vacancies/:id', component: { template: '<div />' } },
+      { path: '/vacancies/:id/edit', component: { template: '<div />' } },
     ],
   })
   await router.push('/vacancies/new')

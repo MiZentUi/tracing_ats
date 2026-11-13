@@ -1,13 +1,14 @@
 <script setup lang="ts">
 import { computed, onMounted, ref } from 'vue'
-import { ArrowLeft, Copy, Loader2, Pencil, RefreshCcw, Users } from '@lucide/vue'
+import { ArrowLeft, Copy, ExternalLink, Loader2, Pencil, RefreshCcw, Send, Users } from '@lucide/vue'
 import type {
+  HhPublication,
   RankingItem,
   RankingResponse,
   Specialization,
   Vacancy,
 } from '@/api/generated'
-import { apiErrorMessage, rankingApi, referenceApi, vacanciesApi } from '@/api'
+import { apiErrorMessage, hhApi, rankingApi, referenceApi, vacanciesApi } from '@/api'
 import MarkdownText from '@/components/MarkdownText.vue'
 import { useToast } from '@/composables/useToast'
 import { decisionLabel } from '@/lib/labels'
@@ -24,6 +25,9 @@ const specializations = ref<Specialization[]>([])
 const loading = ref(true)
 const refreshing = ref(false)
 const error = ref('')
+const hhPublication = ref<HhPublication | null>(null)
+const publishingToHh = ref(false)
+const hhError = ref('')
 
 const candidates = computed(() => {
   const byResume = new Map<string, RankingItem>()
@@ -42,6 +46,43 @@ const candidates = computed(() => {
 })
 
 const sourceText = computed(() => vacancy.value?.source_text ?? '')
+
+const hhStatusLabel = computed(() => {
+  switch (hhPublication.value?.status) {
+    case 'PUBLISHED':
+      return 'Опубликована'
+    case 'PENDING':
+      return 'Публикуется'
+    case 'FAILED':
+      return 'Ошибка публикации'
+    case 'ARCHIVED':
+      return 'Снята с публикации'
+    default:
+      return 'Не опубликована'
+  }
+})
+
+async function publishToHh() {
+  if (publishingToHh.value) {
+    return
+  }
+  publishingToHh.value = true
+  hhError.value = ''
+  try {
+    const response = await hhApi.publishVacancyToHh({ vacancyId: props.id })
+    hhPublication.value = response.data
+    if (response.data.status === 'PUBLISHED') {
+      success('Вакансия опубликована на hh.ru')
+    } else {
+      hhError.value = 'Публикация не завершена. Проверьте статус позже.'
+    }
+  } catch (e) {
+    hhError.value = apiErrorMessage(e)
+    toastError('Не удалось опубликовать на hh.ru', hhError.value)
+  } finally {
+    publishingToHh.value = false
+  }
+}
 
 const specializationName = computed(
   () =>
@@ -105,6 +146,12 @@ async function load(initial = true) {
     ])
     finalRanking.value = finalResponse?.data ?? null
     preliminaryRanking.value = preliminaryResponse?.data ?? null
+    try {
+      const hhResponse = await hhApi.getHhPublication({ vacancyId: props.id })
+      hhPublication.value = hhResponse.data
+    } catch {
+      hhPublication.value = null
+    }
     try {
       const specs = await referenceApi.listSpecializations()
       specializations.value = specs.data
@@ -204,6 +251,50 @@ onMounted(() => load())
             </dl>
           </article>
 
+          <article v-if="!vacancy.template.is_confirmed" class="card p-5">
+            <h2 class="text-base font-semibold text-slate-900">Шаблон ещё не подтверждён</h2>
+            <p class="mt-1 text-sm text-slate-500">
+              Сейчас это черновик: требования {{ requirementsCount(vacancy.template.requirements.length) }}.
+              Проверьте их и разложите по важности — после подтверждения появится публикация на hh.ru.
+            </p>
+            <RouterLink :to="`/vacancies/${props.id}/edit`" class="btn-primary mt-4">
+              Разложить требования и подтвердить
+            </RouterLink>
+          </article>
+
+          <article v-else class="card p-5">
+            <div class="flex flex-wrap items-center justify-between gap-3">
+              <div>
+                <h2 class="text-base font-semibold text-slate-900">hh.ru</h2>
+                <p class="mt-1 text-sm text-slate-500">{{ hhStatusLabel }}</p>
+              </div>
+              <a
+                v-if="hhPublication?.hh_url"
+                :href="hhPublication.hh_url"
+                target="_blank"
+                rel="noreferrer"
+                class="btn-secondary px-3 py-1.5 text-xs"
+              >
+                <ExternalLink :size="14" />
+                Открыть на hh.ru
+              </a>
+            </div>
+            <p v-if="hhPublication?.hh_vacancy_id" class="mt-3 text-xs text-slate-400">
+              hh vacancy id: {{ hhPublication.hh_vacancy_id }}
+            </p>
+            <p v-if="hhError" class="mt-3 text-sm text-red-700">{{ hhError }}</p>
+            <button
+              v-if="hhPublication?.status !== 'PUBLISHED'"
+              class="btn-primary mt-4"
+              :disabled="publishingToHh"
+              @click="publishToHh"
+            >
+              <Loader2 v-if="publishingToHh" :size="16" class="animate-spin" />
+              <Send v-else :size="16" />
+              {{ publishingToHh ? 'Публикуем…' : 'Опубликовать на hh.ru' }}
+            </button>
+          </article>
+
           <article class="card">
             <div class="flex items-center justify-between gap-3 border-b border-slate-100 px-5 py-4">
               <h2 class="text-base font-semibold text-slate-900">Текст вакансии</h2>
@@ -250,8 +341,15 @@ onMounted(() => load())
               <li v-for="(item, index) in candidates" :key="item.resumeId ?? item.applicationId ?? index" class="px-4 py-3">
                 <div class="flex items-start justify-between gap-3">
                   <div class="min-w-0">
-                    <p class="truncate text-sm font-semibold text-slate-900">
-                      {{ candidateTitle(item) }}
+                    <p class="flex items-center gap-2 truncate text-sm font-semibold text-slate-900">
+                      <span class="truncate">{{ candidateTitle(item) }}</span>
+                      <span
+                        v-if="item.source === 'HH'"
+                        class="shrink-0 rounded-md bg-red-50 px-1.5 py-0.5 text-[10px] font-semibold uppercase tracking-wide text-red-700"
+                        title="Отклик пришёл через вебхук hh.ru"
+                      >
+                        hh.ru
+                      </span>
                     </p>
                     <p class="mt-0.5 text-xs text-slate-500">
                       Скор {{ item.score.toFixed(1) }}

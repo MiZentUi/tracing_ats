@@ -52,6 +52,11 @@ metadata `x-request-id`. По нему видно всю цепочку: HTTP �
 | `vacancy_created`, `vacancy_template_updated`, `vacancy_deleted` | INFO | бизнес-итог операции |
 | `screening_batch_started/finished`, `screening_batch_failed` | INFO/ERROR | фоновая задача скрининга |
 | `preliminary_scoring_started/finished/failed` | INFO/WARN | предварительный скор при загрузке |
+| `hh_vacancy_publish_started/finished/failed`, `hh_vacancy_draft_created` | INFO/WARN | публикация вакансии на hh.ru |
+| `hh_subscription_created/failed` | INFO/WARN | подписка на отклики hh |
+| `hh_webhook_received/duplicate/unmatched` | INFO/WARN | входящий вебхук hh: только идентификаторы |
+| `hh_resume_fetch_failed`, `hh_application_created` | WARN/INFO | получение резюме и создание отклика |
+| `notification_outbox_enqueued/sent/retry/failed` | INFO/WARN | Telegram-алерты без PII |
 | `api_request_rejected`, `api_error_unexpected` | INFO/ERROR | граница ошибок HTTP |
 
 Не логируются: тела запросов и ответов, промпты и ответы LLM, текст резюме и вакансии, цитаты,

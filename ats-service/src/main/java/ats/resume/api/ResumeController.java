@@ -223,6 +223,13 @@ public class ResumeController implements ResumesApi {
                 .resumeId(view.resumeId())
                 .title(view.title())
                 .status(view.status())
+                .matching(view.matching())
+                .applicationId(view.applicationId())
+                .vacancyId(view.vacancyId())
+                .source(
+                        view.source() == null
+                                ? null
+                                : ResumeSummary.SourceEnum.valueOf(view.source()))
                 .fileType(view.fileType())
                 .sizeBytes(view.sizeBytes())
                 .createdAt(view.createdAt().atOffset(ZoneOffset.UTC))

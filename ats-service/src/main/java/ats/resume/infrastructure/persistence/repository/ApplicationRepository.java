@@ -3,6 +3,7 @@ package ats.resume.infrastructure.persistence.repository;
 import ats.resume.infrastructure.persistence.entity.ApplicationEntity;
 import java.util.Collection;
 import java.util.List;
+import java.util.Optional;
 import java.util.UUID;
 import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.data.jpa.repository.Modifying;
@@ -12,6 +13,10 @@ import org.springframework.data.repository.query.Param;
 public interface ApplicationRepository extends JpaRepository<ApplicationEntity, UUID> {
 
     List<ApplicationEntity> findByVacancyId(UUID vacancyId);
+
+    Optional<ApplicationEntity> findFirstByResumeIdOrderByCreatedAtDesc(UUID resumeId);
+
+    Optional<ApplicationEntity> findBySourceAndExternalRef(String source, String externalRef);
 
     List<ApplicationEntity> findByResumeId(UUID resumeId);
 

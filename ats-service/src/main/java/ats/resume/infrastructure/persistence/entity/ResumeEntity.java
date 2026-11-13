@@ -43,6 +43,12 @@ public class ResumeEntity {
     @Column(length = 255)
     private String title;
 
+    @Column(nullable = false, length = 16)
+    private String source = "MANUAL";
+
+    @Column(name = "external_ref", length = 128)
+    private String externalRef;
+
     @Column(nullable = false, length = 24)
     private String status;
 

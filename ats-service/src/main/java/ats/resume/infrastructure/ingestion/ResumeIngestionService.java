@@ -45,7 +45,8 @@ import org.springframework.web.multipart.MultipartFile;
 
 /**
  * Загрузка резюме: оригинал в объектное хранилище, PII в шифрованный vault, обезличенный текст в
- * parsed_resume. Ни имя файла, ни текст резюме не попадают в логи.
+ * parsed_resume. Ни имя файла, ни текст резюме не попадают в логи. Внешний вход (hh) использует тот
+ * же путь, но получает текст из коннектора и помечает источник.
  */
 @Slf4j
 @Service
@@ -77,12 +78,61 @@ public class ResumeIngestionService {
             return new UploadOutcome(
                     null, UploadOutcome.Status.FAILED, List.of("FILE_READ_FAILED"));
         }
-        CandidateEntity candidate = candidateRepository.save(new CandidateEntity());
+        return ingestContent(
+                vacancyId,
+                consentGithub,
+                content,
+                file.getOriginalFilename(),
+                "MANUAL",
+                null,
+                null,
+                null,
+                null,
+                null);
+    }
+
+    /**
+     * Резюме из hh.ru. Текст уже приведён коннектором к обычному виду; дальше работает общий
+     * пайплайн маскировки и скоринга.
+     */
+    @Transactional
+    public UploadOutcome ingestExternal(
+            UUID vacancyId,
+            String applicationExternalRef,
+            String candidateExternalRef,
+            String resumeExternalRef,
+            String title,
+            String text) {
+        return ingestContent(
+                vacancyId,
+                false,
+                text.getBytes(java.nio.charset.StandardCharsets.UTF_8),
+                "hh-resume.txt",
+                "HH",
+                candidateExternalRef,
+                resumeExternalRef,
+                applicationExternalRef,
+                title,
+                FileType.TEXT);
+    }
+
+    private UploadOutcome ingestContent(
+            UUID vacancyId,
+            boolean consentGithub,
+            byte[] content,
+            String originalFilename,
+            String source,
+            String candidateExternalRef,
+            String resumeExternalRef,
+            String applicationExternalRef,
+            String title,
+            FileType forcedType) {
+        CandidateEntity candidate = findOrCreateCandidate(source, candidateExternalRef);
         UUID candidateId = candidate.getId();
 
-        String originalFilename = file.getOriginalFilename();
-        FileType fileType = detectType(originalFilename, content);
-        ResumeEntity resume = newResume(candidateId, fileType, content);
+        FileType fileType = forcedType == null ? detectType(originalFilename, content) : forcedType;
+        ResumeEntity resume =
+                newResume(candidateId, fileType, content, source, resumeExternalRef, title);
         resume = resumeRepository.save(resume);
         UUID resumeId = resume.getId();
         objectStorage.put(resume.getOriginalObjectKey(), content, contentType(fileType));
@@ -102,17 +152,30 @@ public class ResumeIngestionService {
             resume.setStatus(status);
             resume.setWarnings(jsonCodec.write(List.of(e.errorCode().name())));
             resumeRepository.save(resume);
-            createApplication(vacancyId, resumeId, candidateId, consentGithub, status);
+            ApplicationEntity application =
+                    createApplication(
+                            vacancyId,
+                            resumeId,
+                            candidateId,
+                            consentGithub,
+                            status,
+                            source,
+                            applicationExternalRef);
             log.info(
-                    "resume_ingested resume_id={} status={} file_type={} size_bytes={}"
-                            + " warnings={}",
+                    "resume_ingested resume_id={} application_id={} status={} file_type={}"
+                            + " size_bytes={} warnings={}",
                     resumeId,
+                    application == null ? null : application.getId(),
                     status,
                     fileType,
                     content.length,
                     e.errorCode().name());
             return new UploadOutcome(
-                    resumeId, UploadOutcome.Status.valueOf(status), List.of(e.errorCode().name()));
+                    resumeId,
+                    UploadOutcome.Status.valueOf(status),
+                    List.of(e.errorCode().name()),
+                    null,
+                    application == null ? null : application.getId());
         }
 
         MaskingResult masking;
@@ -122,20 +185,29 @@ public class ResumeIngestionService {
             resume.setStatus(UploadOutcome.Status.MASKING_FAILED.name());
             resume.setWarnings(jsonCodec.write(List.of("PII_MASKING_FAILED")));
             resumeRepository.save(resume);
-            createApplication(
-                    vacancyId,
-                    resumeId,
-                    candidateId,
-                    consentGithub,
-                    UploadOutcome.Status.MASKING_FAILED.name());
+            ApplicationEntity application =
+                    createApplication(
+                            vacancyId,
+                            resumeId,
+                            candidateId,
+                            consentGithub,
+                            UploadOutcome.Status.MASKING_FAILED.name(),
+                            source,
+                            applicationExternalRef);
             log.warn("pii_masking_failed resume_id={}", resumeId);
             log.info(
-                    "resume_ingested resume_id={} status=MASKING_FAILED file_type={} size_bytes={}",
+                    "resume_ingested resume_id={} application_id={} status=MASKING_FAILED"
+                            + " file_type={} size_bytes={}",
                     resumeId,
+                    application == null ? null : application.getId(),
                     fileType,
                     content.length);
             return new UploadOutcome(
-                    resumeId, UploadOutcome.Status.MASKING_FAILED, List.of("PII_MASKING_FAILED"));
+                    resumeId,
+                    UploadOutcome.Status.MASKING_FAILED,
+                    List.of("PII_MASKING_FAILED"),
+                    null,
+                    application == null ? null : application.getId());
         }
 
         SanitizedText sanitized = promptInjectionSanitizer.sanitize(masking.maskedText());
@@ -173,7 +245,9 @@ public class ResumeIngestionService {
                         resumeId,
                         candidateId,
                         consentGithub,
-                        UploadOutcome.Status.MASKED.name());
+                        UploadOutcome.Status.MASKED.name(),
+                        source,
+                        applicationExternalRef);
         UUID batchId = null;
         if (application != null) {
             eventPublisher.publishEvent(new ResumeMaskedEvent(application.getId(), resumeId));
@@ -184,10 +258,11 @@ public class ResumeIngestionService {
         }
         log.info(
                 "resume_ingested resume_id={} application_id={} batch_id={} status=MASKED"
-                        + " file_type={} size_bytes={} text_chars={} warnings={}",
+                        + " source={} file_type={} size_bytes={} text_chars={} warnings={}",
                 resumeId,
                 application == null ? null : application.getId(),
                 batchId,
+                source,
                 fileType,
                 content.length,
                 extracted.text().length(),
@@ -197,23 +272,57 @@ public class ResumeIngestionService {
                 resumeId,
                 UploadOutcome.Status.MASKED,
                 extracted.warnings().stream().map(Enum::name).toList(),
-                batchId);
+                batchId,
+                application == null ? null : application.getId());
     }
 
-    private ResumeEntity newResume(UUID candidateId, FileType fileType, byte[] content) {
+    private CandidateEntity findOrCreateCandidate(String source, String externalRef) {
+        if (!"MANUAL".equals(source) && externalRef != null && !externalRef.isBlank()) {
+            return candidateRepository
+                    .findBySourceAndExternalRef(source, externalRef)
+                    .orElseGet(
+                            () -> {
+                                CandidateEntity candidate = new CandidateEntity();
+                                candidate.setSource(source);
+                                candidate.setExternalRef(externalRef);
+                                return candidateRepository.save(candidate);
+                            });
+        }
+        CandidateEntity candidate = new CandidateEntity();
+        candidate.setSource(source);
+        candidate.setExternalRef(externalRef);
+        return candidateRepository.save(candidate);
+    }
+
+    private ResumeEntity newResume(
+            UUID candidateId,
+            FileType fileType,
+            byte[] content,
+            String source,
+            String externalRef,
+            String title) {
         ResumeEntity resume = new ResumeEntity();
         resume.setCandidateId(candidateId);
         resume.setOriginalObjectKey("resumes/" + UUID.randomUUID());
         resume.setOriginalSha256(sha256(content));
         resume.setOriginalSizeBytes(content.length);
         resume.setFileType(fileType.name());
+        resume.setSource(source);
+        resume.setExternalRef(externalRef);
+        resume.setTitle(title);
         resume.setStatus("UPLOADED");
         resume.setWarnings("[]");
         return resume;
     }
 
     private ApplicationEntity createApplication(
-            UUID vacancyId, UUID resumeId, UUID candidateId, boolean consentGithub, String status) {
+            UUID vacancyId,
+            UUID resumeId,
+            UUID candidateId,
+            boolean consentGithub,
+            String status,
+            String source,
+            String externalRef) {
         if (vacancyId == null) {
             return null;
         }
@@ -223,6 +332,8 @@ public class ResumeIngestionService {
         application.setCandidateId(candidateId);
         application.setConsentGithub(consentGithub);
         application.setStatus(status);
+        application.setSource(source);
+        application.setExternalRef(externalRef);
         return applicationRepository.save(application);
     }
 

@@ -16,6 +16,39 @@ UI: <http://localhost:3000>, раздел «Словарь» — <http://localho
 Сценарии и ожидаемый результат: `docs/demo-skill-dictionary.md`.
 Деплой на VPS и настройка GitHub Actions: `docs/deploy-vps.md`.
 
+## Быстрый запуск демо hh.ru
+
+```bash
+export ATS_HH_ENABLED=true
+export ATS_HH_API_BASE_URL=http://mock-hh:8090
+export ATS_HH_TOKEN=mock-token
+export ATS_HH_EMPLOYER_ID=999
+export ATS_HH_WEBHOOK_TOKEN=mock-hh-token
+export ATS_HH_WEBHOOK_PUBLIC_URL='http://ats-service:8080/api/v1/integrations/hh/webhook?token=mock-hh-token'
+export SCORING_GRPC_TARGET=mock-scoring:8082
+export ATS_PROFILES=mock-llm
+docker compose --profile mock-hh --profile mock-scoring up -d --build
+./scripts/demo-hh-flow.sh
+```
+
+Mock hh.ru написан на Rust + Axum (`infra/mock-hh`). Он эмулирует черновик, публикацию,
+подписку, выдачу резюме и вебхук `NEW_NEGOTIATION_VACANCY`. У заглушки есть свой HTML-фронтенд:
+`http://localhost:8090` — список вакансий и кнопка «Отправить отклик». Ссылка «Открыть на hh.ru»
+в ATS ведёт именно туда. Подробности — в `infra/mock-hh/README.md` и
+`docs/adr/0007-hh-webhook-integration.md`.
+
+Для Telegram-алертов нужен токен бота и chat id:
+
+```bash
+export ATS_TELEGRAM_ENABLED=true
+export ATS_TELEGRAM_BOT_TOKEN='<токен из @BotFather>'
+export ATS_TELEGRAM_CHAT_ID='<id чата>'
+./scripts/telegram-check.sh
+```
+
+Без токена и chat id алерты не отправляются: `ats-service` работает штатно, но
+`notification_outbox` не пополняется.
+
 ---
 
 ## Содержание
@@ -287,6 +320,32 @@ flowchart LR
 - **Маскировка до любого LLM.** Java маскирует PII до передачи текста в Python, поэтому и Java, и Python отправляют модели только обезличенный текст.
 - **Кого обогащать GitHub, решает Java**, а не обученная модель.
 - **Контракты.** Публичный REST — OpenAPI (`contracts/openapi.yaml`), обучение — JSON Schema (`contracts/training-artifact.schema.json`). gRPC-контракт — `contracts/proto/scoring_service/v1/scoring.proto`; он закоммичен, но до фиксации модели считается черновиком.
+
+### Интеграция с hh.ru
+
+```text
+HR подтверждает шаблон
+  → POST /vacancies/{id}/hh-publication
+  → HH: черновик → публикация
+  → vacancy_hh_publication: hh_vacancy_id → vacancy_id
+  → HH: подписка NEW_NEGOTIATION_VACANCY
+
+HH webhook (vacancy_id, resume_id, topic_id)
+  → hh_webhook_event (идемпотентно)
+  → привязка по hh_vacancy_id
+  → GET /resumes/{resume_id}
+  → только профессиональный текст
+  → маскировка → parsed_resume → application (source=HH)
+  → Score_pre по одной вакансии
+  → notification_outbox → Telegram
+```
+
+- Сопоставление только по `hh_vacancy_id`. Название и URL не используются как ключ.
+- Отдельный одиночный пайплайн: `ScreeningService` и top-N не вызываются, `screening_decision` остаётся пустым.
+- `Score_final` не считается: внешних источников в этом сценарии нет.
+- Несвязанная hh-вакансия → `UNMATCHED` + алерт, без автосоздания вакансии.
+- Telegram-сообщение содержит только вакансию и `Score_pre`, без PII.
+- Имя и контакты из hh-резюме не переносятся: для скоринга достаточно профессиональных фактов.
 
 ---
 
@@ -900,7 +959,8 @@ tracing-ats/
 │   └── training-artifact.schema.json
 ├── frontend/                    # Vue 3 + TypeScript
 ├── infra/
-│   └── mock-llm/                # заглушка LLM для CI и демо
+│   ├── mock-llm/                # заглушка LLM для CI и демо
+│   └── mock-hh/                 # заглушка hh.ru на Rust + Axum
 └── .github/workflows/
 ```
 
