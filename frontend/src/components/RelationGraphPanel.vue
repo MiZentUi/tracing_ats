@@ -21,6 +21,8 @@ const error = ref('')
 const selectedId = ref('')
 const leftId = ref('')
 const rightId = ref('')
+const leftQuery = ref('')
+const rightQuery = ref('')
 const kind = ref('RELATED')
 const saving = ref(false)
 
@@ -90,6 +92,21 @@ const selectedRelations = computed(() =>
       )
     : [],
 )
+
+const leftSkills = computed(() => filterSkills(leftQuery.value))
+const rightSkills = computed(() => filterSkills(rightQuery.value))
+
+function filterSkills(query: string): Skill[] {
+  const normalized = query.trim().toLowerCase()
+  if (!normalized) {
+    return skills.value
+  }
+  return skills.value.filter(
+    (skill) =>
+      skill.canonicalName.toLowerCase().includes(normalized) ||
+      skill.aliases.some((alias) => alias.raw.toLowerCase().includes(normalized)),
+  )
+}
 
 const canCreate = computed(
   () => leftId.value && rightId.value && leftId.value !== rightId.value && !saving.value,
@@ -270,18 +287,30 @@ onMounted(load)
           <form class="space-y-3" @submit.prevent="submit">
             <div>
               <label class="label" for="relation-left">Первый навык</label>
+              <input
+                v-model="leftQuery"
+                class="input mb-2"
+                placeholder="Поиск навыка"
+                aria-label="Поиск первого навыка"
+              />
               <select id="relation-left" v-model="leftId" class="input">
                 <option value="" disabled>Выберите навык</option>
-                <option v-for="skill in skills" :key="skill.id" :value="skill.id">
+                <option v-for="skill in leftSkills" :key="skill.id" :value="skill.id">
                   {{ skill.canonicalName }}
                 </option>
               </select>
             </div>
             <div>
               <label class="label" for="relation-right">Второй навык</label>
+              <input
+                v-model="rightQuery"
+                class="input mb-2"
+                placeholder="Поиск навыка"
+                aria-label="Поиск второго навыка"
+              />
               <select id="relation-right" v-model="rightId" class="input">
                 <option value="" disabled>Выберите навык</option>
-                <option v-for="skill in skills" :key="skill.id" :value="skill.id">
+                <option v-for="skill in rightSkills" :key="skill.id" :value="skill.id">
                   {{ skill.canonicalName }}
                 </option>
               </select>

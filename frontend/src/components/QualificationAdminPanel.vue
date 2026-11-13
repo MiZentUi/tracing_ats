@@ -1,14 +1,17 @@
 <script setup lang="ts">
 import { onMounted, ref } from 'vue'
-import { Loader2, Plus, Search, ShieldCheck, Trash2 } from '@lucide/vue'
+import { Check, Loader2, Plus, Search, ShieldCheck, Trash2, X } from '@lucide/vue'
 import {
   addQualificationAlias,
   createQualification,
   deleteQualification,
   deleteQualificationAlias,
+  listQualificationReview,
   listQualifications,
+  resolveQualificationReview,
   setCanonicalQualificationAlias,
   type Qualification,
+  type QualificationReviewItem,
 } from '@/api/dictionary'
 import { apiErrorMessage } from '@/api'
 import AppModal from '@/components/AppModal.vue'
@@ -19,6 +22,8 @@ import { pluralizeRu } from '@/lib/format'
 const { success, error: toastError } = useToast()
 
 const items = ref<Qualification[]>([])
+const review = ref<QualificationReviewItem[]>([])
+const reviewTargets = ref<Record<string, string>>({})
 const loading = ref(true)
 const searching = ref(false)
 const error = ref('')
@@ -54,7 +59,12 @@ async function load() {
   loading.value = true
   error.value = ''
   try {
-    items.value = await listQualifications(query.value, status.value)
+    const [qualificationItems, reviewItems] = await Promise.all([
+      listQualifications(query.value, status.value),
+      listQualificationReview(),
+    ])
+    items.value = qualificationItems
+    review.value = reviewItems
   } catch (exception) {
     error.value = apiErrorMessage(exception)
     toastError('Не удалось загрузить квалификации', error.value)
@@ -133,6 +143,45 @@ async function removeAlias(aliasId: string) {
   }
 }
 
+async function bindReview(item: QualificationReviewItem) {
+  const qualificationId = reviewTargets.value[item.id]
+  if (!qualificationId) {
+    return
+  }
+  try {
+    await resolveQualificationReview(item.id, 'ALIAS', qualificationId)
+    success('Квалификация привязана')
+    await load()
+  } catch (exception) {
+    toastError('Не удалось привязать квалификацию', apiErrorMessage(exception))
+  }
+}
+
+async function createFromReview(item: QualificationReviewItem) {
+  try {
+    await resolveQualificationReview(
+      item.id,
+      'NEW_QUALIFICATION',
+      undefined,
+      item.samples[0] ?? item.key,
+    )
+    success('Квалификация создана')
+    await load()
+  } catch (exception) {
+    toastError('Не удалось создать квалификацию', apiErrorMessage(exception))
+  }
+}
+
+async function rejectReview(item: QualificationReviewItem) {
+  try {
+    await resolveQualificationReview(item.id, 'REJECT')
+    success('Запись отклонена')
+    await load()
+  } catch (exception) {
+    toastError('Не удалось отклонить', apiErrorMessage(exception))
+  }
+}
+
 async function confirmDelete() {
   if (!deleteTarget.value || deleting.value) {
     return
@@ -155,6 +204,70 @@ onMounted(load)
 
 <template>
   <div class="space-y-4">
+    <div v-if="review.length" class="space-y-3">
+      <div class="flex items-end justify-between gap-3">
+        <div>
+          <h2 class="text-base font-semibold text-slate-900">Новые квалификации</h2>
+          <p class="mt-0.5 text-sm text-slate-500">
+            Написания, которые не удалось свести к существующей квалификации.
+          </p>
+        </div>
+        <span class="badge-warning">{{ review.length }}</span>
+      </div>
+      <article v-for="item in review" :key="item.id" class="card p-5">
+        <div class="flex flex-wrap items-start justify-between gap-3">
+          <div class="min-w-0">
+            <p class="break-all font-mono text-lg font-semibold text-slate-900">
+              {{ item.key }}
+            </p>
+            <p class="mt-1 text-xs text-slate-500">
+              {{ item.occurrences }}
+              {{ pluralizeRu(item.occurrences, 'вхождение', 'вхождения', 'вхождений') }}
+            </p>
+          </div>
+          <span class="badge-warning">На проверке</span>
+        </div>
+        <div v-if="item.samples.length" class="mt-3 flex flex-wrap gap-1.5">
+          <span
+            v-for="sample in item.samples"
+            :key="sample"
+            class="rounded-md bg-slate-50 px-2 py-1 text-xs text-slate-600"
+          >
+            {{ sample }}
+          </span>
+        </div>
+        <div class="mt-4 flex flex-col gap-2 border-t border-slate-100 pt-4 sm:flex-row sm:items-center">
+          <select v-model="reviewTargets[item.id]" class="input sm:w-64">
+            <option value="">Привязать к существующей</option>
+            <option v-for="qualification in items" :key="qualification.id" :value="qualification.id">
+              {{ qualification.canonicalName }}
+            </option>
+          </select>
+          <button
+            type="button"
+            class="btn-secondary"
+            :disabled="!reviewTargets[item.id]"
+            @click="bindReview(item)"
+          >
+            <Check :size="14" />
+            Привязать
+          </button>
+          <button type="button" class="btn-secondary" @click="createFromReview(item)">
+            <Plus :size="14" />
+            Создать квалификацию
+          </button>
+          <button
+            type="button"
+            class="btn-ghost text-rose-600 hover:bg-rose-50 hover:text-rose-700"
+            @click="rejectReview(item)"
+          >
+            <X :size="14" />
+            Отклонить
+          </button>
+        </div>
+      </article>
+    </div>
+
     <form class="card p-3" @submit.prevent="search">
       <div class="flex flex-col gap-2 sm:flex-row sm:items-center">
         <label class="relative min-w-0 flex-1">

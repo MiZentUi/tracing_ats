@@ -94,6 +94,42 @@ export interface Relation {
   kind: string
 }
 
+export interface QualificationReviewItem {
+  id: string
+  key: string
+  samples: string[]
+  occurrences: number
+  status: string
+  suggestedQualificationId: string | null
+  suggestedConfidence: number | null
+  resolvedQualificationId: string | null
+  resolvedBy: string | null
+  resolvedAt: string | null
+}
+
+export async function listQualificationReview(
+  status = 'PENDING',
+): Promise<QualificationReviewItem[]> {
+  const { data } = await axios.get<QualificationReviewItem[]>(
+    `${base}/qualification-review-items`,
+    { params: { status } },
+  )
+  return data
+}
+
+export async function resolveQualificationReview(
+  id: string,
+  action: 'ALIAS' | 'NEW_QUALIFICATION' | 'REJECT',
+  qualificationId?: string,
+  canonicalName?: string,
+): Promise<void> {
+  await axios.post(`${base}/qualification-review-items/${id}/resolve`, {
+    action,
+    qualificationId,
+    canonicalName,
+  })
+}
+
 export async function listQualifications(
   query = '',
   status = 'ACTIVE',
