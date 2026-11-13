@@ -21,8 +21,8 @@ from ..extraction.quotes import QuoteIndex
 from .dates import experience_years
 from .errors import InvalidRequirement
 from .model import RequirementScore
-from .policies import ClaimConfidence, TemporalPolicyProtocol
-from .qualification import QualificationNormalizer
+from .policies import ClaimConfidence, RelationPolicy, TemporalPolicyProtocol
+from .qualification import BatchQualificationResolution
 from .resolver import BatchResolution, SkillResolver
 from .similarity import SimilarityScorer
 from .text import TextMatcher
@@ -40,12 +40,14 @@ class RequirementMatcher:
         confidence: ClaimConfidence,
         text_matcher: TextMatcher,
         resolver: SkillResolver,
+        relations: RelationPolicy,
     ) -> None:
         self._similarity = similarity
         self._temporal = temporal
         self._confidence = confidence
         self._text = text_matcher
         self._resolver = resolver
+        self._relations = relations
 
     def prepare(
         self,
@@ -70,7 +72,7 @@ class RequirementMatcher:
         index: QuoteIndex,
         reference_date: date,
         resolution: BatchResolution,
-        qualifications: QualificationNormalizer,
+        qualifications: BatchQualificationResolution,
     ) -> RequirementScore:
         kind = requirement.WhichOneof("feature")
         if kind is None:
@@ -116,10 +118,12 @@ class RequirementMatcher:
             evidence = _verified_evidence(index, skill.evidence)
             if evidence is None:
                 continue
-            score = self._resolver.score(
-                target_identity,
-                resolution.identity(skill.normalized_name or skill.name),
-            )
+            candidate_identity = resolution.identity(skill.normalized_name or skill.name)
+            score = self._resolver.score(target_identity, candidate_identity)
+            if score <= 0.0 and target_identity is not None and candidate_identity is not None:
+                score = self._relations.score(
+                    resolution.relation(target_identity.skill_id, candidate_identity.skill_id)
+                )
             if best is None or (score, key) > (best[0], best[1]):
                 best = (score, key, skill, evidence)
 
@@ -170,12 +174,13 @@ class RequirementMatcher:
         requirement: features_pb2.FeatureRequirement,
         resume: messages_pb2.ParsedResume,
         index: QuoteIndex,
-        qualifications: QualificationNormalizer,
+        qualifications: BatchQualificationResolution,
     ) -> RequirementScore:
         spec = requirement.qualification
         label = spec.label.strip()
         if not label:
             raise InvalidRequirement(requirement_id)
+        required_identity = qualifications.identity(label)
 
         best: (
             tuple[
@@ -189,7 +194,10 @@ class RequirementMatcher:
             evidence = _verified_evidence(index, qualification.evidence)
             if evidence is None:
                 continue
-            if not qualifications.matches(label, qualification.label):
+            if not qualifications.matches(
+                required_identity,
+                qualifications.identity(qualification.label),
+            ):
                 continue
             if best is None or key < best[0]:
                 best = (key, qualification, evidence)

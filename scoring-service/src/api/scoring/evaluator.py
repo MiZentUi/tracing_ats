@@ -14,7 +14,7 @@ from .feedback import FeedbackBuilder
 from .matcher import RequirementMatcher
 from .model import Evaluation, GapView
 from .policies import DomainMatcher
-from .qualification import QualificationNormalizer
+from .qualification import QualificationResolver
 
 
 class ResumeEvaluator:
@@ -26,11 +26,13 @@ class ResumeEvaluator:
         calculator: ScoringCalculator,
         domain: DomainMatcher,
         feedback: FeedbackBuilder,
+        qualification_resolver: QualificationResolver,
     ) -> None:
         self._matcher = matcher
         self._calculator = calculator
         self._domain = domain
         self._feedback = feedback
+        self._qualification_resolver = qualification_resolver
 
     def evaluate(
         self,
@@ -45,7 +47,16 @@ class ResumeEvaluator:
 
         index = QuoteIndex(text)
         resolution = self._matcher.prepare(vacancy, resume)
-        qualifications = QualificationNormalizer(qualification_catalog)
+        qualification_labels: list[tuple[str, str]] = []
+        for requirement in vacancy.requirements.values():
+            if requirement.WhichOneof("feature") == "qualification":
+                qualification_labels.append((requirement.qualification.label, "VACANCY"))
+        for qualification in resume.qualifications.values():
+            qualification_labels.append((qualification.label, "RESUME"))
+        qualifications = self._qualification_resolver.resolve(
+            qualification_labels,
+            qualification_catalog,
+        )
         matches = {
             key: self._matcher.match(
                 key,
@@ -87,6 +98,8 @@ class ResumeEvaluator:
             risks=feedback.risks,
             questions=feedback.questions,
             recruiter_note=feedback.recruiter_note,
-            resolver_version=resolution.resolver_version,
-            dictionary_mode=resolution.mode,
+            resolver_version=resolution.resolver_version or qualifications.resolver_version,
+            dictionary_mode=(
+                qualifications.mode if resolution.mode in ("", "EMPTY") else resolution.mode
+            ),
         )

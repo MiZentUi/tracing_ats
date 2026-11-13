@@ -46,6 +46,29 @@ class CriticalityWeightPolicy:
         }.get(criticality, self.unspecified)
 
 
+@dataclass(frozen=True, slots=True)
+class RelationPolicy:
+    """Маппинг класса связи словаря в `S^{ij}`.
+
+    Значения — начальная политика v1; окончательные числа фиксируются
+    в `rfc-scoring-model.md`. Словарь не возвращает числа и не знает
+    про формулу.
+    """
+
+    same_group: float = 0.5
+    related: float = 0.5
+    parent: float = 0.5
+    child: float = 0.5
+
+    def score(self, kind: str | None) -> float:
+        return {
+            "SAME_GROUP": self.same_group,
+            "RELATED": self.related,
+            "PARENT": self.parent,
+            "CHILD": self.child,
+        }.get(kind or "", 0.0)
+
+
 class TemporalPolicyProtocol(Protocol):
     """Контракт `τ_i`."""
 

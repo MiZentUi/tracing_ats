@@ -485,13 +485,13 @@ ALTER TABLE vacancy_requirement
 
 Нумерация должна учитывать текущий YAML-changelog:
 
-- `020-dictionary-v1-schema.sql` — `qualification`,
+- `023-dictionary-qualifications-and-relations.sql` — `qualification`,
   `qualification_alias`, `qualification_alias_key`,
-  `qualification_review_item`, `skill_relation`, счётчики версий;
-- `021-dictionary-v1-seed.sql` — демонстрационные квалификации и связи.
+  `qualification_review_item`, `skill_relation`, счётчики версий.
 
-Include добавляются в `migrations/db.changelog-master.yaml` после
-`019-qualification-open-vocabulary.sql`.
+Include добавляется в `migrations/db.changelog-master.yaml` после
+`022-skill-generation.sql`. Демонстрационные квалификации и связи
+загружаются `dictionary-service` при старте, если соответствующие таблицы пусты.
 
 Seed v1 — только демонстрационный набор:
 

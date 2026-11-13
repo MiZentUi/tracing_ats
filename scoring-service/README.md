@@ -143,13 +143,15 @@ uv run sh protoc.sh
 | `SCORING_SERVICE_LLM_MAX_RETRIES` | `1` | Повторы на 429/5xx и сеть |
 | `SCORING_SERVICE_DICTIONARY_ENABLED` | `true` | Ходить в dictionary-service за каноном навыков |
 | `SCORING_SERVICE_DICTIONARY_TARGET` | `localhost:8084` | Адрес dictionary-service |
-| `SCORING_SERVICE_DICTIONARY_DEADLINE_SECONDS` | `2` | Таймаут `Resolve` |
+| `SCORING_SERVICE_DICTIONARY_DEADLINE_SECONDS` | `2` | Таймаут `Resolve`, `ResolveQualifications` и `GetRelations` |
 | `SCORING_SERVICE_DICTIONARY_AS_OF_VERSION` | — | Зафиксировать версию словаря (иначе текущая) |
 
 Если словарь недоступен, скоринг не падает: навыки сравниваются по точному
-нормализованному ключу (`dictionary_mode=EXACT_FALLBACK`). Версия разрешения
-возвращается в `EvaluateResumeMatchResponse.resolver_version` и сохраняется
-в запуске.
+нормализованному ключу, квалификации — через `QualificationCatalog` из запроса
+или точный ключ (`dictionary_mode=EXACT_FALLBACK`). Классы отношений
+`SAME_GROUP`/`RELATED`/`PARENT`/`CHILD` переводятся в `S^{ij}` политикой
+`RelationPolicy`. Версия разрешения возвращается в
+`EvaluateResumeMatchResponse.resolver_version` и сохраняется в запуске.
 
 Локальные значения можно положить в `scoring-service/.env`; файл не коммитится.
 
