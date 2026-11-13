@@ -2,6 +2,8 @@ package ats.resume;
 
 import static org.assertj.core.api.Assertions.assertThat;
 
+import ats.gateway.model.ReportDecisionRequest;
+import ats.gateway.model.UpdateResumeRequest;
 import ats.resume.domain.ingestion.UploadOutcome;
 import ats.resume.domain.scoring.ParsedResume;
 import ats.resume.domain.scoring.ScoringBatchItem;
@@ -13,7 +15,9 @@ import ats.resume.domain.vacancy.RequirementKind;
 import ats.resume.domain.vacancy.VacancyCatalog;
 import ats.resume.domain.vacancy.VacancyClient;
 import ats.resume.domain.vacancy.VacancyTemplate;
+import ats.resume.infrastructure.edit.ResumeEditService;
 import ats.resume.infrastructure.ingestion.ResumeIngestionService;
+import ats.resume.infrastructure.ingestion.ResumeQueryService;
 import ats.resume.infrastructure.persistence.entity.ApplicationEntity;
 import ats.resume.infrastructure.persistence.entity.ParsedResumeEntity;
 import ats.resume.infrastructure.persistence.entity.ScoreRunEntity;
@@ -27,6 +31,7 @@ import ats.resume.infrastructure.pii.ner.NerEntity;
 import ats.resume.infrastructure.pii.ner.NerModel;
 import ats.resume.infrastructure.ranking.RankingService;
 import ats.resume.infrastructure.ranking.ResumeRankingService;
+import ats.resume.infrastructure.report.ReportDecisionService;
 import ats.resume.infrastructure.report.ReportService;
 import ats.resume.infrastructure.report.RevealService;
 import ats.resume.infrastructure.screening.ResumeMatchService;
@@ -60,6 +65,7 @@ class ResumePipelineIntegrationTest {
     private static final UUID VACANCY_ID = UUID.fromString("00000000-0000-0000-0000-000000000001");
 
     @Autowired private ResumeIngestionService ingestionService;
+    @Autowired private ResumeEditService editService;
     @Autowired private ScreeningWorker screeningWorker;
     @Autowired private ApplicationRepository applicationRepository;
     @Autowired private ParsedResumeRepository parsedResumeRepository;
@@ -70,6 +76,7 @@ class ResumePipelineIntegrationTest {
     @Autowired private ResumeMatchService resumeMatchService;
     @Autowired private ResumeRepository resumeRepository;
     @Autowired private ReportService reportService;
+    @Autowired private ReportDecisionService reportDecisionService;
     @Autowired private RevealService revealService;
 
     @Test
@@ -240,6 +247,16 @@ class ResumePipelineIntegrationTest {
         assertThat(report.requirements()).hasSize(3);
         assertThat(report.applicationId()).isNull();
 
+        RankingService.RankingView vacancyRanking =
+                rankingService.ranking(topVacancy, "PRELIMINARY");
+        assertThat(vacancyRanking.items())
+                .anySatisfy(
+                        item -> {
+                            assertThat(item.applicationId()).isNull();
+                            assertThat(item.resumeId()).isEqualTo(outcome.resumeId());
+                            assertThat(item.resumeTitle()).isNull();
+                        });
+
         // Повторный расчёт без LLM: пакет создаётся и считается по сохранённому ParsedResume.
         UUID secondBatch = resumeMatchService.createBatch(outcome.resumeId());
         resumeMatchService.run(secondBatch, outcome.resumeId());
@@ -260,6 +277,91 @@ class ResumePipelineIntegrationTest {
                 throw new IllegalStateException(e);
             }
         }
+    }
+
+    @Test
+    void editsResumeTitleAndTextWithRemasking() {
+        String text =
+                """
+                Иван Петров
+                Email: old.petrov@example.com
+                Опыт работы
+                Java developer with 5 years.
+                """;
+        UploadOutcome outcome =
+                ingestionService.ingest(
+                        null,
+                        false,
+                        new MockMultipartFile(
+                                "files",
+                                "resume.txt",
+                                "text/plain",
+                                text.getBytes(StandardCharsets.UTF_8)));
+        awaitResumeStatus(outcome.resumeId(), "MATCHED", Duration.ofSeconds(10));
+
+        UpdateResumeRequest request =
+                new UpdateResumeRequest()
+                        .title("Java Engineer")
+                        .text(
+                                """
+                                Иван Петров
+                                Email: new.petrov@example.com
+                                Опыт работы
+                                Java developer with 6 years.
+                                """)
+                        .reason("candidate updated resume");
+
+        ResumeQueryService.ResumeView updated = editService.update(outcome.resumeId(), request);
+
+        assertThat(updated.title()).isEqualTo("Java Engineer");
+        ParsedResumeEntity parsed =
+                parsedResumeRepository.findByResumeId(outcome.resumeId()).orElseThrow();
+        assertThat(parsed.getMaskedText())
+                .doesNotContain("new.petrov@example.com")
+                .contains("[PII_EMAIL_1]");
+        assertThat(parsed.getMaskedText()).contains("6 years");
+        awaitResumeStatus(outcome.resumeId(), "MATCHED", Duration.ofSeconds(10));
+    }
+
+    @Test
+    void savesHrDecisionForReport() {
+        String text =
+                """
+                Иван Петров
+                Email: ivan.petrov@example.com
+                Опыт работы
+                Java developer with 5 years.
+                """;
+        UploadOutcome outcome =
+                ingestionService.ingest(
+                        null,
+                        false,
+                        new MockMultipartFile(
+                                "files",
+                                "resume.txt",
+                                "text/plain",
+                                text.getBytes(StandardCharsets.UTF_8)));
+        awaitResumeStatus(outcome.resumeId(), "MATCHED", Duration.ofSeconds(10));
+        UUID vacancyId =
+                resumeRankingService
+                        .ranking(outcome.resumeId(), "PRELIMINARY")
+                        .items()
+                        .getFirst()
+                        .vacancyId();
+
+        reportDecisionService.save(
+                outcome.resumeId(),
+                vacancyId,
+                new ReportDecisionRequest()
+                        .decision(ReportDecisionRequest.DecisionEnum.SHORTLISTED)
+                        .comment("Пригласить на интервью"));
+
+        ReportService.ReportView report =
+                reportService
+                        .reportForMatch(outcome.resumeId(), vacancyId, "PRELIMINARY")
+                        .orElseThrow();
+        assertThat(report.hrDecision()).isEqualTo("SHORTLISTED");
+        assertThat(report.hrComment()).isEqualTo("Пригласить на интервью");
     }
 
     private ApplicationEntity awaitStatus(UUID applicationId, String status, Duration timeout) {

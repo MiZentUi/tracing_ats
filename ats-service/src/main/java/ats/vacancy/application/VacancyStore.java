@@ -1,5 +1,6 @@
 package ats.vacancy.application;
 
+import ats.vacancy.config.TemplateProperties;
 import ats.vacancy.infrastructure.persistence.LevelEntity;
 import ats.vacancy.infrastructure.persistence.LevelRepository;
 import ats.vacancy.infrastructure.persistence.NewSkillWriter;
@@ -52,6 +53,7 @@ public class VacancyStore {
     private final NewSkillWriter newSkillWriter;
     private final SkillKindStatWriter statWriter;
     private final VacancyViewAssembler assembler;
+    private final TemplateProperties templateProperties;
 
     @Transactional
     public VacancyView create(
@@ -148,7 +150,23 @@ public class VacancyStore {
         if (command.title() != null && !command.title().isBlank()) {
             vacancy.setTitle(trimTitle(command.title()));
         }
-        vacancy.setStatus("ACTIVE");
+        if (command.sourceText() != null) {
+            String sourceText = command.sourceText().strip();
+            if (sourceText.isEmpty()) {
+                throw ApiException.unprocessable(
+                        "TEXT_REQUIRED", "Vacancy source text must not be empty");
+            }
+            if (sourceText.length() > templateProperties.getMaxTextChars()) {
+                throw ApiException.unprocessable(
+                        "TEXT_TOO_LONG",
+                        "Text is longer than "
+                                + templateProperties.getMaxTextChars()
+                                + " characters");
+            }
+            vacancy.setSourceText(sourceText);
+            vacancy.setSourceType("TEXT");
+        }
+        vacancy.setStatus(command.confirm() ? "ACTIVE" : "DRAFT");
         vacancy.setUpdatedAt(now);
 
         TemplateVersionEntity version =
@@ -162,7 +180,7 @@ public class VacancyStore {
                         .llmPromptVersion(previous.getLlmPromptVersion())
                         .llmModel(previous.getLlmModel())
                         .droppedRequirements(previous.getDroppedRequirements())
-                        .confirmed(true)
+                        .confirmed(command.confirm())
                         .createdAt(now)
                         .build();
         versionRepository.save(version);
@@ -189,7 +207,9 @@ public class VacancyStore {
         vacancy.setCurrentVersion(version.getVersionNo());
         vacancyRepository.save(vacancy);
 
-        updateStats(oldConfirmed, version, prepared, specialization.getId(), level.getId());
+        if (command.confirm()) {
+            updateStats(oldConfirmed, version, prepared, specialization.getId(), level.getId());
+        }
         return assembler.assemble(vacancy, version);
     }
 

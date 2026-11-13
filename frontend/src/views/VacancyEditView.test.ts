@@ -71,16 +71,25 @@ function vacancy(): Vacancy {
   }
 }
 
+function confirmedVacancy(version = 2): Vacancy {
+  const draft = vacancy()
+  return {
+    ...draft,
+    status: 'ACTIVE',
+    template: { ...draft.template, version, is_confirmed: true },
+  }
+}
+
 async function mountEditor() {
   const router = createRouter({
     history: createMemoryHistory(),
     routes: [
       { path: '/vacancies', component: { template: '<div />' } },
-      { path: '/vacancies/:id', name: 'edit', component: VacancyEditView, props: true },
-      { path: '/vacancies/:id/candidates', component: { template: '<div />' } },
+      { path: '/vacancies/:id', name: 'view', component: { template: '<div />' } },
+      { path: '/vacancies/:id/edit', name: 'edit', component: VacancyEditView, props: true },
     ],
   })
-  await router.push('/vacancies/vacancy-1')
+  await router.push('/vacancies/vacancy-1/edit')
   await router.isReady()
   const wrapper = mount(VacancyEditView, {
     props: { id: 'vacancy-1' },
@@ -107,9 +116,25 @@ describe('VacancyEditView', () => {
     updateVacancyTemplate.mockReset()
   })
 
-  it('показывает плоский список и не меняет порядок при смене типа', async () => {
+  it('открывается на доске и показывает три колонки', async () => {
     const wrapper = await mountEditor()
-    expect(wrapper.get('[data-testid="vacancy-source-text"]').text()).toContain('JavaScript')
+    const columnSkills = (kind: string) =>
+      wrapper
+        .get(`[data-column="${kind}"]`)
+        .findAll('input[aria-label="Название навыка"]')
+        .map((input) => (input.element as HTMLInputElement).value)
+
+    expect(columnSkills('MUST')).toContain('JavaScript')
+    expect(columnSkills('NICE')).toContain('Kafka')
+    expect(columnSkills('OPTIONAL')).toContain('Docker')
+    expect(wrapper.findAll('[data-testid="board-card"]')).toHaveLength(3)
+  })
+
+  it('в режиме списка не меняет порядок при смене типа', async () => {
+    const wrapper = await mountEditor()
+    await buttonWithText(wrapper, 'Список')?.trigger('click')
+    await flushPromises()
+
     expect(wrapper.findAll('[data-requirement-key]')).toHaveLength(3)
     expect(skillInputs(wrapper)).toEqual(['JavaScript', 'Kafka', 'Docker'])
 
@@ -119,65 +144,68 @@ describe('VacancyEditView', () => {
     expect(skillInputs(wrapper)).toEqual(['JavaScript', 'Kafka', 'Docker'])
   })
 
-  it('добавляет требование и подсвечивает его для пользователя', async () => {
+  it('добавляет требование в конкретную колонку доски', async () => {
     const wrapper = await mountEditor()
-    await buttonWithText(wrapper, 'Добавить требование')?.trigger('click')
+    const niceColumn = wrapper.get('[data-column="NICE"]')
+    await niceColumn
+      .findAll('button')
+      .find((button) => button.text().trim() === 'Добавить')
+      ?.trigger('click')
     await flushPromises()
 
-    expect(wrapper.findAll('[data-requirement-key]')).toHaveLength(4)
-    const highlighted = wrapper
-      .findAll('[data-requirement-key]')
-      .find((node) => node.classes().includes('ring-2'))
-    expect(highlighted).toBeTruthy()
+    expect(wrapper.findAll('[data-testid="board-card"]')).toHaveLength(4)
+    expect(wrapper.get('[data-column="NICE"]').findAll('[data-testid="board-card"]')).toHaveLength(2)
   })
 
-  it('устанавливает черновик как шаблон после подтверждения', async () => {
-    const draft = vacancy()
-    const confirmed: Vacancy = {
-      ...draft,
-      status: 'ACTIVE',
-      template: { ...draft.template, version: 2, is_confirmed: true },
-    }
-    updateVacancyTemplate.mockResolvedValue({ data: confirmed })
+  it('сохраняет изменения отдельной кнопкой', async () => {
+    updateVacancyTemplate.mockResolvedValue({ data: confirmedVacancy() })
     const wrapper = await mountEditor()
 
-    await wrapper.get('input[aria-label="Название навыка"]').setValue('Java')
-    await buttonWithText(wrapper, 'Установить как шаблон')?.trigger('click')
-    await flushPromises()
-
-    expect(wrapper.text()).toContain('Установить требования как шаблон?')
-    await buttonWithText(wrapper, 'Установить')?.trigger('click')
+    await wrapper.get('#editor-title').setValue('Backend Senior')
+    await buttonWithText(wrapper, 'Сохранить')?.trigger('click')
     await flushPromises()
 
     expect(updateVacancyTemplate).toHaveBeenCalledTimes(1)
-    expect(wrapper.text()).toContain('Шаблон установлен, версия 2')
-    expect(buttonWithText(wrapper, 'Сохранить изменения')).toBeTruthy()
-    expect(buttonWithText(wrapper, 'Установить как шаблон')).toBeUndefined()
+    expect(updateVacancyTemplate.mock.calls[0][0].updateTemplateRequest.confirm).toBe(false)
+    expect(wrapper.text()).toContain('Изменения сохранены')
   })
 
-  it('переносит карточку между колонками на доске', async () => {
+  it('отправляет изменённый текст вакансии', async () => {
+    updateVacancyTemplate.mockResolvedValue({ data: confirmedVacancy() })
     const wrapper = await mountEditor()
-    await buttonWithText(wrapper, 'Доска')?.trigger('click')
+
+    await wrapper.get('[data-testid="vacancy-source-text"]').setValue('Новый текст вакансии')
+    await buttonWithText(wrapper, 'Сохранить')?.trigger('click')
     await flushPromises()
 
-    const mustColumn = wrapper.get('[data-column="MUST"]')
-    const javaCard = mustColumn.findAll('[data-testid="board-card"]')[0]
-    await javaCard.get('select').setValue('OPTIONAL')
+    expect(updateVacancyTemplate.mock.calls[0][0].updateTemplateRequest.source_text).toBe(
+      'Новый текст вакансии',
+    )
+  })
+
+  it('использует вакансию как шаблон после подтверждения', async () => {
+    updateVacancyTemplate.mockResolvedValue({ data: confirmedVacancy(3) })
+    const wrapper = await mountEditor()
+
+    await wrapper.get('#editor-title').setValue('Backend Senior')
+    await buttonWithText(wrapper, 'Использовать как шаблон')?.trigger('click')
     await flushPromises()
 
-    const optionalColumn = wrapper.get('[data-column="OPTIONAL"]')
-    expect(optionalColumn.text()).toContain('JavaScript')
-    expect(optionalColumn.text()).toContain('Docker')
+    expect(wrapper.text()).toContain('Использовать как шаблон?')
+    await buttonWithText(wrapper, 'Использовать')?.trigger('click')
+    await flushPromises()
+
+    expect(updateVacancyTemplate).toHaveBeenCalledTimes(1)
+    expect(updateVacancyTemplate.mock.calls[0][0].updateTemplateRequest.confirm).toBe(true)
   })
 
   it('показывает 409 и предлагает перезагрузить', async () => {
     errorCode = 'VERSION_CONFLICT'
     updateVacancyTemplate.mockRejectedValue(new Error('conflict'))
     const wrapper = await mountEditor()
-    await wrapper.get('input[aria-label="Название навыка"]').setValue('Java')
-    await buttonWithText(wrapper, 'Установить как шаблон')?.trigger('click')
-    await flushPromises()
-    await buttonWithText(wrapper, 'Установить')?.trigger('click')
+
+    await wrapper.get('#editor-title').setValue('Backend Senior')
+    await buttonWithText(wrapper, 'Сохранить')?.trigger('click')
     await flushPromises()
 
     expect(wrapper.text()).toContain('Шаблон изменён в другом месте')

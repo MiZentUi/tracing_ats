@@ -1,17 +1,24 @@
 <script setup lang="ts">
-import { computed, onMounted, ref } from 'vue'
+import { computed, ref, watch } from 'vue'
 import { FileUp, Loader2, Sparkles, X } from '@lucide/vue'
-import type { ResumeBatchUploadResponse, VacancySummary } from '@/api/generated'
-import { apiErrorMessage, resumesApi, vacanciesApi } from '@/api'
+import type { ResumeBatchUploadResponse } from '@/api/generated'
+import { apiErrorMessage, resumesApi } from '@/api'
 import { useToast } from '@/composables/useToast'
+import { formatBytes } from '@/lib/format'
 
-const props = defineProps<{
-  /** Если задан, резюме сразу привязывается к вакансии. */
-  vacancyId?: string
-}>()
+const props = withDefaults(
+  defineProps<{
+    /** Если задан, резюме сразу привязывается к вакансии. */
+    vacancyId?: string
+    /** Компактный вариант для боковой панели. */
+    compact?: boolean
+  }>(),
+  { compact: false },
+)
 
 const emit = defineEmits<{
   uploaded: [response: ResumeBatchUploadResponse]
+  selection: [payload: { files: File[]; textLength: number }]
 }>()
 
 const { success, error: toastError } = useToast()
@@ -25,31 +32,30 @@ const pastedCounter = ref(0)
 const uploading = ref(false)
 const error = ref('')
 const fileInput = ref<HTMLInputElement | null>(null)
-const vacancies = ref<VacancySummary[]>([])
-const selectedVacancyId = ref('')
-
-// Вакансия из карточки вакансии фиксирована; в разделе «Резюме» её можно выбрать.
-const selectedVacancy = computed(() => props.vacancyId ?? (selectedVacancyId.value || undefined))
 
 const canUpload = computed(
   () => !uploading.value && (files.value.length > 0 || pastedText.value.trim() !== ''),
 )
 
-onMounted(async () => {
-  if (props.vacancyId) {
-    return
+const actionLabel = computed(() => {
+  if (uploading.value) {
+    return 'Добавляем…'
   }
-  try {
-    const response = await vacanciesApi.listVacancies({ limit: 100, offset: 0 })
-    vacancies.value = response.data.items ?? []
-  } catch {
-    // Список вакансий необязателен: без него резюме уйдёт в обратный подбор.
-    vacancies.value = []
-  }
+  return props.vacancyId ? 'Добавить и подобрать' : 'Добавить резюме'
 })
 
+watch(
+  [files, pastedText],
+  () => {
+    emit('selection', {
+      files: [...files.value],
+      textLength: pastedText.value.trim().length,
+    })
+  },
+  { deep: true },
+)
+
 function appendFiles(incoming: File[]) {
-  const accepted: File[] = []
   for (const file of incoming) {
     const extension = file.name.split('.').pop()?.toLowerCase() ?? ''
     if (!ALLOWED_EXTENSIONS.includes(extension)) {
@@ -60,9 +66,9 @@ function appendFiles(incoming: File[]) {
       toastError('Файл слишком большой', `«${file.name}»: максимум 5 МБ`)
       continue
     }
-    accepted.push(file)
+    files.value = [file]
+    return
   }
-  files.value = [...files.value, ...accepted]
 }
 
 function pickFiles(event: Event) {
@@ -77,13 +83,6 @@ function dropFiles(event: DragEvent) {
 
 function removeFile(index: number) {
   files.value = files.value.filter((_, current) => current !== index)
-}
-
-function formatSize(bytes: number): string {
-  if (bytes < 1024) {
-    return `${bytes} Б`
-  }
-  return `${(bytes / 1024).toFixed(1)} КБ`
 }
 
 function buildPayloadFiles(): File[] {
@@ -108,11 +107,11 @@ async function upload() {
     const response = await resumesApi.uploadResumes({
       files: buildPayloadFiles(),
       consentGithub: false,
-      ...(selectedVacancy.value ? { vacancyId: selectedVacancy.value } : {}),
+      ...(props.vacancyId ? { vacancyId: props.vacancyId } : {}),
     })
     success(
-      selectedVacancy.value ? 'Резюме добавлено' : 'Резюме принято',
-      selectedVacancy.value
+      props.vacancyId ? 'Резюме добавлено' : 'Резюме принято',
+      props.vacancyId
         ? 'Обработка идёт в фоне, резюме появится в кандидатах вакансии'
         : 'Обработка идёт в фоне, подходящие вакансии появятся в списке',
     )
@@ -133,84 +132,97 @@ async function upload() {
 </script>
 
 <template>
-  <div class="space-y-4">
-    <label
-      class="flex cursor-pointer flex-col items-center justify-center gap-3 rounded-2xl border-2 border-dashed border-slate-300 bg-slate-50 px-6 py-10 text-center transition hover:border-indigo-400 hover:bg-indigo-50/40"
-      @dragover.prevent
-      @drop.prevent="dropFiles"
-    >
-      <FileUp :size="30" class="text-indigo-500" />
-      <span class="text-sm font-semibold text-slate-800">
-        Перетащите файлы сюда или нажмите, чтобы выбрать
-      </span>
-      <span class="text-xs text-slate-500">
-        PDF, DOCX, TXT или MD · до 5 МБ · можно несколько файлов
-      </span>
-      <input
-        ref="fileInput"
-        type="file"
-        multiple
-        accept=".pdf,.docx,.txt,.md"
-        class="hidden"
-        @change="pickFiles"
-      />
-    </label>
-
-    <div class="rounded-2xl border border-slate-200 bg-white p-4">
-      <div class="flex items-center justify-between gap-3">
-        <label for="resume-pasted-text" class="text-sm font-medium text-slate-700">
-          Или вставьте текст резюме
-        </label>
-        <span class="text-xs text-slate-400">{{ pastedText.length }} символов</span>
+  <div class="space-y-3">
+    <div v-if="compact" class="grid gap-3">
+      <div class="rounded-lg border border-slate-200 bg-white p-3">
+        <div class="flex items-center justify-between gap-3">
+          <label for="resume-pasted-text" class="text-sm font-medium text-slate-700">
+            Вставить текст
+          </label>
+          <span class="text-[11px] text-slate-400">{{ pastedText.length }} символов</span>
+        </div>
+        <textarea
+          id="resume-pasted-text"
+          v-model="pastedText"
+          rows="4"
+          class="textarea mt-2 min-h-24 w-full resize-y text-sm"
+          placeholder="Опыт, навыки, образование…"
+        />
       </div>
-      <textarea
-        id="resume-pasted-text"
-        v-model="pastedText"
-        rows="5"
-        class="textarea mt-2 w-full resize-y text-sm"
-        placeholder="Опыт, навыки, образование, проекты…"
-      />
-      <p class="mt-1 text-xs text-slate-400">
-        Текст будет добавлен вместе с выбранными файлами по кнопке ниже.
-      </p>
+
+      <label
+        class="flex cursor-pointer flex-col items-center justify-center gap-1 rounded-lg border border-dashed border-slate-300 bg-slate-50 px-3 py-4 text-center transition hover:border-indigo-300 hover:bg-indigo-50/40"
+        @dragover.prevent
+        @drop.prevent="dropFiles"
+      >
+        <FileUp :size="20" class="text-indigo-500" />
+        <span class="text-xs font-medium text-slate-700">Загрузить файл</span>
+        <span class="text-[11px] text-slate-400">PDF, DOCX, TXT, MD · до 5 МБ · один файл</span>
+        <input
+          ref="fileInput"
+          type="file"
+          accept=".pdf,.docx,.txt,.md"
+          class="hidden"
+          @change="pickFiles"
+        />
+      </label>
     </div>
 
-    <ul v-if="files.length" class="space-y-2">
+    <div v-else class="grid gap-4 lg:grid-cols-[minmax(0,1fr)_18rem]">
+      <div class="rounded-xl border border-slate-200 bg-white p-4">
+        <div class="flex items-center justify-between gap-3">
+          <label for="resume-pasted-text" class="text-sm font-medium text-slate-700">
+            Текст резюме
+          </label>
+          <span class="text-xs text-slate-400">{{ pastedText.length }} символов</span>
+        </div>
+        <textarea
+          id="resume-pasted-text"
+          v-model="pastedText"
+          rows="8"
+          class="textarea mt-2 min-h-48 w-full resize-y text-sm"
+          placeholder="Опыт, навыки, образование, проекты…"
+        />
+      </div>
+
+      <label
+        class="flex cursor-pointer flex-col items-center justify-center gap-2 rounded-xl border border-dashed border-slate-300 bg-slate-50 px-4 py-6 text-center transition hover:border-indigo-300 hover:bg-indigo-50/40"
+        @dragover.prevent
+        @drop.prevent="dropFiles"
+      >
+        <FileUp :size="24" class="text-indigo-500" />
+        <span class="text-sm font-medium text-slate-800">Загрузить файл</span>
+        <span class="text-xs text-slate-500">PDF, DOCX, TXT или MD<br />до 5 МБ, один файл</span>
+        <input
+          ref="fileInput"
+          type="file"
+          accept=".pdf,.docx,.txt,.md"
+          class="hidden"
+          @change="pickFiles"
+        />
+      </label>
+    </div>
+
+    <ul v-if="files.length" class="space-y-1.5">
       <li
         v-for="(file, index) in files"
         :key="`${file.name}-${index}`"
-        class="flex items-center gap-3 rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm"
+        class="flex items-center gap-2 rounded-lg border border-slate-200 bg-white px-3 py-1.5 text-xs"
       >
         <span class="truncate text-slate-700">{{ file.name }}</span>
-        <span class="ml-auto shrink-0 text-xs text-slate-400">{{ formatSize(file.size) }}</span>
+        <span class="ml-auto shrink-0 text-[11px] text-slate-400">{{ formatBytes(file.size) }}</span>
         <button
           type="button"
-          class="shrink-0 rounded-lg p-1 text-slate-400 transition hover:bg-rose-50 hover:text-rose-600"
+          class="shrink-0 rounded-md p-1 text-slate-400 transition hover:bg-rose-50 hover:text-rose-600"
           title="Убрать файл"
           @click="removeFile(index)"
         >
-          <X :size="14" />
+          <X :size="13" />
         </button>
       </li>
     </ul>
 
-    <div v-if="!vacancyId" class="rounded-2xl border border-slate-200 bg-white p-4">
-      <label for="resume-vacancy" class="text-sm font-medium text-slate-700">
-        Вакансия <span class="font-normal text-slate-400">(необязательно)</span>
-      </label>
-      <select id="resume-vacancy" v-model="selectedVacancyId" class="input mt-2">
-        <option value="">Без привязки — подобрать вакансии автоматически</option>
-        <option v-for="item in vacancies" :key="item.id" :value="item.id">
-          {{ item.title || item.specialization }}
-        </option>
-      </select>
-      <p class="mt-1 text-xs text-slate-400">
-        С выбранной вакансией резюме сразу попадёт в её кандидаты. Без вакансии система сама
-        покажет, куда оно подходит.
-      </p>
-    </div>
-
-    <p v-if="error" class="rounded-xl bg-rose-50 px-4 py-3 text-sm text-rose-700">
+    <p v-if="error" class="rounded-lg bg-rose-50 px-3 py-2 text-sm text-rose-700">
       {{ error }}
     </p>
 
@@ -218,17 +230,8 @@ async function upload() {
       <button class="btn-primary" :disabled="!canUpload" @click="upload">
         <Loader2 v-if="uploading" :size="16" class="animate-spin" />
         <Sparkles v-else :size="16" />
-        {{
-          uploading
-            ? 'Добавляем…'
-            : selectedVacancy
-              ? 'Добавить и подобрать'
-              : 'Добавить резюме'
-        }}
+        {{ actionLabel }}
       </button>
-      <span class="text-xs text-slate-500">
-        В LLM уходит только обезличенный текст. Обработка идёт в фоне.
-      </span>
     </div>
   </div>
 </template>

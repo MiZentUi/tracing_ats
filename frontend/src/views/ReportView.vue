@@ -1,62 +1,78 @@
 <script setup lang="ts">
 import { computed, onMounted, ref } from 'vue'
 import { useRoute } from 'vue-router'
-import { ArrowLeft, LockKeyholeOpen, ShieldCheck } from '@lucide/vue'
-import type { ApplicationReport, RevealedCandidate } from '@/api/generated'
-import { apiErrorMessage, reportsApi } from '@/api'
+import { ArrowLeft, LockKeyholeOpen } from '@lucide/vue'
+import type {
+  ApplicationReport,
+  ReportDecisionRequestDecisionEnum,
+  RevealedCandidate,
+} from '@/api/generated'
+import { apiErrorMessage, reportsApi, resumesApi, vacanciesApi } from '@/api'
+import AppModal from '@/components/AppModal.vue'
 import RevealPiiDialog from '@/components/RevealPiiDialog.vue'
+import TextComparison from '@/components/TextComparison.vue'
 import { useToast } from '@/composables/useToast'
-import { decisionLabel, kindLabel, phaseLabel } from '@/lib/labels'
+import { requirementsCount } from '@/lib/format'
+import { kindLabel } from '@/lib/labels'
 
 const route = useRoute()
 const { success, error: toastError } = useToast()
 
 const report = ref<ApplicationReport | null>(null)
 const revealed = ref<RevealedCandidate | null>(null)
+const vacancyText = ref('')
+const resumeText = ref('')
+const revealedResumeText = ref('')
+const resumeRevealOpen = ref(false)
+const resumeRevealing = ref(false)
+const decisionOpen = ref(false)
+const decisionValue = ref<ReportDecisionRequestDecisionEnum>('SHORTLISTED')
+const decisionComment = ref('')
+const decisionError = ref('')
+const savingDecision = ref(false)
 const loading = ref(true)
 const revealing = ref(false)
 const revealOpen = ref(false)
-const revealReason = ref('')
 const error = ref('')
 
 const applicationId = computed(() => route.params.id as string | undefined)
 const resumeId = computed(() => route.params.resumeId as string | undefined)
 const vacancyId = computed(() => route.params.vacancyId as string | undefined)
+const phase = computed(() =>
+  String(route.query.phase ?? '').toUpperCase() === 'PRELIMINARY' ? 'PRELIMINARY' : 'FINAL',
+)
 
 const analysisLink = computed(() => {
   const value = report.value
   if (value?.applicationId && value.vacancyId) {
-    return `/vacancies/${value.vacancyId}/candidates`
+    return `/vacancies/${value.vacancyId}`
   }
   if (value?.resumeId) {
     return `/resumes/${value.resumeId}`
   }
   if (value?.vacancyId) {
-    return `/vacancies/${value.vacancyId}/candidates`
+    return `/vacancies/${value.vacancyId}`
   }
   return null
 })
 
-const analysisLabel = computed(() => (report.value?.applicationId ? 'К кандидатам' : 'К резюме'))
+const analysisLabel = computed(() => (report.value?.applicationId ? 'К вакансии' : 'К резюме'))
+const comparisonResumeText = computed(() => revealedResumeText.value || resumeText.value)
 
-const compareLink = computed(() => {
-  const value = report.value
-  if (!value?.resumeId) {
-    return null
-  }
-  const params = new URLSearchParams({ resumeId: value.resumeId })
-  if (value.vacancyId) {
-    params.set('vacancyId', value.vacancyId)
-  }
-  if (value.applicationId) {
-    params.set('applicationId', value.applicationId)
-  }
-  if (value.phase) {
-    params.set('phase', value.phase)
-  }
-  params.set('from', route.fullPath)
-  return `/compare?${params.toString()}`
-})
+const decisionOptions: Array<{ value: ReportDecisionRequestDecisionEnum; label: string }> = [
+  { value: 'SHORTLISTED', label: 'Собеседование' },
+  { value: 'NOT_SHORTLISTED', label: 'Отказ' },
+]
+
+const hrDecisionLabels: Record<string, string> = {
+  SHORTLISTED: 'Собеседование',
+  NOT_SHORTLISTED: 'Отказ',
+  BORDERLINE: 'На границе',
+}
+
+function hrDecisionLabel(value: string): string {
+  return hrDecisionLabels[value] ?? value
+}
 
 const statusLabel: Record<string, string> = {
   COVERED: 'Подтверждено',
@@ -81,7 +97,7 @@ async function load() {
     if (applicationId.value) {
       const response = await reportsApi.getApplicationReport({
         applicationId: applicationId.value,
-        phase: 'FINAL',
+        phase: phase.value,
       })
       report.value = response.data
     } else if (resumeId.value && vacancyId.value) {
@@ -91,11 +107,41 @@ async function load() {
       })
       report.value = response.data
     }
+    await loadTexts()
   } catch (e) {
     error.value = apiErrorMessage(e)
   } finally {
     loading.value = false
   }
+}
+
+async function loadTexts() {
+  const value = report.value
+  if (!value) {
+    return
+  }
+  const tasks: Array<Promise<void>> = []
+  if (value.resumeId) {
+    tasks.push(
+      resumesApi
+        .getResumeText({ resumeId: value.resumeId })
+        .then((response) => {
+          resumeText.value = response.data.maskedText
+        })
+        .catch(() => undefined),
+    )
+  }
+  if (value.vacancyId) {
+    tasks.push(
+      vacanciesApi
+        .getVacancy({ id: value.vacancyId })
+        .then((response) => {
+          vacancyText.value = response.data.source_text ?? ''
+        })
+        .catch(() => undefined),
+    )
+  }
+  await Promise.all(tasks)
 }
 
 async function reveal(reason: string) {
@@ -109,9 +155,8 @@ async function reveal(reason: string) {
       revealRequest: { reason },
     })
     revealed.value = response.data
-    revealReason.value = reason
     revealOpen.value = false
-    success('Персональные данные показаны', 'Действие записано в аудит')
+    success('Персональные данные показаны')
   } catch (e) {
     const message = apiErrorMessage(e)
     error.value = message
@@ -123,7 +168,74 @@ async function reveal(reason: string) {
 
 function hideRevealed() {
   revealed.value = null
-  revealReason.value = ''
+}
+
+async function revealResume(reason: string) {
+  const value = report.value
+  if (!value?.resumeId) {
+    return
+  }
+  resumeRevealing.value = true
+  try {
+    const response = await resumesApi.revealResumeText({
+      resumeId: value.resumeId,
+      revealTextRequest: {
+        reason,
+        applicationId: value.applicationId ?? undefined,
+      },
+    })
+    revealedResumeText.value = response.data.text
+    resumeRevealOpen.value = false
+  } catch (e) {
+    const message = apiErrorMessage(e)
+    error.value = message
+    toastError('Не удалось показать персональные данные', message)
+  } finally {
+    resumeRevealing.value = false
+  }
+}
+
+function hideResumeReveal() {
+  revealedResumeText.value = ''
+}
+
+function openDecision() {
+  decisionValue.value =
+    report.value?.hrDecision === 'NOT_SHORTLISTED' ? 'NOT_SHORTLISTED' : 'SHORTLISTED'
+  decisionComment.value = report.value?.hrComment ?? ''
+  decisionError.value = ''
+  decisionOpen.value = true
+}
+
+async function saveDecision() {
+  const value = report.value
+  if (!value?.resumeId || !value.vacancyId || savingDecision.value) {
+    return
+  }
+  const comment = decisionComment.value.trim()
+  if (comment.length < 3) {
+    decisionError.value = 'Добавьте комментарий: минимум 3 символа'
+    return
+  }
+  savingDecision.value = true
+  decisionError.value = ''
+  try {
+    await reportsApi.saveReportDecision({
+      resumeId: value.resumeId,
+      vacancyId: value.vacancyId,
+      reportDecisionRequest: {
+        decision: decisionValue.value,
+        comment,
+      },
+    })
+    decisionOpen.value = false
+    success('Решение сохранено')
+    await load()
+  } catch (e) {
+    decisionError.value = apiErrorMessage(e)
+  } finally {
+    savingDecision.value = false
+  }
 }
 
 onMounted(load)
@@ -133,28 +245,15 @@ onMounted(load)
   <section class="space-y-6">
     <header class="flex flex-wrap items-end justify-between gap-3">
       <div>
-        <p class="text-xs font-medium uppercase tracking-wide text-indigo-600">
-          Требование → доказательство → пробел
-        </p>
         <h1 class="text-2xl font-semibold tracking-tight text-slate-900">Отчёт о соответствии</h1>
         <p v-if="report" class="mt-1 text-sm text-slate-500">
-          {{ phaseLabel(report.phase) }} скор · {{ report.requirements?.length ?? 0 }} требований
+          {{ requirementsCount(report.requirements?.length ?? 0) }}
         </p>
       </div>
       <div class="flex items-center gap-2">
         <RouterLink v-if="analysisLink" :to="analysisLink" class="btn-secondary">
           <ArrowLeft :size="16" />
           {{ analysisLabel }}
-        </RouterLink>
-        <span
-          v-if="report?.blind"
-          class="inline-flex items-center gap-1 rounded-full bg-slate-100 px-3 py-1 text-xs font-medium text-slate-600"
-        >
-          <ShieldCheck :size="14" />
-          Слепой режим
-        </span>
-        <RouterLink v-if="compareLink" :to="compareLink" class="btn-primary">
-          Сравнить тексты
         </RouterLink>
         <button
           v-if="applicationId && !revealed"
@@ -176,37 +275,30 @@ onMounted(load)
     <div v-if="loading" class="text-sm text-slate-500">Загрузка…</div>
 
     <template v-else-if="report">
-      <div class="grid gap-4 sm:grid-cols-3">
-        <div class="rounded-3xl border border-slate-200 bg-white p-5">
+      <div class="grid gap-4 sm:grid-cols-2">
+        <div class="rounded-xl border border-slate-200 bg-white p-5">
           <p class="text-xs uppercase tracking-wide text-slate-500">Скор</p>
           <p class="mt-2 text-3xl font-semibold text-slate-900">{{ report.score.toFixed(1) }}</p>
-          <p class="text-sm text-slate-500">
-            вилка {{ report.scoreLow.toFixed(1) }}–{{ report.scoreHigh.toFixed(1) }}
-          </p>
         </div>
-        <div class="rounded-3xl border border-slate-200 bg-white p-5">
-          <p class="text-xs uppercase tracking-wide text-slate-500">Релевантность</p>
-          <p class="mt-2 text-3xl font-semibold text-slate-900">
-            {{ report.relevance == null ? '—' : report.relevance.toFixed(2) }}
-          </p>
-          <p class="text-sm text-slate-500">R<sub>v</sub> по навыкам</p>
-        </div>
-        <div class="rounded-3xl border border-slate-200 bg-white p-5">
+        <div class="rounded-xl border border-slate-200 bg-white p-5">
           <p class="text-xs uppercase tracking-wide text-slate-500">Решение</p>
           <p class="mt-2 text-lg font-semibold text-slate-900">
-            {{ report.decision ? decisionLabel(report.decision) : '—' }}
+            {{ report.hrDecision ? hrDecisionLabel(report.hrDecision) : 'Не выбрано' }}
           </p>
-          <p class="text-sm text-slate-500">решение принимает человек</p>
+          <p v-if="report.hrComment" class="mt-1 text-sm text-slate-500">
+            {{ report.hrComment }}
+          </p>
+          <button class="btn-secondary mt-3 px-3 py-1.5 text-xs" @click="openDecision">
+            {{ report.hrDecision ? 'Изменить решение' : 'Выбрать решение' }}
+          </button>
         </div>
       </div>
 
       <div
         v-if="revealed"
-        class="rounded-3xl border border-emerald-200 bg-emerald-50/60 p-5 text-sm text-emerald-900"
+        class="rounded-xl border border-emerald-200 bg-emerald-50/60 p-5 text-sm text-emerald-900"
       >
-        <p class="font-semibold">Персональные данные показаны</p>
-        <p class="mt-0.5 text-xs">Причина: «{{ revealReason }}». Действие записано в аудит.</p>
-        <dl class="mt-2 grid gap-1 sm:grid-cols-2">
+        <dl class="grid gap-1 sm:grid-cols-2">
           <div v-if="revealed.fullName"><dt class="text-xs uppercase">Имя</dt><dd>{{ revealed.fullName }}</dd></div>
           <div v-if="revealed.email"><dt class="text-xs uppercase">Email</dt><dd>{{ revealed.email }}</dd></div>
           <div v-if="revealed.phone"><dt class="text-xs uppercase">Телефон</dt><dd>{{ revealed.phone }}</dd></div>
@@ -214,7 +306,7 @@ onMounted(load)
         </dl>
       </div>
 
-      <div class="overflow-hidden rounded-3xl border border-slate-200 bg-white shadow-sm">
+      <div class="overflow-hidden rounded-xl border border-slate-200 bg-white shadow-sm">
         <table class="w-full text-left text-sm">
           <thead class="bg-slate-50 text-xs uppercase tracking-wide text-slate-500">
             <tr>
@@ -231,7 +323,7 @@ onMounted(load)
               <td class="px-4 py-3 text-slate-500">{{ kindLabel(item.kind) }}</td>
               <td class="px-4 py-3">
                 <span
-                  class="rounded-full border px-2 py-1 text-xs font-medium"
+                  class="rounded-md border px-2 py-1 text-xs font-medium"
                   :class="statusClass[item.status] ?? 'border-slate-200 bg-slate-100 text-slate-600'"
                 >
                   {{ statusLabel[item.status] ?? item.status }}
@@ -247,9 +339,17 @@ onMounted(load)
         </table>
       </div>
 
-      <div v-if="report.flags?.length" class="text-sm text-slate-500">
-        Флаги: {{ report.flags.join(', ') }}
-      </div>
+      <TextComparison
+        v-if="report.resumeId && report.vacancyId"
+        :vacancy-text="vacancyText"
+        :resume-text="comparisonResumeText"
+        :requirements="report.requirements"
+        :resume-id="report.resumeId"
+        :resume-revealed="!!revealedResumeText"
+        :revealing="resumeRevealing"
+        @reveal="resumeRevealOpen = true"
+        @hide="hideResumeReveal"
+      />
     </template>
 
     <RevealPiiDialog
@@ -258,5 +358,51 @@ onMounted(load)
       @close="revealOpen = false"
       @confirm="reveal"
     />
+
+    <RevealPiiDialog
+      :open="resumeRevealOpen"
+      :submitting="resumeRevealing"
+      @close="resumeRevealOpen = false"
+      @confirm="revealResume"
+    />
+
+    <AppModal
+      :open="decisionOpen"
+      title="Решение по отчёту"
+      description="Выберите решение и добавьте комментарий."
+      @close="decisionOpen = false"
+    >
+      <div class="space-y-4">
+        <div>
+          <label class="label" for="report-decision">Решение</label>
+          <select id="report-decision" v-model="decisionValue" class="input">
+            <option v-for="option in decisionOptions" :key="option.value" :value="option.value">
+              {{ option.label }}
+            </option>
+          </select>
+        </div>
+        <div>
+          <label class="label" for="report-comment">Комментарий</label>
+          <textarea
+            id="report-comment"
+            v-model="decisionComment"
+            class="textarea min-h-28"
+            maxlength="2000"
+            placeholder="Почему выбрано это решение"
+          />
+        </div>
+        <p v-if="decisionError" class="rounded-lg bg-rose-50 px-3 py-2 text-sm text-rose-700">
+          {{ decisionError }}
+        </p>
+        <div class="flex justify-end gap-2">
+          <button class="btn-secondary" :disabled="savingDecision" @click="decisionOpen = false">
+            Отмена
+          </button>
+          <button class="btn-primary" :disabled="savingDecision" @click="saveDecision">
+            {{ savingDecision ? 'Сохраняем…' : 'Сохранить' }}
+          </button>
+        </div>
+      </div>
+    </AppModal>
   </section>
 </template>

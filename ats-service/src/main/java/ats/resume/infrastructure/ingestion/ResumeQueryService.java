@@ -59,6 +59,7 @@ public class ResumeQueryService {
     private ResumeView view(ResumeEntity resume) {
         return new ResumeView(
                 resume.getId(),
+                resume.getTitle(),
                 resume.getStatus(),
                 resume.getFileType(),
                 resume.getOriginalSizeBytes(),
@@ -76,6 +77,7 @@ public class ResumeQueryService {
 
     public record ResumeView(
             UUID resumeId,
+            String title,
             String status,
             String fileType,
             long sizeBytes,

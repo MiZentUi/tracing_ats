@@ -18,6 +18,9 @@ public interface ScoreRunRepository extends JpaRepository<ScoreRunEntity, UUID> 
     List<ScoreRunEntity> findByResumeIdAndDirectionAndPhaseOrderByCreatedAtDesc(
             UUID resumeId, String direction, String phase);
 
+    List<ScoreRunEntity> findByVacancyIdAndDirectionAndPhaseOrderByCreatedAtDesc(
+            UUID vacancyId, String direction, String phase);
+
     Optional<ScoreRunEntity>
             findFirstByResumeIdAndVacancyIdAndDirectionAndPhaseOrderByCreatedAtDesc(
                     UUID resumeId, UUID vacancyId, String direction, String phase);

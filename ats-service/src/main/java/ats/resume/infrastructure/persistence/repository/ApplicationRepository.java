@@ -13,6 +13,8 @@ public interface ApplicationRepository extends JpaRepository<ApplicationEntity, 
 
     List<ApplicationEntity> findByVacancyId(UUID vacancyId);
 
+    List<ApplicationEntity> findByResumeId(UUID resumeId);
+
     List<ApplicationEntity> findByVacancyIdAndStatus(UUID vacancyId, String status);
 
     List<ApplicationEntity> findByVacancyIdAndStatusIn(UUID vacancyId, Collection<String> statuses);

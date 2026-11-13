@@ -3,14 +3,10 @@ import { beforeEach, describe, expect, it, vi } from 'vitest'
 import ResumeUploader from './ResumeUploader.vue'
 
 const uploadResumes = vi.fn()
-const listVacancies = vi.fn()
 
 vi.mock('@/api', () => ({
   resumesApi: {
     uploadResumes: (...args: unknown[]) => uploadResumes(...args),
-  },
-  vacanciesApi: {
-    listVacancies: (...args: unknown[]) => listVacancies(...args),
   },
   apiErrorMessage: () => 'Ошибка',
 }))
@@ -18,17 +14,11 @@ vi.mock('@/api', () => ({
 describe('ResumeUploader', () => {
   beforeEach(() => {
     vi.clearAllMocks()
-    listVacancies.mockResolvedValue({
-      data: {
-        total: 1,
-        items: [{ id: 'vacancy-1', title: 'Backend', specialization: 'backend', level: 'middle', status: 'ACTIVE' }],
-      },
-    })
+    uploadResumes.mockResolvedValue({ data: { resumes: [] } })
   })
 
   it('отправляет вставленный текст без согласия на GitHub и привязывает к вакансии', async () => {
-    uploadResumes.mockResolvedValue({ data: { resumes: [] } })
-    const wrapper = mount(ResumeUploader, { props: { vacancyId: 'vacancy-1' } })
+    const wrapper = mount(ResumeUploader, { props: { vacancyId: 'vacancy-1', compact: true } })
 
     await wrapper.get('textarea').setValue('Java, Kafka, 5 лет опыта')
     await wrapper
@@ -45,19 +35,17 @@ describe('ResumeUploader', () => {
     expect(payload.files[0].name).toBe('pasted-resume-1.txt')
   })
 
-  it('без карточки вакансии позволяет выбрать вакансию вручную', async () => {
-    uploadResumes.mockResolvedValue({ data: { resumes: [] } })
+  it('без вакансии отправляет резюме в общий подбор', async () => {
     const wrapper = mount(ResumeUploader)
-    await flushPromises()
 
+    expect(wrapper.text()).toContain('Добавить резюме')
     await wrapper.get('textarea').setValue('Java, Kafka, 5 лет опыта')
-    await wrapper.get('select').setValue('vacancy-1')
     await wrapper
       .findAll('button')
-      .find((button) => button.text().includes('Добавить и подобрать'))
+      .find((button) => button.text().includes('Добавить резюме'))
       ?.trigger('click')
     await flushPromises()
 
-    expect(uploadResumes.mock.calls[0][0].vacancyId).toBe('vacancy-1')
+    expect(uploadResumes.mock.calls[0][0].vacancyId).toBeUndefined()
   })
 })
