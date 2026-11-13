@@ -5,9 +5,11 @@ import {
   Check,
   ListChecks,
   Loader2,
+  Network,
   Plus,
   RefreshCw,
   Search,
+  ShieldCheck,
   Sparkles,
   X,
 } from '@lucide/vue'
@@ -28,12 +30,14 @@ import {
 } from '@/api/dictionary'
 import { apiErrorMessage } from '@/api'
 import AppModal from '@/components/AppModal.vue'
+import QualificationAdminPanel from '@/components/QualificationAdminPanel.vue'
+import RelationGraphPanel from '@/components/RelationGraphPanel.vue'
 import { useToast } from '@/composables/useToast'
 import { formatDate, pluralizeRu } from '@/lib/format'
 
 const { success, error: toastError } = useToast()
 
-type Tab = 'queue' | 'skills' | 'generation'
+type Tab = 'queue' | 'skills' | 'qualifications' | 'relations' | 'generation'
 
 const tab = ref<Tab>('skills')
 const loading = ref(true)
@@ -70,6 +74,13 @@ const activeJobEditable = computed(() => activeJob.value?.status === 'DONE')
 
 const tabs = computed(() => [
   { id: 'skills' as const, label: 'Навыки', icon: BookOpen, count: skills.value.length },
+  {
+    id: 'qualifications' as const,
+    label: 'Квалификации',
+    icon: ShieldCheck,
+    count: undefined,
+  },
+  { id: 'relations' as const, label: 'Связи', icon: Network, count: undefined },
   {
     id: 'generation' as const,
     label: 'Генерация',
@@ -424,10 +435,10 @@ onMounted(loadAll)
       <div>
         <p class="section-label">Справочник</p>
         <h1 class="mt-1 text-3xl font-semibold tracking-tight text-slate-900">
-          Словарь навыков
+          Словарь
         </h1>
         <p class="mt-1 text-sm text-slate-500">
-          Новые написания, алиасы, канонические имена и генерация навыков по специальности.
+          Навыки, квалификации, связи похожести и очередь новых написаний.
         </p>
       </div>
       <button class="btn-secondary" :disabled="loading" @click="loadAll">
@@ -457,6 +468,7 @@ onMounted(loadAll)
         <component :is="item.icon" :size="15" />
         {{ item.label }}
         <span
+          v-if="item.count !== undefined"
           class="rounded-full px-1.5 py-0.5 text-[10px]"
           :class="tab === item.id ? 'bg-white/15' : 'bg-slate-100 text-slate-500'"
         >
@@ -670,6 +682,14 @@ onMounted(loadAll)
           </form>
         </article>
       </div>
+    </template>
+
+    <template v-else-if="tab === 'qualifications'">
+      <QualificationAdminPanel />
+    </template>
+
+    <template v-else-if="tab === 'relations'">
+      <RelationGraphPanel />
     </template>
 
     <template v-else>
