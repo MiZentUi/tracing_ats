@@ -14,6 +14,7 @@ docker compose up -d --build
 
 UI: <http://localhost:3000>, раздел «Словарь» — <http://localhost:3000/dictionary>.
 Сценарии и ожидаемый результат: `docs/demo-skill-dictionary.md`.
+Деплой на VPS и настройка GitHub Actions: `docs/deploy-vps.md`.
 
 ---
 

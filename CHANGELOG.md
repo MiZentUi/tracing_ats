@@ -7,6 +7,36 @@
 
 ## [Unreleased]
 
+### Ветка `feature/vps-deploy-ci` — CI/CD для VPS
+
+#### Added
+
+- **Workflow `Deploy`.** После успешного CI на `main` собирает образы
+  `migrations`, `dictionary-service`, `scoring-service`, `ats-service` и
+  `frontend`, публикует их в GHCR и обновляет контейнеры на VPS по SSH.
+- **Production-override `compose.prod.yaml`.** Подставляет GHCR-образы и убирает
+  публикацию портов Postgres, MinIO, dictionary, scoring и ats-service — снаружи
+  остаётся только frontend.
+- **Инструкция `docs/deploy-vps.md`.** Требования к VPS, GitHub Environment,
+  `.env.example`/`.env.production`, ручной запуск и ограничения.
+- **Модельные настройки в GitHub Environment.** Ключи хранятся в Secrets, домены,
+  названия моделей и provider — в Variables. Остальная конфигурация берётся из
+  `.env.example`.
+- **Отдельный ключ для scoring-service.** `SCORING_SERVICE_LLM_API_KEY` можно
+  задать независимо; если он пуст, используется `OPENROUTER_API_KEY`.
+- **Сайт на порту 80.** Деплой выставляет `FRONTEND_PORT=80`; локально остаётся
+  `3000`.
+
+#### Security
+
+- **Внутренние сервисы не публикуются на хост в production.** Доступ снаружи
+  остаётся только к frontend; TLS и reverse proxy настраиваются отдельно.
+- **Секреты — только в GitHub Secrets.** SSH-ключ, GHCR-токен, пароли БД/S3, PII-ключ
+  и ключи моделей не хранятся в репозитории.
+- **`.env.production` создаётся деплоем** из GitHub Environment, получает права
+  `600` и не коммитится. `.env.example` содержит только безопасные значения по
+  умолчанию.
+
 ### Ветка `feature/frontend-dictionary-dark-theme` — словарь и тёмная тема
 
 #### Added

@@ -1,0 +1,221 @@
+name: Deploy
+
+on:
+  workflow_run:
+    workflows: ["CI"]
+    types: [completed]
+    branches: [main]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  packages: write
+
+concurrency:
+  group: deploy-production
+  cancel-in-progress: false
+
+jobs:
+  prepare:
+    name: Prepare deploy
+    if: github.event_name == 'workflow_dispatch' || github.event.workflow_run.conclusion == 'success'
+    runs-on: ubuntu-latest
+    outputs:
+      sha: ${{ steps.vars.outputs.sha }}
+      image_prefix: ${{ steps.vars.outputs.image_prefix }}
+    steps:
+      - name: Compute image tag and prefix
+        id: vars
+        run: |
+          echo "sha=${{ github.event.workflow_run.head_sha || github.sha }}" >> "$GITHUB_OUTPUT"
+          owner="$(echo '${{ github.repository_owner }}' | tr '[:upper:]' '[:lower:]')"
+          echo "image_prefix=ghcr.io/${owner}/tracing-ats" >> "$GITHUB_OUTPUT"
+
+  build:
+    name: Build / ${{ matrix.name }}
+    needs: prepare
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - name: migrations
+            context: ./migrations
+            file: Dockerfile
+          - name: dictionary-service
+            context: .
+            file: dictionary-service/Dockerfile
+          - name: scoring-service
+            context: .
+            file: scoring-service/Dockerfile
+          - name: ats-service
+            context: .
+            file: ats-service/Dockerfile
+          - name: frontend
+            context: .
+            file: frontend/Dockerfile
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v6
+        with:
+          ref: ${{ needs.prepare.outputs.sha }}
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
+      - name: Log in to GHCR
+        uses: docker/login-action@v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Build and push
+        uses: docker/build-push-action@v6
+        with:
+          context: ${{ matrix.context }}
+          file: ${{ matrix.file }}
+          platforms: linux/amd64
+          push: true
+          tags: ${{ needs.prepare.outputs.image_prefix }}/${{ matrix.name }}:${{ needs.prepare.outputs.sha }}
+          cache-from: type=gha,scope=${{ matrix.name }}
+          cache-to: type=gha,mode=max,scope=${{ matrix.name }}
+
+  deploy:
+    name: Deploy to VPS
+    needs: [prepare, build]
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    environment: production
+    steps:
+      - name: Deploy over SSH
+        uses: appleboy/ssh-action@v1
+        env:
+          DEPLOY_PATH: ${{ secrets.DEPLOY_PATH }}
+          GHCR_TOKEN: ${{ secrets.GHCR_TOKEN }}
+          GHCR_USER: ${{ secrets.GHCR_USER || github.actor }}
+          IMAGE_PREFIX: ${{ needs.prepare.outputs.image_prefix }}
+          IMAGE_TAG: ${{ needs.prepare.outputs.sha }}
+          OPENROUTER_API_KEY: ${{ secrets.OPENROUTER_API_KEY }}
+          VACANCY_LLM_API_KEY: ${{ secrets.VACANCY_LLM_API_KEY }}
+          SCORING_SERVICE_LLM_API_KEY: ${{ secrets.SCORING_SERVICE_LLM_API_KEY }}
+          CLOUDFLARE_AI_API_TOKEN: ${{ secrets.CLOUDFLARE_AI_API_TOKEN }}
+          POSTGRES_PASSWORD: ${{ secrets.POSTGRES_PASSWORD }}
+          ATS_PII_ENCRYPTION_KEY: ${{ secrets.ATS_PII_ENCRYPTION_KEY }}
+          ATS_S3_ACCESS_KEY: ${{ secrets.ATS_S3_ACCESS_KEY }}
+          ATS_S3_SECRET_KEY: ${{ secrets.ATS_S3_SECRET_KEY }}
+          DICTIONARY_SERVICE_TOKEN: ${{ secrets.DICTIONARY_SERVICE_TOKEN }}
+          VACANCY_LLM_BASE_URL: ${{ vars.VACANCY_LLM_BASE_URL }}
+          VACANCY_LLM_MODEL: ${{ vars.VACANCY_LLM_MODEL }}
+          SCORING_SERVICE_LLM_PROVIDER: ${{ vars.SCORING_SERVICE_LLM_PROVIDER }}
+          SCORING_SERVICE_LLM_BASE_URL: ${{ vars.SCORING_SERVICE_LLM_BASE_URL }}
+          SCORING_SERVICE_LLM_MODEL: ${{ vars.SCORING_SERVICE_LLM_MODEL }}
+          CLOUDFLARE_AI_ENABLED: ${{ vars.CLOUDFLARE_AI_ENABLED }}
+          CLOUDFLARE_AI_BASE_URL: ${{ vars.CLOUDFLARE_AI_BASE_URL }}
+          CLOUDFLARE_AI_MODEL: ${{ vars.CLOUDFLARE_AI_MODEL }}
+          CLOUDFLARE_AI_REASONING_EFFORT: ${{ vars.CLOUDFLARE_AI_REASONING_EFFORT }}
+          FRONTEND_PORT: ${{ vars.FRONTEND_PORT }}
+        with:
+          host: ${{ secrets.VPS_HOST }}
+          username: ${{ secrets.VPS_USER }}
+          key: ${{ secrets.VPS_SSH_KEY }}
+          port: ${{ secrets.VPS_PORT || 22 }}
+          envs: >-
+            DEPLOY_PATH,GHCR_TOKEN,GHCR_USER,IMAGE_PREFIX,IMAGE_TAG,
+            OPENROUTER_API_KEY,VACANCY_LLM_API_KEY,SCORING_SERVICE_LLM_API_KEY,
+            CLOUDFLARE_AI_API_TOKEN,POSTGRES_PASSWORD,ATS_PII_ENCRYPTION_KEY,
+            ATS_S3_ACCESS_KEY,ATS_S3_SECRET_KEY,DICTIONARY_SERVICE_TOKEN,
+            VACANCY_LLM_BASE_URL,VACANCY_LLM_MODEL,
+            SCORING_SERVICE_LLM_PROVIDER,SCORING_SERVICE_LLM_BASE_URL,
+            SCORING_SERVICE_LLM_MODEL,CLOUDFLARE_AI_ENABLED,
+            CLOUDFLARE_AI_BASE_URL,CLOUDFLARE_AI_MODEL,
+            CLOUDFLARE_AI_REASONING_EFFORT,FRONTEND_PORT
+          script_stop: true
+          script: |
+            set -euo pipefail
+
+            if [ -z "${DEPLOY_PATH:-}" ]; then
+              echo "DEPLOY_PATH secret is required" >&2
+              exit 1
+            fi
+
+            for name in OPENROUTER_API_KEY POSTGRES_PASSWORD ATS_PII_ENCRYPTION_KEY ATS_S3_ACCESS_KEY ATS_S3_SECRET_KEY; do
+              if [ -z "${!name:-}" ]; then
+                echo "Missing required GitHub secret: $name" >&2
+                exit 1
+              fi
+            done
+
+            cd "$DEPLOY_PATH"
+
+            # Compose-файлы и миграции должны соответствовать собранному SHA,
+            # а не случайному состоянию рабочей копии на VPS.
+            if [ -d .git ]; then
+              git fetch origin main
+              git checkout --detach --force "$IMAGE_TAG"
+            fi
+
+            # Секреты и модельные настройки приходят из GitHub Environment.
+            # Публичные настройки остаются в .env.example.
+            umask 077
+            : > .env.production
+            put() {
+              if [ -n "${2:-}" ]; then
+                printf '%s=%s\n' "$1" "$2" >> .env.production
+              fi
+            }
+            put OPENROUTER_API_KEY "$OPENROUTER_API_KEY"
+            put VACANCY_LLM_API_KEY "$VACANCY_LLM_API_KEY"
+            put VACANCY_LLM_BASE_URL "$VACANCY_LLM_BASE_URL"
+            put VACANCY_LLM_MODEL "$VACANCY_LLM_MODEL"
+            put SCORING_SERVICE_LLM_API_KEY "$SCORING_SERVICE_LLM_API_KEY"
+            put SCORING_SERVICE_LLM_PROVIDER "$SCORING_SERVICE_LLM_PROVIDER"
+            put SCORING_SERVICE_LLM_BASE_URL "$SCORING_SERVICE_LLM_BASE_URL"
+            put SCORING_SERVICE_LLM_MODEL "$SCORING_SERVICE_LLM_MODEL"
+            put CLOUDFLARE_AI_ENABLED "$CLOUDFLARE_AI_ENABLED"
+            put CLOUDFLARE_AI_BASE_URL "$CLOUDFLARE_AI_BASE_URL"
+            put CLOUDFLARE_AI_API_TOKEN "$CLOUDFLARE_AI_API_TOKEN"
+            put CLOUDFLARE_AI_MODEL "$CLOUDFLARE_AI_MODEL"
+            put CLOUDFLARE_AI_REASONING_EFFORT "$CLOUDFLARE_AI_REASONING_EFFORT"
+            put POSTGRES_PASSWORD "$POSTGRES_PASSWORD"
+            put ATS_PII_ENCRYPTION_KEY "$ATS_PII_ENCRYPTION_KEY"
+            put ATS_S3_ACCESS_KEY "$ATS_S3_ACCESS_KEY"
+            put ATS_S3_SECRET_KEY "$ATS_S3_SECRET_KEY"
+            put DICTIONARY_SERVICE_TOKEN "$DICTIONARY_SERVICE_TOKEN"
+            put FRONTEND_PORT "${FRONTEND_PORT:-80}"
+            chmod 600 .env.production
+
+            if [ -n "${GHCR_TOKEN:-}" ]; then
+              printf '%s' "$GHCR_TOKEN" | docker login ghcr.io -u "$GHCR_USER" --password-stdin
+            fi
+
+            export IMAGE_PREFIX IMAGE_TAG
+
+            docker compose \
+              --env-file .env.example \
+              --env-file .env.production \
+              -f compose.yaml -f compose.prod.yaml pull \
+              postgres minio minio-init migrations \
+              dictionary-service scoring-service ats-service frontend
+
+            docker compose \
+              --env-file .env.example \
+              --env-file .env.production \
+              -f compose.yaml -f compose.prod.yaml up -d --no-build --remove-orphans \
+              migrations postgres minio minio-init \
+              dictionary-service scoring-service ats-service frontend
+
+            docker compose \
+              --env-file .env.example \
+              --env-file .env.production \
+              -f compose.yaml -f compose.prod.yaml ps
+
+            FRONTEND_PORT="$(sed -n 's/^FRONTEND_PORT=//p' .env.production 2>/dev/null | tail -n1)"
+            if [ -z "$FRONTEND_PORT" ]; then
+              FRONTEND_PORT="$(sed -n 's/^FRONTEND_PORT=//p' .env.example 2>/dev/null | tail -n1)"
+            fi
+            curl -fsS --retry 12 --retry-delay 5 --retry-connrefused \
+              "http://127.0.0.1:${FRONTEND_PORT:-80}/" >/dev/null
+
+            docker image prune -f
