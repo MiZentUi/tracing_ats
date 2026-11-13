@@ -302,8 +302,8 @@ service DictionaryService {
       returns (Qualification);
   rpc DeleteQualificationAlias(DeleteQualificationAliasRequest)
       returns (google.protobuf.Empty);
-  rpc DeprecateQualification(DeprecateQualificationRequest)
-      returns (Qualification);
+  rpc DeleteQualification(DeleteQualificationRequest)
+      returns (google.protobuf.Empty);
 }
 ```
 
