@@ -137,3 +137,178 @@ body {
     transform: translateY(8px) scale(0.98);
   }
 }
+
+/* Тёмная тема: переопределяем палитру Tailwind и базовые компоненты. */
+.dark {
+  color-scheme: dark;
+  color: #e2e8f0;
+  --tw-ring-offset-color: #0f172a;
+
+  --color-slate-50: #0f172a;
+  --color-slate-100: #1e293b;
+  --color-slate-200: #334155;
+  --color-slate-300: #475569;
+  --color-slate-400: #94a3b8;
+  --color-slate-500: #94a3b8;
+  --color-slate-600: #cbd5e1;
+  --color-slate-700: #e2e8f0;
+  --color-slate-800: #f1f5f9;
+  --color-slate-900: #f8fafc;
+  --color-slate-950: #020617;
+
+  --color-indigo-50: #1e1b4b;
+  --color-indigo-100: #312e81;
+  --color-indigo-200: #3730a3;
+  --color-indigo-300: #4338ca;
+  --color-indigo-400: #6366f1;
+  --color-indigo-500: #6366f1;
+  --color-indigo-600: #818cf8;
+  --color-indigo-700: #a5b4fc;
+  --color-indigo-800: #c7d2fe;
+  --color-indigo-900: #e0e7ff;
+
+  --color-emerald-50: #052e2b;
+  --color-emerald-100: #064e3b;
+  --color-emerald-200: #065f46;
+  --color-emerald-300: #047857;
+  --color-emerald-600: #34d399;
+  --color-emerald-700: #6ee7b7;
+  --color-emerald-800: #a7f3d0;
+  --color-emerald-900: #d1fae5;
+
+  --color-amber-50: #451a03;
+  --color-amber-100: #78350f;
+  --color-amber-200: #92400e;
+  --color-amber-600: #fbbf24;
+  --color-amber-700: #fcd34d;
+  --color-amber-800: #fde68a;
+
+  --color-rose-50: #4c0519;
+  --color-rose-200: #9f1239;
+  --color-rose-600: #fb7185;
+  --color-rose-700: #fda4af;
+
+  --color-red-50: #450a0a;
+  --color-red-100: #7f1d1d;
+  --color-red-200: #991b1b;
+  --color-red-600: #f87171;
+  --color-red-700: #fca5a5;
+  --color-red-800: #fecaca;
+  --color-red-900: #fee2e2;
+
+  --color-violet-600: #a78bfa;
+}
+
+.dark body {
+  color: #e2e8f0;
+  background:
+    radial-gradient(circle at top left, rgba(99, 102, 241, 0.18), transparent 32rem),
+    #020617;
+}
+
+.dark ::selection {
+  background: #4338ca;
+  color: #eef2ff;
+}
+
+.dark .bg-white {
+  background-color: #0f172a;
+}
+
+.dark .bg-white\/60 {
+  background-color: rgba(15, 23, 42, 0.6);
+}
+
+.dark .bg-white\/70 {
+  background-color: rgba(15, 23, 42, 0.7);
+}
+
+.dark .bg-white\/80 {
+  background-color: rgba(15, 23, 42, 0.8);
+}
+
+.dark .bg-slate-950\/35 {
+  background-color: rgba(0, 0, 0, 0.55);
+}
+
+/* Активные вкладки и primary-кнопки не должны стать светлыми из-за инверсии slate. */
+.dark .bg-slate-900 {
+  background-color: #1e293b;
+}
+
+.dark .card {
+  background-color: #0f172a;
+  border-color: #334155;
+  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.35), 0 12px 30px -18px rgba(0, 0, 0, 0.8);
+}
+
+.dark .card-muted {
+  background-color: rgba(30, 41, 59, 0.75);
+  border-color: #334155;
+}
+
+.dark .input,
+.dark .textarea {
+  background-color: #0f172a;
+  border-color: #334155;
+  color: #e2e8f0;
+}
+
+.dark .input::placeholder,
+.dark .textarea::placeholder {
+  color: #64748b;
+}
+
+.dark .input:focus,
+.dark .textarea:focus {
+  border-color: #818cf8;
+  box-shadow: 0 0 0 4px rgba(99, 102, 241, 0.2);
+}
+
+.dark .btn-primary {
+  background-color: #4f46e5;
+  color: #fff;
+}
+
+.dark .btn-primary:hover {
+  background-color: #4338ca;
+}
+
+.dark .btn-accent {
+  background-color: #4f46e5;
+}
+
+.dark .btn-accent:hover {
+  background-color: #4338ca;
+}
+
+.dark .btn-secondary {
+  background-color: #0f172a;
+  border-color: #334155;
+  color: #e2e8f0;
+}
+
+.dark .btn-secondary:hover {
+  background-color: #1e293b;
+  border-color: #475569;
+}
+
+.dark .btn-danger {
+  background-color: #0f172a;
+  border-color: #7f1d1d;
+  color: #fca5a5;
+}
+
+.dark .btn-danger:hover {
+  background-color: #450a0a;
+}
+
+.dark .btn-success {
+  background-color: #052e2b;
+  border-color: #047857;
+  color: #a7f3d0;
+}
+
+.dark .btn-success:hover {
+  background-color: #064e3b;
+}
