@@ -1,6 +1,9 @@
 <script setup lang="ts">
-import { BriefcaseBusiness, Sparkles } from '@lucide/vue'
+import { BriefcaseBusiness, Moon, Sparkles, Sun } from '@lucide/vue'
 import ToastHost from '@/components/ToastHost.vue'
+import { useTheme } from '@/composables/useTheme'
+
+const { theme, toggleTheme } = useTheme()
 </script>
 
 <template>
@@ -42,6 +45,17 @@ import ToastHost from '@/components/ToastHost.vue'
         </nav>
 
         <div class="ml-auto flex items-center gap-2">
+          <button
+            type="button"
+            class="icon-btn"
+            :title="theme === 'dark' ? 'Светлая тема' : 'Тёмная тема'"
+            :aria-label="theme === 'dark' ? 'Включить светлую тему' : 'Включить тёмную тему'"
+            :aria-pressed="theme === 'dark'"
+            @click="toggleTheme"
+          >
+            <Sun v-if="theme === 'dark'" :size="17" />
+            <Moon v-else :size="17" />
+          </button>
           <span class="badge-info hidden sm:inline-flex">
             <Sparkles :size="12" />
             MVP

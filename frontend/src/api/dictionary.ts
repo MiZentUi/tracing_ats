@@ -56,8 +56,14 @@ export async function resolveReview(
   await axios.post(`${base}/review-items/${id}/resolve`, { action, skillId, canonicalName })
 }
 
-export async function listSkills(query = ''): Promise<Skill[]> {
-  const { data } = await axios.get<Skill[]>(`${base}/skills`, { params: { query } })
+export async function listSkills(
+  query = '',
+  skillType = '',
+  status = 'ACTIVE',
+): Promise<Skill[]> {
+  const { data } = await axios.get<Skill[]>(`${base}/skills`, {
+    params: { query, skillType, status },
+  })
   return data
 }
 
@@ -65,8 +71,11 @@ export async function addAlias(skillId: string, raw: string): Promise<void> {
   await axios.post(`${base}/skills/${skillId}/aliases`, { raw, lang: 'mixed', lemmaMode: 'AUTO' })
 }
 
-export async function createSkill(canonicalName: string): Promise<void> {
-  await axios.post(`${base}/skills`, { canonicalName, skillType: 'OTHER' })
+export async function createSkill(
+  canonicalName: string,
+  skillType = 'OTHER',
+): Promise<void> {
+  await axios.post(`${base}/skills`, { canonicalName, skillType })
 }
 
 export async function setCanonical(skillId: string, aliasId: string): Promise<void> {
