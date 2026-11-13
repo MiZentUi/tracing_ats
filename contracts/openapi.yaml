@@ -990,6 +990,54 @@ paths:
         default:
           $ref: "#/components/responses/default"
 
+  /admin/dictionary/qualification-review-items:
+    get:
+      tags: [Dictionary]
+      operationId: listDictionaryQualificationReviewItems
+      parameters:
+        - name: status
+          in: query
+          schema: { type: string, default: PENDING }
+        - name: limit
+          in: query
+          schema: { type: integer, default: 50 }
+        - name: offset
+          in: query
+          schema: { type: integer, default: 0 }
+      responses:
+        "200":
+          description: Очередь новых квалификаций
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/DictionaryQualificationReviewItem"
+        default:
+          $ref: "#/components/responses/default"
+
+  /admin/dictionary/qualification-review-items/{id}/resolve:
+    post:
+      tags: [Dictionary]
+      operationId: resolveDictionaryQualificationReviewItem
+      parameters:
+        - $ref: "#/components/parameters/DictionaryId"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/DictionaryResolveQualificationReviewRequest"
+      responses:
+        "200":
+          description: Результат обработки
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/DictionaryQualificationReviewResult"
+        default:
+          $ref: "#/components/responses/default"
+
   /admin/dictionary/relations:
     get:
       tags: [Dictionary]
@@ -2365,6 +2413,75 @@ components:
           type: string
           enum: [AUTO, RAW_ONLY]
           default: AUTO
+
+    DictionaryQualificationReviewItem:
+      type: object
+      required: [id, key, samples, occurrences, status]
+      properties:
+        id:
+          type: string
+          format: uuid
+        key:
+          type: string
+        samples:
+          type: array
+          items: { type: string }
+        occurrences:
+          type: integer
+          format: int64
+        status:
+          type: string
+          enum: [PENDING, RESOLVED_ALIAS, RESOLVED_NEW_QUALIFICATION, REJECTED]
+        suggestedQualificationId:
+          type: string
+          format: uuid
+          nullable: true
+        suggestedConfidence:
+          type: number
+          format: double
+          nullable: true
+        resolvedQualificationId:
+          type: string
+          format: uuid
+          nullable: true
+        resolvedBy:
+          type: string
+          nullable: true
+        resolvedAt:
+          type: string
+          nullable: true
+
+    DictionaryQualificationReviewResult:
+      type: object
+      required: [review]
+      properties:
+        review:
+          $ref: "#/components/schemas/DictionaryQualificationReviewItem"
+        qualification:
+          allOf:
+            - $ref: "#/components/schemas/DictionaryQualification"
+          nullable: true
+
+    DictionaryResolveQualificationReviewRequest:
+      type: object
+      required: [action]
+      properties:
+        action:
+          type: string
+          enum: [ALIAS, NEW_QUALIFICATION, REJECT]
+        qualificationId:
+          type: string
+          format: uuid
+          nullable: true
+        canonicalName:
+          type: string
+          nullable: true
+        qualificationType:
+          type: string
+          nullable: true
+        additionalAliases:
+          type: array
+          items: { type: string }
 
     DictionaryCreateRelationRequest:
       type: object
