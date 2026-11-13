@@ -213,3 +213,16 @@ docker compose \
   ```bash
   openssl rand -hex 24
   ```
+
+## 9. Если frontend поднялся на 3000 вместо 80
+
+В `docker compose ps` видно `0.0.0.0:3000->80/tcp`. Workflow по умолчанию ставит
+`FRONTEND_PORT=80`, но GitHub Environment variable может переопределить его.
+
+Проверь `Settings → Environments → production → Environment variables`:
+- `FRONTEND_PORT` должен быть `80` или отсутствовать;
+- если там `3000`, исправь на `80` и перезапусти `Deploy`.
+
+На VPS также не должно быть старого `.env`, который задаёт `FRONTEND_PORT=3000`:
+deploy использует `.env.example` + `.env.production`, но старый `.env` лучше
+убрать, чтобы не путаться.
