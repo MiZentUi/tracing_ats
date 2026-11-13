@@ -103,7 +103,7 @@ services:
       # mock — без сети и ключей; openai — любой OpenAI-совместимый эндпоинт.
       SCORING_SERVICE_LLM_PROVIDER: ${SCORING_SERVICE_LLM_PROVIDER:-mock}
       SCORING_SERVICE_LLM_BASE_URL: ${SCORING_SERVICE_LLM_BASE_URL:-https://openrouter.ai/api/v1}
-      SCORING_SERVICE_LLM_API_KEY: ${OPENROUTER_API_KEY:-}
+      SCORING_SERVICE_LLM_API_KEY: ${SCORING_SERVICE_LLM_API_KEY:-${OPENROUTER_API_KEY:-}}
       SCORING_SERVICE_LLM_MODEL: ${SCORING_SERVICE_LLM_MODEL:-}
       # Reasoning-модели тратят токены на reasoning: без запаса content приходит пустым.
       SCORING_SERVICE_LLM_MAX_OUTPUT_TOKENS: ${SCORING_SERVICE_LLM_MAX_OUTPUT_TOKENS:-4096}
@@ -180,6 +180,10 @@ services:
       SPRING_PROFILES_ACTIVE: ${ATS_PROFILES:-}
       # Compose подставляет значение из корневого .env или окружения хоста.
       OPENROUTER_API_KEY: ${OPENROUTER_API_KEY:-}
+      # Модель для вакансий и генерации. Ключ по умолчанию — OPENROUTER_API_KEY.
+      VACANCY_LLM_BASE_URL: ${VACANCY_LLM_BASE_URL:-https://openrouter.ai/api/v1}
+      VACANCY_LLM_MODEL: ${VACANCY_LLM_MODEL:-dots-studio/dots-3-note-preview:free}
+      VACANCY_LLM_API_KEY: ${VACANCY_LLM_API_KEY:-${OPENROUTER_API_KEY:-}}
       # Fallback Cloudflare Workers AI включается явно.
       CLOUDFLARE_AI_ENABLED: ${CLOUDFLARE_AI_ENABLED:-false}
       CLOUDFLARE_AI_BASE_URL: ${CLOUDFLARE_AI_BASE_URL:-}

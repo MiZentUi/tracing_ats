@@ -119,11 +119,11 @@ ats:
       batch-size: ${ATS_RESUME_MATCH_BATCH_SIZE:3}
 vacancy:
   llm:
-    base-url: https://openrouter.ai/api/v1
-    # Ключ OpenRouter. Не вписывай значение сюда: задай переменную окружения
-    # OPENROUTER_API_KEY или строку OPENROUTER_API_KEY=... в файле .env
-    api-key: ${OPENROUTER_API_KEY:}
-    model: dots-studio/dots-3-note-preview:free
+    base-url: ${VACANCY_LLM_BASE_URL:https://openrouter.ai/api/v1}
+    # Ключ OpenRouter или отдельного OpenAI-совместимого провайдера.
+    # Не вписывай значение сюда: задай VACANCY_LLM_API_KEY или OPENROUTER_API_KEY.
+    api-key: ${VACANCY_LLM_API_KEY:${OPENROUTER_API_KEY:}}
+    model: ${VACANCY_LLM_MODEL:dots-studio/dots-3-note-preview:free}
     # Запасные модели отключены: free-модели Google отдают 429 из общего пула.
     # Либо отвечает основная модель, либо возвращается LLM_UNAVAILABLE.
     fallback-models: []

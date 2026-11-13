@@ -1,0 +1,33 @@
+# Production-override для деплоя на VPS.
+# Запускать вместе с compose.yaml:
+#   docker compose -f compose.yaml -f compose.prod.yaml up -d --no-build ...
+# Образы собираются в CI и публикуются в GHCR.
+# Внутренние сервисы не публикуют порты на хост: снаружи доступен только frontend.
+services:
+  migrations:
+    image: ${IMAGE_PREFIX}/migrations:${IMAGE_TAG}
+
+  postgres:
+    ports: !reset []
+
+  minio:
+    ports: !reset []
+
+  dictionary-service:
+    image: ${IMAGE_PREFIX}/dictionary-service:${IMAGE_TAG}
+    ports: !reset []
+
+  scoring-service:
+    image: ${IMAGE_PREFIX}/scoring-service:${IMAGE_TAG}
+    ports: !reset []
+
+  ats-service:
+    image: ${IMAGE_PREFIX}/ats-service:${IMAGE_TAG}
+    ports: !reset []
+
+  frontend:
+    image: ${IMAGE_PREFIX}/frontend:${IMAGE_TAG}
+
+  # Заглушки не нужны в production и не должны стартовать случайно.
+  mock-llm:
+    profiles: ["mock-llm"]
