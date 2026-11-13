@@ -7,7 +7,6 @@ import json
 import uuid
 from dataclasses import asdict
 
-import psycopg
 from psycopg_pool import ConnectionPool
 
 from .domain import (
@@ -22,79 +21,11 @@ from .domain import (
     Skill,
 )
 from .normalization import alias_keys, normalize_base
-from .store import stable_id
-
-SCHEMA = """
-CREATE TABLE IF NOT EXISTS skill (
-    id uuid PRIMARY KEY,
-    status text NOT NULL DEFAULT 'ACTIVE',
-    skill_type text NOT NULL DEFAULT 'OTHER',
-    created_at timestamptz NOT NULL DEFAULT now(),
-    updated_at timestamptz NOT NULL DEFAULT now()
-);
-
-CREATE TABLE IF NOT EXISTS skill_alias (
-    id uuid PRIMARY KEY,
-    skill_id uuid NOT NULL REFERENCES skill (id) ON DELETE CASCADE,
-    alias_raw text NOT NULL,
-    is_canonical boolean NOT NULL DEFAULT false,
-    lang text NOT NULL DEFAULT 'mixed',
-    source text NOT NULL DEFAULT 'HR',
-    lemma_mode text NOT NULL DEFAULT 'AUTO',
-    created_by text NOT NULL DEFAULT '',
-    created_at timestamptz NOT NULL DEFAULT now()
-);
-CREATE UNIQUE INDEX IF NOT EXISTS uq_alias_canonical
-    ON skill_alias (skill_id) WHERE is_canonical;
-
-CREATE TABLE IF NOT EXISTS skill_alias_key (
-    key text PRIMARY KEY,
-    alias_id uuid NOT NULL REFERENCES skill_alias (id) ON DELETE CASCADE,
-    kind text NOT NULL
-);
-CREATE INDEX IF NOT EXISTS ix_alias_key_alias ON skill_alias_key (alias_id);
-
-CREATE TABLE IF NOT EXISTS review_item (
-    id uuid PRIMARY KEY,
-    key text NOT NULL UNIQUE,
-    sample_masked text[] NOT NULL DEFAULT '{}',
-    occurrences bigint NOT NULL DEFAULT 1,
-    status text NOT NULL DEFAULT 'PENDING',
-    suggested_skill_id uuid,
-    suggested_confidence double precision,
-    candidates jsonb NOT NULL DEFAULT '[]'::jsonb,
-    resolved_skill_id uuid,
-    resolved_by text,
-    resolved_at timestamptz,
-    first_seen timestamptz NOT NULL DEFAULT now(),
-    last_seen timestamptz NOT NULL DEFAULT now()
-);
-CREATE INDEX IF NOT EXISTS ix_review_status ON review_item (status, first_seen);
-
-CREATE TABLE IF NOT EXISTS dictionary_meta (
-    id smallint PRIMARY KEY CHECK (id = 1),
-    dictionary_version bigint NOT NULL DEFAULT 1,
-    embedding_model_id text NOT NULL DEFAULT '',
-    config_hash text NOT NULL DEFAULT '',
-    pymorphy_version text NOT NULL DEFAULT 'none',
-    homoglyph_rules_version text NOT NULL DEFAULT 'v1'
-);
-INSERT INTO dictionary_meta (id) VALUES (1) ON CONFLICT (id) DO NOTHING;
-
-CREATE TABLE IF NOT EXISTS dictionary_snapshot (
-    resolver_version text PRIMARY KEY,
-    payload jsonb NOT NULL,
-    created_at timestamptz NOT NULL DEFAULT now()
-);
-"""
 
 
 class PostgresStore:
     def __init__(self, database_url: str) -> None:
-        # Своя схема: public занят таблицами ats-service (skill, skill_alias).
-        with psycopg.connect(database_url) as conn:
-            conn.execute("CREATE SCHEMA IF NOT EXISTS dictionary")
-            conn.commit()
+        # Схему и seed накатывает Liquibase (миграции 017–018).
         self._pool = ConnectionPool(
             database_url,
             min_size=1,
@@ -102,11 +33,6 @@ class PostgresStore:
             kwargs={"options": "-c search_path=dictionary"},
             open=True,
         )
-        with self._pool.connection() as conn:
-            for statement in SCHEMA.split(";"):
-                if statement.strip():
-                    conn.execute(statement)
-            conn.commit()
 
     # --- метаданные ---------------------------------------------------------
     def meta(self) -> Meta:
@@ -142,23 +68,6 @@ class PostgresStore:
                 (resolver_version,),
             ).fetchone()
         return row[0] if row else None
-
-    # --- seed ---------------------------------------------------------------
-    def seed(self, seed: tuple) -> None:
-        if self.list_skills("", "", "", 1, 0)[1] > 0:
-            return
-        for item in seed:
-            skill = self.create_skill(
-                item.canonical,
-                item.skill_type,
-                "seed",
-                "SEED",
-                skill_id=stable_id(item.canonical),
-            )
-            for raw in item.aliases:
-                self.add_alias(skill.id, raw, "mixed", "AUTO", "SEED", "seed")
-            for raw in item.raw_only:
-                self.add_alias(skill.id, raw, "ru", "RAW_ONLY", "SEED", "seed")
 
     # --- чтение -------------------------------------------------------------
     def lookup(self, key: str) -> AliasRef | None:

@@ -345,8 +345,7 @@ Seed: 79 навыков, включая не-IT. ID seed-навыков дете
 - `scoring-service`: `pytest` → 74 passed; `ruff check` → clean.
 - `ats-service`: `./gradlew test` → BUILD SUCCESSFUL; `spotlessCheck` → clean.
 - `docker compose config -q` → OK.
-- Docker-образы `dictionary-service`, `scoring-service`, `ats-service`, `frontend` собираются.
-- `docker compose up -d --build` с нуля → все контейнеры поднялись, `dictionary-service` healthy.
+- `docker compose up -d --build` с нуля → Liquibase применил 45 changesets, включая `017`/`018`, затем все контейнеры поднялись, `dictionary-service` healthy.
 - Frontend production-сборка (`vue-tsc` + `vite build`) проходит в Docker.
 - Реальная LLM:
   - создание вакансии — 201 за ~8.6 с, модель `dots-studio/dots-3-note-preview:free`;
@@ -366,7 +365,7 @@ Seed: 79 навыков, включая не-IT. ID seed-навыков дете
 - Merge отсутствует по решению.
 - Проверка `is_confirmed` перед скорингом не добавлена.
 - Per-skill трасса «сырое имя → канон → method → confidence» в отчёт не выводится; есть `resolver_version`/`dictionary_mode` в ответе scoring.
-- Схема dictionary создаётся самим сервисом при старте, без Liquibase-миграции.
+- Схема `dictionary` и seed создаются Liquibase-миграциями `017-dictionary-schema.sql` и `018-dictionary-seed.sql`; runtime DDL в `PostgresStore` удалён.
 - Аутентификации в проекте нет: админка открыта, как и остальной API.
 - `dictionary-service` не использует `DICTIONARY_SERVICE_TOKEN`, поле конфигурации зарезервировано.
 
@@ -375,6 +374,8 @@ Seed: 79 навыков, включая не-IT. ID seed-навыков дете
 Основные новые:
 
 - `contracts/proto/dictionary_service/v1/dictionary.proto`;
+- `migrations/changes/017-dictionary-schema.sql`, `migrations/changes/018-dictionary-seed.sql` — схема и seed через Liquibase;
+- `compose.yaml` — dictionary-service ждёт завершения миграций;
 - `dictionary-service/` — сервис, тесты, Dockerfile, seed;
 - `ats-service/src/main/java/ats/vacancy/dictionary/` — клиент, BFF, DTO;
 - `scoring-service/src/api/dictionary/`, `scoring-service/src/api/scoring/resolver.py`;

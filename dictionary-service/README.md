@@ -8,6 +8,10 @@
 
 ## Запуск
 
+Схему `dictionary` и seed накатывает Liquibase (`migrations/changes/017` и `018`)
+в составе джобы `migrations`. Сервис не создаёт таблицы сам и стартует только
+после успешных миграций.
+
 ```bash
 DICTIONARY_STORE=memory python -m dictionary_service   # без Postgres, для отладки
 DICTIONARY_DATABASE_URL=postgresql://ats:ats@localhost:5432/ats python -m dictionary_service

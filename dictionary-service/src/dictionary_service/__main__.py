@@ -34,6 +34,7 @@ def _build_service() -> DictionaryService:
         store,
         config_hash=settings.config_hash,
         embedding_model_id=os.getenv("DICTIONARY_EMBEDDING_MODEL_ID", ""),
+        seed_on_start=store_kind == "memory",
     )
     service.seed_if_empty()
     return service

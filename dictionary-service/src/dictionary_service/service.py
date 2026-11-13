@@ -42,15 +42,17 @@ class DictionaryService:
         config_hash: str,
         embedding_model_id: str = "",
         homoglyph_rules_version: str = "v1",
+        seed_on_start: bool = True,
     ) -> None:
         self._store = store
         self._config_hash = config_hash
         self._embedding_model_id = embedding_model_id
         self._homoglyph_rules_version = homoglyph_rules_version
+        self._seed_on_start = seed_on_start
 
     # --- инициализация ------------------------------------------------------
     def seed_if_empty(self) -> None:
-        if self._store.list_skills("", "", "", 1, 0)[1] == 0:
+        if self._seed_on_start and self._store.list_skills("", "", "", 1, 0)[1] == 0:
             self._store.seed(SEED)
         meta = self.version()
         if self._store.get_snapshot(meta.resolver_version) is not None:
