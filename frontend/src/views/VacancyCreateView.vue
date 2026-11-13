@@ -33,7 +33,7 @@ const error = ref('')
 const showSpecializationModal = ref(false)
 const newSpecializationName = ref('')
 const newSpecializationCode = ref('')
-const newSpecializationIt = ref(true)
+const newSpecializationIt = ref<boolean | null>(null)
 const addingSpecialization = ref(false)
 const specializationError = ref('')
 
@@ -56,24 +56,13 @@ const canSubmit = computed(
     (mode.value === 'text' ? text.value.trim() !== '' : file.value !== null),
 )
 
-const currentStep = computed(() => {
-  if (!specialization.value) {
-    return 1
-  }
-  return mode.value === 'text' ? (text.value.trim() ? 3 : 2) : file.value ? 3 : 2
-})
-
-const steps = [
-  { number: 1, title: 'Параметры', hint: 'Специализация и грейд' },
-  { number: 2, title: 'Источник', hint: 'Текст или файл' },
-  { number: 3, title: 'Разбор', hint: 'LLM и проверка' },
-]
-
 const sourceSummary = computed(() => {
   if (mode.value === 'file') {
     return file.value ? file.value.name : 'Файл не выбран'
   }
-  return text.value.trim() ? `${text.value.trim().length.toLocaleString('ru-RU')} символов` : 'Текст не вставлен'
+  return text.value.trim()
+    ? `${text.value.trim().length.toLocaleString('ru-RU')} символов`
+    : 'Текст не вставлен'
 })
 
 onMounted(async () => {
@@ -106,13 +95,17 @@ function openSpecializationModal() {
   specializationError.value = ''
   newSpecializationName.value = ''
   newSpecializationCode.value = ''
-  newSpecializationIt.value = true
+  newSpecializationIt.value = null
   showSpecializationModal.value = true
 }
 
 async function addSpecialization() {
   if (!newSpecializationName.value.trim()) {
     specializationError.value = 'Укажите название специализации'
+    return
+  }
+  if (newSpecializationIt.value === null) {
+    specializationError.value = 'Выберите, нужен ли грейд для этой специализации'
     return
   }
   addingSpecialization.value = true
@@ -156,12 +149,12 @@ async function submit() {
       text: mode.value === 'text' ? text.value : undefined,
       file: mode.value === 'file' ? file.value : undefined,
     })
-    success('Вакансия разобрана', 'Проверьте типы навыков и подтвердите шаблон')
+    success('Вакансия создана', 'Проверьте требования и установите шаблон')
     await router.push(`/vacancies/${response.data.vacancy_id}`)
   } catch (e) {
     const message = apiErrorMessage(e)
     error.value = message
-    toastError('Не удалось разобрать вакансию', message)
+    toastError('Не удалось извлечь требования', message)
   } finally {
     loading.value = false
   }
@@ -171,27 +164,19 @@ async function submit() {
 <template>
   <section class="space-y-6">
     <div>
-      <RouterLink to="/vacancies" class="inline-flex items-center gap-1.5 text-sm font-medium text-slate-500 transition hover:text-slate-900">
+      <RouterLink
+        to="/vacancies"
+        class="inline-flex items-center gap-1.5 text-sm font-medium text-slate-500 transition hover:text-slate-900"
+      >
         <ArrowLeft :size="16" />
         К списку вакансий
       </RouterLink>
-      <h1 class="mt-3 text-3xl font-semibold tracking-tight text-slate-900">Новая вакансия</h1>
+      <h1 class="mt-3 text-3xl font-semibold tracking-tight text-slate-900">
+        Добавить вакансию
+      </h1>
       <p class="mt-1 text-sm text-slate-500">
-        Загрузите описание — LLM выделит требования, а вы проверите типы навыков.
+        Опишите позицию — модель выделит требования, а вы назначите им приоритет.
       </p>
-      <div class="mt-3 flex items-center gap-3">
-        <div class="h-1.5 w-28 overflow-hidden rounded-full bg-slate-200">
-          <div
-            class="h-full rounded-full bg-indigo-500 transition-all duration-300"
-            :style="{ width: `${(currentStep / steps.length) * 100}%` }"
-          />
-        </div>
-        <p class="text-xs font-medium text-slate-500">
-          Шаг {{ currentStep }} из {{ steps.length }} ·
-          <span class="text-slate-900">{{ steps[currentStep - 1]?.title }}</span>
-          <span class="hidden sm:inline"> — {{ steps[currentStep - 1]?.hint }}</span>
-        </p>
-      </div>
     </div>
 
     <div v-if="error" class="rounded-2xl border border-red-200 bg-red-50 p-4 text-sm text-red-800">
@@ -206,48 +191,70 @@ async function submit() {
               <Building2 :size="18" />
             </span>
             <div>
-              <h2 class="text-base font-semibold text-slate-900">Параметры позиции</h2>
-              <p class="text-sm text-slate-500">Специализация обязательна. Грейд нужен только для IT-специализаций.</p>
+              <h2 class="text-base font-semibold text-slate-900">Параметры вакансии</h2>
+              <p class="text-sm text-slate-500">
+                Название видно в списке, специализация задаёт шаблон, уровень — профиль весов.
+              </p>
             </div>
           </div>
 
-          <div class="mt-5 grid gap-4 sm:grid-cols-2">
+          <div class="mt-5 space-y-4">
             <div>
-              <label class="label" for="specialization">Специализация</label>
-              <div class="flex gap-2">
-                <select id="specialization" v-model="specialization" class="input" required>
-                  <option value="" disabled>Выберите специализацию</option>
-                  <option v-for="item in specializations" :key="item.code" :value="item.code">
+              <label class="label" for="title">
+                Название вакансии <span class="font-normal text-slate-400">(необязательно)</span>
+              </label>
+              <input
+                id="title"
+                v-model="title"
+                class="input"
+                placeholder="Например, Backend-разработчик"
+              />
+              <p class="hint">Если не заполнить, в списке будет название специализации.</p>
+            </div>
+
+            <div class="grid gap-4 sm:grid-cols-2">
+              <div>
+                <label class="label" for="specialization">Специализация</label>
+                <div class="flex gap-2">
+                  <select id="specialization" v-model="specialization" class="input" required>
+                    <option value="" disabled>Выберите специализацию</option>
+                    <option v-for="item in specializations" :key="item.code" :value="item.code">
+                      {{ item.name }}
+                    </option>
+                  </select>
+                  <button
+                    type="button"
+                    class="btn-secondary shrink-0 px-3"
+                    title="Добавить специализацию"
+                    @click="openSpecializationModal"
+                  >
+                    <Plus :size="16" />
+                    <span class="hidden sm:inline">Добавить</span>
+                  </button>
+                </div>
+                <p class="hint">Нет нужной? Добавьте её рядом с полем.</p>
+              </div>
+              <div>
+                <label class="label" for="level">
+                  Уровень <span v-if="needsLevel" class="font-normal text-slate-400">(обязательно)</span>
+                </label>
+                <select v-if="needsLevel" id="level" v-model="level" class="input" required>
+                  <option value="" disabled>Выберите грейд</option>
+                  <option v-for="item in levels" :key="item.code" :value="item.code">
                     {{ item.name }}
                   </option>
                 </select>
-                <button type="button" class="btn-secondary shrink-0 px-3" title="Добавить специализацию" @click="openSpecializationModal">
-                  <Plus :size="16" />
-                  <span class="hidden sm:inline">Добавить</span>
-                </button>
+                <p
+                  v-else
+                  class="flex h-[38px] items-center rounded-xl border border-dashed border-slate-300 bg-slate-50 px-3 text-sm text-slate-500"
+                >
+                  Не требуется: специализация не IT
+                </p>
+                <p class="hint">
+                  {{ needsLevel ? 'Для IT-специализации грейд обязателен.' : 'Грейд запрашивается только у IT-специализаций.' }}
+                </p>
               </div>
-              <p class="hint">Нет нужной? Добавьте её рядом с полем.</p>
             </div>
-            <div>
-              <label class="label" for="level">Уровень <span v-if="needsLevel" class="font-normal text-slate-400">(обязательно)</span></label>
-              <select v-if="needsLevel" id="level" v-model="level" class="input" required>
-                <option value="" disabled>Выберите грейд</option>
-                <option v-for="item in levels" :key="item.code" :value="item.code">
-                  {{ item.name }}
-                </option>
-              </select>
-              <p v-else class="flex h-[38px] items-center rounded-xl border border-dashed border-slate-300 bg-slate-50 px-3 text-sm text-slate-500">
-                Не требуется: специализация не IT
-              </p>
-              <p class="hint">
-                {{ needsLevel ? 'Для IT-специализации грейд обязателен.' : 'Грейд запрашивается только у IT-специализаций.' }}
-              </p>
-            </div>
-          </div>
-
-          <div class="mt-4">
-            <label class="label" for="title">Название вакансии <span class="font-normal text-slate-400">(необязательно)</span></label>
-            <input id="title" v-model="title" class="input" placeholder="Например, Backend-разработчик" />
           </div>
         </div>
 
@@ -257,8 +264,10 @@ async function submit() {
               <FileText :size="18" />
             </span>
             <div>
-              <h2 class="text-base font-semibold text-slate-900">Источник описания</h2>
-              <p class="text-sm text-slate-500">Вставьте текст или загрузите PDF, DOCX, TXT или MD.</p>
+              <h2 class="text-base font-semibold text-slate-900">Описание вакансии</h2>
+              <p class="text-sm text-slate-500">
+                Вставьте текст или загрузите PDF, DOCX, TXT или MD.
+              </p>
             </div>
           </div>
 
@@ -282,7 +291,9 @@ async function submit() {
           </div>
 
           <div v-if="mode === 'text'" class="mt-4">
+            <label class="label" for="vacancy-text">Текст вакансии</label>
             <textarea
+              id="vacancy-text"
               v-model="text"
               class="textarea min-h-64"
               placeholder="Вставьте описание вакансии: обязанности, требования, условия…"
@@ -303,14 +314,19 @@ async function submit() {
             >
               <UploadCloud :size="28" class="text-indigo-500" />
               <span class="mt-3 text-sm font-semibold text-slate-900">
-                {{ file ? file.name : 'Перетащите файл сюда' }}
+                {{ file ? file.name : 'Перетащите файл сюда или нажмите, чтобы выбрать' }}
               </span>
               <span class="mt-1 text-xs text-slate-500">
                 {{ file ? `${Math.ceil(file.size / 1024)} КБ` : 'PDF, DOCX, TXT или MD · до 5 МБ' }}
               </span>
               <input type="file" class="sr-only" accept=".pdf,.docx,.txt,.md" @change="onFile" />
             </label>
-            <button v-if="file" type="button" class="mt-2 inline-flex items-center gap-1 text-xs text-red-600 hover:underline" @click="file = null">
+            <button
+              v-if="file"
+              type="button"
+              class="mt-2 inline-flex items-center gap-1 text-xs text-red-600 hover:underline"
+              @click="file = null"
+            >
               <X :size="12" />
               Убрать файл
             </button>
@@ -320,10 +336,16 @@ async function submit() {
 
       <aside class="card lg:sticky lg:top-24">
         <div class="border-b border-slate-100 px-5 py-4">
-          <h2 class="text-sm font-semibold text-slate-900">Перед разбором</h2>
-          <p class="mt-0.5 text-xs text-slate-500">Проверьте параметры и источник.</p>
+          <h2 class="text-sm font-semibold text-slate-900">Что будет дальше</h2>
+          <p class="mt-0.5 text-xs text-slate-500">
+            Модель извлечёт требования. Проверить и установить шаблон можно на следующем экране.
+          </p>
         </div>
         <dl class="space-y-3 px-5 py-4 text-sm">
+          <div class="flex items-start justify-between gap-3">
+            <dt class="text-slate-500">Название</dt>
+            <dd class="text-right font-medium text-slate-900">{{ title.trim() || '—' }}</dd>
+          </div>
           <div class="flex items-start justify-between gap-3">
             <dt class="text-slate-500">Специализация</dt>
             <dd class="text-right font-medium text-slate-900">
@@ -344,11 +366,15 @@ async function submit() {
         <div class="border-t border-slate-100 px-5 py-4">
           <button type="submit" form="create-form" class="btn-accent w-full" :disabled="!canSubmit">
             <Sparkles :size="17" />
-            Разобрать вакансию
+            Извлечь требования
           </button>
-          <div v-if="loading" class="mt-3 flex items-start gap-2 rounded-xl bg-indigo-50 p-3 text-xs text-indigo-800" role="status">
+          <div
+            v-if="loading"
+            class="mt-3 flex items-start gap-2 rounded-xl bg-indigo-50 p-3 text-xs text-indigo-800"
+            role="status"
+          >
             <LoaderCircle :size="16" class="mt-0.5 shrink-0 animate-spin" />
-            <span>Разбор может занять до 5 минут. Не закрывайте страницу.</span>
+            <span>Извлечение может занять до 5 минут. Не закрывайте страницу.</span>
           </div>
           <p v-else class="mt-3 text-center text-xs text-slate-400">
             Обычно занимает 10–60 секунд
@@ -364,27 +390,64 @@ async function submit() {
       @close="showSpecializationModal = false"
     >
       <div class="space-y-4">
-        <p v-if="specializationError" class="rounded-xl bg-red-50 p-3 text-sm text-red-700">{{ specializationError }}</p>
+        <p v-if="specializationError" class="rounded-xl bg-red-50 p-3 text-sm text-red-700">
+          {{ specializationError }}
+        </p>
         <div>
           <label class="label" for="new-specialization-name">Название</label>
-          <input id="new-specialization-name" v-model="newSpecializationName" class="input" placeholder="Например, Аналитика" />
+          <input
+            id="new-specialization-name"
+            v-model="newSpecializationName"
+            class="input"
+            placeholder="Например, Аналитика"
+          />
         </div>
         <div>
-          <label class="label" for="new-specialization-code">Код <span class="font-normal text-slate-400">(необязательно)</span></label>
+          <label class="label" for="new-specialization-code">
+            Код <span class="font-normal text-slate-400">(необязательно)</span>
+          </label>
           <input id="new-specialization-code" v-model="newSpecializationCode" class="input" placeholder="analytics" />
           <p class="hint">Латиница, цифры и дефисы. Например, `data-engineering`.</p>
         </div>
-        <label class="flex cursor-pointer items-start gap-3 rounded-xl border border-slate-200 p-3">
-          <input v-model="newSpecializationIt" type="checkbox" class="mt-0.5 h-4 w-4 accent-indigo-600" />
-          <span class="text-sm">
-            <span class="font-medium text-slate-900">IT-специализация</span>
-            <span class="block text-xs text-slate-500">
-              Если включено, при создании вакансии нужно выбрать грейд. Для остальных специализаций грейд не запрашивается.
-            </span>
-          </span>
-        </label>
+
+        <fieldset>
+          <legend class="label">Нужен ли уровень (грейд)?</legend>
+          <div class="mt-1 grid gap-2">
+            <label class="flex cursor-pointer items-start gap-3 rounded-xl border border-slate-200 p-3 transition hover:border-indigo-300">
+              <input
+                v-model="newSpecializationIt"
+                type="radio"
+                :value="true"
+                class="mt-0.5 h-4 w-4 accent-indigo-600"
+              />
+              <span class="text-sm">
+                <span class="font-medium text-slate-900">IT — нужен грейд</span>
+                <span class="block text-xs text-slate-500">
+                  При создании вакансии попросим выбрать junior, middle или senior.
+                </span>
+              </span>
+            </label>
+            <label class="flex cursor-pointer items-start gap-3 rounded-xl border border-slate-200 p-3 transition hover:border-indigo-300">
+              <input
+                v-model="newSpecializationIt"
+                type="radio"
+                :value="false"
+                class="mt-0.5 h-4 w-4 accent-indigo-600"
+              />
+              <span class="text-sm">
+                <span class="font-medium text-slate-900">Не IT — грейд не нужен</span>
+                <span class="block text-xs text-slate-500">
+                  Уровень не запрашивается ни при создании, ни в шаблоне.
+                </span>
+              </span>
+            </label>
+          </div>
+        </fieldset>
+
         <div class="flex justify-end gap-2 pt-1">
-          <button type="button" class="btn-secondary" @click="showSpecializationModal = false">Отмена</button>
+          <button type="button" class="btn-secondary" @click="showSpecializationModal = false">
+            Отмена
+          </button>
           <button type="button" class="btn-primary" :disabled="addingSpecialization" @click="addSpecialization">
             {{ addingSpecialization ? 'Добавление…' : 'Добавить' }}
           </button>

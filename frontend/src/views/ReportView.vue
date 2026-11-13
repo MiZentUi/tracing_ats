@@ -4,7 +4,9 @@ import { useRoute } from 'vue-router'
 import { ArrowLeft, LockKeyholeOpen, ShieldCheck } from '@lucide/vue'
 import type { ApplicationReport, RevealedCandidate } from '@/api/generated'
 import { apiErrorMessage, reportsApi } from '@/api'
+import RevealPiiDialog from '@/components/RevealPiiDialog.vue'
 import { useToast } from '@/composables/useToast'
+import { decisionLabel, kindLabel, phaseLabel } from '@/lib/labels'
 
 const route = useRoute()
 const { success, error: toastError } = useToast()
@@ -13,6 +15,8 @@ const report = ref<ApplicationReport | null>(null)
 const revealed = ref<RevealedCandidate | null>(null)
 const loading = ref(true)
 const revealing = ref(false)
+const revealOpen = ref(false)
+const revealReason = ref('')
 const error = ref('')
 
 const applicationId = computed(() => route.params.id as string | undefined)
@@ -33,7 +37,7 @@ const analysisLink = computed(() => {
   return null
 })
 
-const analysisLabel = computed(() => (report.value?.applicationId ? 'К кандидатам' : 'К разбору'))
+const analysisLabel = computed(() => (report.value?.applicationId ? 'К кандидатам' : 'К резюме'))
 
 const compareLink = computed(() => {
   const value = report.value
@@ -94,12 +98,8 @@ async function load() {
   }
 }
 
-async function reveal() {
+async function reveal(reason: string) {
   if (!applicationId.value) {
-    return
-  }
-  const reason = window.prompt('Причина раскрытия PII (обязательно)')
-  if (!reason?.trim()) {
     return
   }
   revealing.value = true
@@ -109,14 +109,21 @@ async function reveal() {
       revealRequest: { reason },
     })
     revealed.value = response.data
-    success('PII раскрыты', 'Действие записано в аудит')
+    revealReason.value = reason
+    revealOpen.value = false
+    success('Персональные данные показаны', 'Действие записано в аудит')
   } catch (e) {
     const message = apiErrorMessage(e)
     error.value = message
-    toastError('Не удалось раскрыть PII', message)
+    toastError('Не удалось показать персональные данные', message)
   } finally {
     revealing.value = false
   }
+}
+
+function hideRevealed() {
+  revealed.value = null
+  revealReason.value = ''
 }
 
 onMounted(load)
@@ -131,7 +138,7 @@ onMounted(load)
         </p>
         <h1 class="text-2xl font-semibold tracking-tight text-slate-900">Отчёт о соответствии</h1>
         <p v-if="report" class="mt-1 text-sm text-slate-500">
-          {{ report.phase }} · {{ report.requirements?.length ?? 0 }} требований
+          {{ phaseLabel(report.phase) }} скор · {{ report.requirements?.length ?? 0 }} требований
         </p>
       </div>
       <div class="flex items-center gap-2">
@@ -147,16 +154,19 @@ onMounted(load)
           Слепой режим
         </span>
         <RouterLink v-if="compareLink" :to="compareLink" class="btn-primary">
-          Открыть тексты
+          Сравнить тексты
         </RouterLink>
         <button
-          v-if="applicationId"
+          v-if="applicationId && !revealed"
           class="btn-secondary"
           :disabled="revealing"
-          @click="reveal"
+          @click="revealOpen = true"
         >
           <LockKeyholeOpen :size="16" />
-          Раскрыть PII
+          Показать персональные данные
+        </button>
+        <button v-else-if="revealed" class="btn-secondary" @click="hideRevealed">
+          Скрыть персональные данные
         </button>
       </div>
     </header>
@@ -184,9 +194,9 @@ onMounted(load)
         <div class="rounded-3xl border border-slate-200 bg-white p-5">
           <p class="text-xs uppercase tracking-wide text-slate-500">Решение</p>
           <p class="mt-2 text-lg font-semibold text-slate-900">
-            {{ report.decision ?? '—' }}
+            {{ report.decision ? decisionLabel(report.decision) : '—' }}
           </p>
-          <p class="text-sm text-slate-500">человек решает сам</p>
+          <p class="text-sm text-slate-500">решение принимает человек</p>
         </div>
       </div>
 
@@ -194,7 +204,8 @@ onMounted(load)
         v-if="revealed"
         class="rounded-3xl border border-emerald-200 bg-emerald-50/60 p-5 text-sm text-emerald-900"
       >
-        <p class="font-semibold">PII раскрыты для проверки</p>
+        <p class="font-semibold">Персональные данные показаны</p>
+        <p class="mt-0.5 text-xs">Причина: «{{ revealReason }}». Действие записано в аудит.</p>
         <dl class="mt-2 grid gap-1 sm:grid-cols-2">
           <div v-if="revealed.fullName"><dt class="text-xs uppercase">Имя</dt><dd>{{ revealed.fullName }}</dd></div>
           <div v-if="revealed.email"><dt class="text-xs uppercase">Email</dt><dd>{{ revealed.email }}</dd></div>
@@ -217,7 +228,7 @@ onMounted(load)
           <tbody class="divide-y divide-slate-100">
             <tr v-for="item in report.requirements" :key="item.requirementId">
               <td class="px-4 py-3 font-medium text-slate-900">{{ item.text }}</td>
-              <td class="px-4 py-3 text-slate-500">{{ item.kind }}</td>
+              <td class="px-4 py-3 text-slate-500">{{ kindLabel(item.kind) }}</td>
               <td class="px-4 py-3">
                 <span
                   class="rounded-full border px-2 py-1 text-xs font-medium"
@@ -240,5 +251,12 @@ onMounted(load)
         Флаги: {{ report.flags.join(', ') }}
       </div>
     </template>
+
+    <RevealPiiDialog
+      :open="revealOpen"
+      :submitting="revealing"
+      @close="revealOpen = false"
+      @confirm="reveal"
+    />
   </section>
 </template>

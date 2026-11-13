@@ -6,6 +6,8 @@ import {
   ArrowLeft,
   CheckCircle2,
   Copy,
+  LayoutGrid,
+  List,
   LoaderCircle,
   Plus,
   Save,
@@ -13,12 +15,15 @@ import {
   Sparkles,
   Trash2,
 } from '@lucide/vue'
-import type { ReferenceItem, SkillKind, Specialization, Vacancy } from '@/api/generated'
+import type { ReferenceItem, Specialization, Vacancy } from '@/api/generated'
 import { apiErrorCode, apiErrorMessage, referenceApi, vacanciesApi } from '@/api'
 import ConfirmDialog from '@/components/ConfirmDialog.vue'
-import RequirementCard from '@/components/RequirementCard.vue'
+import RequirementBoard from '@/components/RequirementBoard.vue'
+import RequirementRow from '@/components/RequirementRow.vue'
+import VacancyTabs from '@/components/VacancyTabs.vue'
 import { useToast } from '@/composables/useToast'
-import { kindSections, levelLabel, toEditable, type EditableRequirement } from '@/types'
+import { kindLabels } from '@/lib/labels'
+import { levelLabel, toEditable, type EditableRequirement } from '@/types'
 
 const props = defineProps<{ id: string }>()
 const router = useRouter()
@@ -31,25 +36,26 @@ const specialization = ref('')
 const level = ref('none')
 const specializations = ref<Specialization[]>([])
 const levels = ref<ReferenceItem[]>([])
-
-// Грейд запрашивается только у IT-специализаций; у остальных уровень фиксирован как «none».
-const needsLevel = computed(
-  () => specializations.value.find((item) => item.code === specialization.value)?.it === true,
-)
 const snapshot = ref('')
 const loading = ref(true)
 const saving = ref(false)
 const deleting = ref(false)
 const deleteOpen = ref(false)
+const setTemplateOpen = ref(false)
+const viewMode = ref<'list' | 'board'>('list')
+const requirementSearch = ref('')
 const error = ref('')
 const conflict = ref(false)
 const savedMessage = ref('')
 const sourceSearch = ref('')
 const highlightedKey = ref<string | null>(null)
 
-const canConfirmDraft = computed(
-  () => !!vacancy.value && !vacancy.value.template.is_confirmed && !saving.value && !deleting.value,
+// Грейд запрашивается только у IT-специализаций; у остальных уровень фиксирован как «none».
+const needsLevel = computed(
+  () => specializations.value.find((item) => item.code === specialization.value)?.it === true,
 )
+
+const isConfirmed = computed(() => vacancy.value?.template.is_confirmed === true)
 
 const sourceText = computed(() => vacancy.value?.source_text ?? '')
 const sourceChars = computed(() => sourceText.value.length.toLocaleString('ru-RU'))
@@ -82,12 +88,21 @@ function serialize() {
 
 const dirty = computed(() => snapshot.value !== '' && serialize() !== snapshot.value)
 
-function apply(v: Vacancy) {
-  vacancy.value = v
-  title.value = v.title ?? ''
-  specialization.value = v.specialization
-  level.value = v.level
-  requirements.value = v.template.requirements.map(toEditable)
+const canSave = computed(
+  () =>
+    !!vacancy.value &&
+    !saving.value &&
+    !deleting.value &&
+    duplicateKeys.value.size === 0 &&
+    (dirty.value || !isConfirmed.value),
+)
+
+function apply(value: Vacancy) {
+  vacancy.value = value
+  title.value = value.title ?? ''
+  specialization.value = value.specialization
+  level.value = value.level
+  requirements.value = value.template.requirements.map(toEditable)
   snapshot.value = serialize()
 }
 
@@ -111,9 +126,17 @@ async function load() {
   }
 }
 
-function requirementsFor(kind: SkillKind) {
+function requirementsFor(kind: keyof typeof kindLabels) {
   return requirements.value.filter((item) => item.kind === kind)
 }
+
+const kindCounters = computed(() =>
+  (Object.keys(kindLabels) as Array<keyof typeof kindLabels>).map((kind) => ({
+    kind,
+    label: kindLabels[kind],
+    count: requirementsFor(kind).length,
+  })),
+)
 
 function normalizedSkill(skill: string | null) {
   return (skill ?? '').trim().toLowerCase()
@@ -128,6 +151,18 @@ const duplicateKeys = computed(() => {
     }
   }
   return new Set([...counts.entries()].filter(([, count]) => count > 1).map(([key]) => key))
+})
+
+const visibleRequirements = computed(() => {
+  const query = requirementSearch.value.trim().toLowerCase()
+  if (!query) {
+    return requirements.value
+  }
+  return requirements.value.filter(
+    (item) =>
+      (item.skill ?? '').toLowerCase().includes(query) ||
+      (item.quote ?? '').toLowerCase().includes(query),
+  )
 })
 
 async function revealRequirement(key: string, focusSkill = false) {
@@ -146,19 +181,10 @@ async function revealRequirement(key: string, focusSkill = false) {
   }, 1800)
 }
 
-async function updateRequirement(key: string, patch: Partial<EditableRequirement>) {
+function updateRequirement(key: string, patch: Partial<EditableRequirement>) {
   const item = requirements.value.find((candidate) => candidate.key === key)
-  if (!item) {
-    return
-  }
-  const previousKind = item.kind
-  Object.assign(item, patch)
-
-  if (patch.kind && patch.kind !== previousKind) {
-    const target = kindSections.find((section) => section.kind === patch.kind)
-    const name = item.skill?.trim() || item.quote?.slice(0, 40) || 'Требование'
-    info('Тип изменён', `«${name}» перенесено в «${target?.title ?? patch.kind}»`)
-    await revealRequirement(key)
+  if (item) {
+    Object.assign(item, patch)
   }
 }
 
@@ -167,6 +193,7 @@ function removeRequirement(key: string) {
 }
 
 async function addRequirement() {
+  requirementSearch.value = ''
   const key = `new-${Date.now()}-${requirements.value.length}`
   requirements.value.push({
     key,
@@ -182,8 +209,26 @@ async function addRequirement() {
     clarityWarning: null,
     history: null,
   })
-  info('Добавлено требование', 'Заполните название навыка')
-  await revealRequirement(key, true)
+  if (viewMode.value !== 'list') {
+    info('Требование добавлено', 'Оно появилось в колонке «Обязательно»')
+  }
+  await revealRequirement(key, viewMode.value === 'list')
+}
+
+function requestSave() {
+  if (!canSave.value) {
+    return
+  }
+  if (!isConfirmed.value) {
+    setTemplateOpen.value = true
+    return
+  }
+  void save()
+}
+
+async function confirmSetTemplate() {
+  setTemplateOpen.value = false
+  await save()
 }
 
 async function save() {
@@ -222,9 +267,11 @@ async function save() {
       },
     })
     apply(response.data)
-    savedMessage.value = `Сохранено, версия ${response.data.template.version}`
+    savedMessage.value = wasDraft
+      ? `Шаблон установлен, версия ${response.data.template.version}`
+      : `Изменения сохранены, версия ${response.data.template.version}`
     success(
-      wasDraft ? 'Черновик подтверждён' : 'Шаблон сохранён',
+      wasDraft ? 'Шаблон установлен' : 'Изменения сохранены',
       `Версия ${response.data.template.version} · ${response.data.template.requirements.length} требований`,
     )
   } catch (e) {
@@ -279,7 +326,10 @@ onMounted(load)
 <template>
   <section class="space-y-5 pb-4">
     <div>
-      <RouterLink to="/vacancies" class="inline-flex items-center gap-1.5 text-sm font-medium text-slate-500 transition hover:text-slate-900">
+      <RouterLink
+        to="/vacancies"
+        class="inline-flex items-center gap-1.5 text-sm font-medium text-slate-500 transition hover:text-slate-900"
+      >
         <ArrowLeft :size="16" />
         К списку вакансий
       </RouterLink>
@@ -305,26 +355,35 @@ onMounted(load)
             <h1 class="truncate text-3xl font-semibold tracking-tight text-slate-900">
               {{ title || 'Без названия' }}
             </h1>
-            <span :class="vacancy.template.is_confirmed ? 'badge-success' : 'badge-warning'">
-              <CheckCircle2 v-if="vacancy.template.is_confirmed" :size="12" />
-              {{ vacancy.template.is_confirmed ? 'Подтверждена' : 'Черновик' }}
+            <span :class="isConfirmed ? 'badge-success' : 'badge-warning'">
+              <CheckCircle2 v-if="isConfirmed" :size="12" />
+              {{ isConfirmed ? 'Шаблон установлен' : 'Черновик' }}
             </span>
             <span class="badge-neutral">Версия {{ vacancy.template.version }}</span>
           </div>
           <p class="mt-1 text-sm text-slate-500">
-            {{ vacancy.specialization }} · {{ levelLabel(vacancy.level) }} ·
+            {{ specializations.find((item) => item.code === specialization)?.name ?? specialization }} ·
+            {{ levelLabel(level) }} ·
             {{ vacancy.template.meta?.model ?? 'модель не указана' }} ·
             {{ vacancy.template.meta?.prompt_version ?? 'промпт не указан' }}
           </p>
         </div>
       </div>
 
-      <div v-if="savedMessage" class="flex items-center gap-2 rounded-2xl border border-emerald-200 bg-emerald-50 p-3 text-sm text-emerald-800">
+      <VacancyTabs :vacancy-id="props.id" active="requirements" />
+
+      <div
+        v-if="savedMessage"
+        class="flex items-center gap-2 rounded-2xl border border-emerald-200 bg-emerald-50 p-3 text-sm text-emerald-800"
+      >
         <CheckCircle2 :size="16" />
         {{ savedMessage }}
       </div>
 
-      <div v-if="error" class="flex flex-wrap items-center justify-between gap-3 rounded-2xl border border-red-200 bg-red-50 p-4 text-sm text-red-800">
+      <div
+        v-if="error"
+        class="flex flex-wrap items-center justify-between gap-3 rounded-2xl border border-red-200 bg-red-50 p-4 text-sm text-red-800"
+      >
         <span class="flex items-center gap-2">
           <AlertTriangle :size="16" />
           {{ error }}
@@ -332,85 +391,173 @@ onMounted(load)
         <button v-if="conflict" class="btn-secondary shrink-0" @click="load">Перезагрузить</button>
       </div>
 
-      <div v-if="duplicateKeys.size > 0" class="flex items-center gap-2 rounded-2xl border border-amber-200 bg-amber-50 p-4 text-sm text-amber-800">
+      <div
+        v-if="duplicateKeys.size > 0"
+        class="flex items-center gap-2 rounded-2xl border border-amber-200 bg-amber-50 p-4 text-sm text-amber-800"
+      >
         <AlertTriangle :size="16" />
         Найдены дубликаты навыков. Исправьте их, чтобы сохранить шаблон.
       </div>
 
-      <div class="grid gap-5 lg:grid-cols-[minmax(0,1fr)_24rem] lg:items-start">
+      <div
+        class="grid gap-5"
+        :class="viewMode === 'board' ? '' : 'lg:grid-cols-[minmax(0,1fr)_24rem] lg:items-start'"
+      >
         <div class="space-y-4">
           <div class="card p-5">
-            <div class="flex items-center justify-between gap-3">
-              <div>
-                <h2 class="text-base font-semibold text-slate-900">Параметры шаблона</h2>
-                <p class="text-sm text-slate-500">Смена специализации или уровня создаст новую версию.</p>
-              </div>
+            <div>
+              <h2 class="text-base font-semibold text-slate-900">Параметры шаблона</h2>
+              <p class="text-sm text-slate-500">
+                Смена специализации или уровня создаст новую версию.
+              </p>
             </div>
             <div class="mt-4 grid gap-4 sm:grid-cols-2">
               <div class="sm:col-span-2">
-                <label class="label" for="editor-title">Название</label>
+                <label class="label" for="editor-title">Название вакансии</label>
                 <input id="editor-title" v-model="title" class="input" />
               </div>
               <div>
                 <label class="label" for="editor-specialization">Специализация</label>
                 <select id="editor-specialization" v-model="specialization" class="input">
-                  <option v-for="item in specializations" :key="item.code" :value="item.code">{{ item.name }}</option>
+                  <option v-for="item in specializations" :key="item.code" :value="item.code">
+                    {{ item.name }}
+                  </option>
                 </select>
               </div>
               <div>
-                <label class="label" for="editor-level">Уровень <span v-if="needsLevel" class="font-normal text-slate-400">(обязательно)</span></label>
+                <label class="label" for="editor-level">
+                  Уровень <span v-if="needsLevel" class="font-normal text-slate-400">(обязательно)</span>
+                </label>
                 <select v-if="needsLevel" id="editor-level" v-model="level" class="input">
-                  <option v-for="item in levels" :key="item.code" :value="item.code">{{ item.name }}</option>
+                  <option v-for="item in levels" :key="item.code" :value="item.code">
+                    {{ item.name }}
+                  </option>
                 </select>
-                <p v-else class="flex h-[38px] items-center rounded-xl border border-dashed border-slate-300 bg-slate-50 px-3 text-sm text-slate-500">
+                <p
+                  v-else
+                  class="flex h-[38px] items-center rounded-xl border border-dashed border-slate-300 bg-slate-50 px-3 text-sm text-slate-500"
+                >
                   Не требуется: специализация не IT
                 </p>
               </div>
             </div>
           </div>
 
-          <div
-            v-for="section in kindSections"
-            :key="section.kind"
-            :data-section="section.kind"
-            class="card overflow-hidden"
-          >
-            <div class="flex items-center gap-2 border-b border-slate-100 px-5 py-3">
-              <span
-                class="h-2.5 w-2.5 rounded-full"
-                :class="section.kind === 'MUST' ? 'bg-rose-400' : section.kind === 'NICE' ? 'bg-indigo-400' : 'bg-emerald-400'"
-              />
-              <h2 class="text-base font-semibold text-slate-900">{{ section.title }}</h2>
-              <span class="badge-neutral">{{ requirementsFor(section.kind).length }}</span>
-            </div>
-            <div class="space-y-3 p-4">
-              <p v-if="requirementsFor(section.kind).length === 0" class="rounded-xl border border-dashed border-slate-300 px-4 py-8 text-center text-sm text-slate-400">
-                {{ section.hint }}
-              </p>
-              <div
-                v-for="item in requirementsFor(section.kind)"
-                :key="item.key"
-                :data-requirement-key="item.key"
-                class="rounded-2xl transition-all duration-300"
-                :class="highlightedKey === item.key ? 'ring-2 ring-indigo-300 ring-offset-2' : ''"
-              >
-                <RequirementCard
-                  :requirement="item"
-                  :duplicate="duplicateKeys.has(normalizedSkill(item.skill))"
-                  @update="(patch) => updateRequirement(item.key, patch)"
-                  @remove="removeRequirement(item.key)"
-                />
+          <div class="card overflow-hidden">
+            <div class="flex flex-wrap items-center justify-between gap-3 border-b border-slate-100 px-4 py-3">
+              <div>
+                <h2 class="text-base font-semibold text-slate-900">
+                  Требования <span class="text-slate-400">({{ requirements.length }})</span>
+                </h2>
+                <p class="mt-0.5 text-xs text-slate-500">
+                  <template v-for="(counter, index) in kindCounters" :key="counter.kind">
+                    <span v-if="index > 0"> · </span>
+                    {{ counter.label }} {{ counter.count }}
+                  </template>
+                </p>
               </div>
+              <div class="flex flex-wrap items-center gap-2">
+                <div
+                  class="inline-flex rounded-xl border border-slate-200 bg-slate-50 p-0.5"
+                  role="group"
+                  aria-label="Режим редактирования требований"
+                >
+                  <button
+                    type="button"
+                    class="inline-flex items-center gap-1.5 rounded-lg px-3 py-1.5 text-xs font-medium transition"
+                    :class="viewMode === 'list' ? 'bg-white text-slate-900 shadow-sm' : 'text-slate-500 hover:text-slate-800'"
+                    @click="viewMode = 'list'"
+                  >
+                    <List :size="14" />
+                    Список
+                  </button>
+                  <button
+                    type="button"
+                    class="inline-flex items-center gap-1.5 rounded-lg px-3 py-1.5 text-xs font-medium transition"
+                    :class="viewMode === 'board' ? 'bg-white text-slate-900 shadow-sm' : 'text-slate-500 hover:text-slate-800'"
+                    @click="viewMode = 'board'"
+                  >
+                    <LayoutGrid :size="14" />
+                    Доска
+                  </button>
+                </div>
+                <label v-if="viewMode === 'list'" class="relative">
+                  <Search
+                    :size="14"
+                    class="pointer-events-none absolute left-2.5 top-1/2 -translate-y-1/2 text-slate-400"
+                  />
+                  <input
+                    v-model="requirementSearch"
+                    class="input w-44 py-1.5 pl-8 text-xs"
+                    placeholder="Найти требование"
+                  />
+                </label>
+                <button type="button" class="btn-secondary px-3 py-1.5 text-xs" @click="addRequirement">
+                  <Plus :size="14" />
+                  Добавить
+                </button>
+              </div>
+            </div>
+
+            <div v-if="viewMode === 'list'">
+              <div
+                class="hidden gap-3 border-b border-slate-100 bg-slate-50/80 px-4 py-2 text-[11px] font-medium uppercase tracking-wide text-slate-400 md:grid md:grid-cols-[minmax(0,1fr)_10rem_6.5rem_7rem_5.5rem]"
+              >
+                <span>Навык</span>
+                <span>Тип</span>
+                <span>Опыт</span>
+                <span>Источник</span>
+                <span class="text-right">Действия</span>
+              </div>
+              <div class="divide-y divide-slate-100">
+                <div
+                  v-for="item in visibleRequirements"
+                  :key="item.key"
+                  :data-requirement-key="item.key"
+                  class="transition-all duration-300"
+                  :class="highlightedKey === item.key ? 'ring-2 ring-inset ring-indigo-300' : ''"
+                >
+                  <RequirementRow
+                    :requirement="item"
+                    :duplicate="duplicateKeys.has(normalizedSkill(item.skill))"
+                    @update="(patch) => updateRequirement(item.key, patch)"
+                    @remove="removeRequirement(item.key)"
+                  />
+                </div>
+              </div>
+              <p
+                v-if="visibleRequirements.length === 0"
+                class="px-4 py-10 text-center text-sm text-slate-400"
+              >
+                {{ requirements.length === 0 ? 'Пока нет требований. Добавьте первое.' : 'Ничего не найдено по запросу.' }}
+              </p>
+            </div>
+
+            <div v-else class="p-4">
+              <RequirementBoard
+                :requirements="requirements"
+                :duplicate-keys="duplicateKeys"
+                :highlighted-key="highlightedKey"
+                @update="updateRequirement"
+                @remove="removeRequirement"
+              />
             </div>
           </div>
 
-          <button type="button" class="btn-secondary w-full border-dashed" @click="addRequirement">
+          <button
+            type="button"
+            class="btn-secondary w-full border-dashed"
+            @click="addRequirement"
+          >
             <Plus :size="16" />
             Добавить требование
           </button>
         </div>
 
-        <aside class="card order-first overflow-hidden lg:order-none lg:sticky lg:top-24">
+        <aside
+          class="card overflow-hidden"
+          :class="viewMode === 'board' ? '' : 'order-first lg:order-none lg:sticky lg:top-24'"
+        >
           <div class="border-b border-slate-100 px-4 py-3">
             <div class="flex items-center justify-between gap-2">
               <h2 class="text-sm font-semibold text-slate-900">Текст вакансии</h2>
@@ -418,15 +565,25 @@ onMounted(load)
                 <Copy :size="15" />
               </button>
             </div>
-            <p class="mt-0.5 text-xs text-slate-400">{{ sourceChars }} символов</p>
+            <p class="mt-0.5 text-xs text-slate-400">
+              {{ sourceChars }} символов · по нему проверяются цитаты требований
+            </p>
             <label class="relative mt-3 block">
-              <Search :size="14" class="pointer-events-none absolute left-2.5 top-1/2 -translate-y-1/2 text-slate-400" />
-              <input v-model="sourceSearch" class="input py-2 pl-8 text-xs" placeholder="Найти в тексте" />
+              <Search
+                :size="14"
+                class="pointer-events-none absolute left-2.5 top-1/2 -translate-y-1/2 text-slate-400"
+              />
+              <input
+                v-model="sourceSearch"
+                class="input py-2 pl-8 text-xs"
+                placeholder="Найти в тексте"
+              />
             </label>
           </div>
           <div
             data-testid="vacancy-source-text"
-            class="max-h-72 overflow-auto whitespace-pre-wrap px-4 py-3 text-sm leading-6 text-slate-700 lg:max-h-[68vh]"
+            class="whitespace-pre-wrap px-4 py-3 text-sm leading-6 text-slate-700"
+            :class="viewMode === 'board' ? 'max-h-64 overflow-auto' : 'max-h-72 overflow-auto lg:max-h-[68vh]'"
           >
             <template v-if="sourceText">
               <template v-for="(part, index) in highlightedSource" :key="index">
@@ -436,40 +593,50 @@ onMounted(load)
             </template>
             <span v-else class="text-slate-400">Текст вакансии недоступен</span>
           </div>
+          <p class="border-t border-slate-100 px-4 py-2.5 text-xs leading-5 text-slate-400">
+            Текст зафиксирован при разборе: по нему проверяются цитаты требований. Изменение
+            описания пока недоступно — правьте формулировки требований.
+          </p>
         </aside>
       </div>
 
       <div class="sticky bottom-3 z-20">
         <div class="card flex flex-wrap items-center gap-2 p-3 shadow-xl backdrop-blur">
-          <span class="mr-auto flex items-center gap-2 px-1 text-xs font-medium" :class="dirty ? 'text-amber-700' : 'text-slate-400'">
+          <span
+            class="mr-auto flex items-center gap-2 px-1 text-xs font-medium"
+            :class="dirty ? 'text-amber-700' : 'text-slate-400'"
+          >
             <span class="h-2 w-2 rounded-full" :class="dirty ? 'bg-amber-400' : 'bg-slate-300'" />
-            {{ dirty ? 'Есть несохранённые изменения' : 'Изменений нет' }}
+            {{ dirty ? 'Есть несохранённые изменения' : isConfirmed ? 'Изменений нет' : 'Черновик можно установить как шаблон' }}
           </span>
           <button class="btn-danger" :disabled="deleting || saving" @click="deleteOpen = true">
             <Trash2 :size="16" />
             Удалить
           </button>
-          <button
-            v-if="canConfirmDraft"
-            class="btn-success"
-            :disabled="saving || duplicateKeys.size > 0"
-            @click="save"
-          >
-            <Sparkles :size="16" />
-            {{ saving ? 'Подтверждение…' : 'Подтвердить черновик' }}
-          </button>
-          <button
-            class="btn-primary"
-            :disabled="!dirty || saving || duplicateKeys.size > 0"
-            @click="save"
-          >
+          <button class="btn-primary" :disabled="!canSave" @click="requestSave">
             <LoaderCircle v-if="saving" :size="16" class="animate-spin" />
+            <Sparkles v-else-if="!isConfirmed" :size="16" />
             <Save v-else :size="16" />
-            {{ saving ? 'Сохранение…' : 'Сохранить шаблон' }}
+            {{
+              saving
+                ? 'Сохраняем…'
+                : isConfirmed
+                  ? 'Сохранить изменения'
+                  : 'Установить как шаблон'
+            }}
           </button>
         </div>
       </div>
     </template>
+
+    <ConfirmDialog
+      :open="setTemplateOpen"
+      title="Установить требования как шаблон?"
+      message="Вакансия станет доступна для подбора кандидатов. После установки можно будет менять требования и сохранять новые версии."
+      confirm-label="Установить"
+      @cancel="setTemplateOpen = false"
+      @confirm="confirmSetTemplate"
+    />
 
     <ConfirmDialog
       :open="deleteOpen"

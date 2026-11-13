@@ -4,6 +4,7 @@ import { ArrowLeft, Loader2, RefreshCcw } from '@lucide/vue'
 import type { ResumeSummary, ResumeVacancyRankingResponse } from '@/api/generated'
 import { apiErrorMessage, resumeRankingApi, resumesApi } from '@/api'
 import { useToast } from '@/composables/useToast'
+import { resumeStatusLabel } from '@/lib/labels'
 
 const props = defineProps<{ id: string }>()
 const { success, error: toastError } = useToast()
@@ -17,7 +18,12 @@ let timer: number | null = null
 
 const inProgress = computed(() => {
   const status = resume.value?.status
-  return status === 'MASKED' || status === 'EXTRACTED' || status === 'MATCHING'
+  return (
+    status === 'UPLOADED' ||
+    status === 'MASKED' ||
+    status === 'EXTRACTED' ||
+    status === 'MATCHING'
+  )
 })
 
 async function load() {
@@ -30,10 +36,10 @@ async function load() {
     ])
     resume.value = resumeResponse.data
     ranking.value = rankingResponse.data
-    if (resume.value.status === 'MATCHED' || resume.value.status === 'MATCH_FAILED') {
-      stopPolling()
-    } else {
+    if (inProgress.value) {
       poll()
+    } else {
+      stopPolling()
     }
   } catch (e) {
     error.value = apiErrorMessage(e)
@@ -63,7 +69,7 @@ function poll() {
     try {
       const response = await resumesApi.getResume({ resumeId: props.id })
       resume.value = response.data
-      if (response.data.status === 'MATCHED' || response.data.status === 'MATCH_FAILED') {
+      if (!inProgress.value) {
         stopPolling()
         const rankingResponse = await resumeRankingApi.getResumeVacancyRanking({
           resumeId: props.id,
@@ -91,24 +97,22 @@ onBeforeUnmount(stopPolling)
   <section class="space-y-6">
     <header class="flex flex-wrap items-end justify-between gap-3">
       <div>
-        <p class="text-xs font-medium uppercase tracking-wide text-indigo-600">Вакансии под резюме</p>
+        <p class="text-xs font-medium uppercase tracking-wide text-indigo-600">Резюме</p>
         <h1 class="text-2xl font-semibold tracking-tight text-slate-900">
-          Рейтинг вакансий
+          Подходящие вакансии
         </h1>
         <p class="mt-1 text-sm text-slate-500">
-          Резюме {{ props.id.slice(0, 8) }}… · статус {{ resume?.status ?? '—' }}
+          Резюме {{ props.id.slice(0, 8) }}… · статус
+          {{ resume ? resumeStatusLabel(resume.status) : '—' }}
         </p>
       </div>
       <div class="flex flex-wrap items-center gap-2">
-        <RouterLink class="btn-secondary" to="/analyses">
+        <RouterLink class="btn-secondary" to="/resumes">
           <ArrowLeft :size="16" />
-          Все разборы
+          Все резюме
         </RouterLink>
-        <RouterLink
-          class="btn-secondary"
-          :to="{ path: '/match', query: { mode: 'vacancies' } }"
-        >
-          Загрузить ещё
+        <RouterLink class="btn-secondary" to="/resumes?upload=1">
+          Добавить резюме
         </RouterLink>
         <button
           class="btn-primary"
@@ -118,7 +122,7 @@ onBeforeUnmount(stopPolling)
         >
           <Loader2 v-if="matching" :size="16" class="animate-spin" />
           <RefreshCcw v-else :size="16" />
-          Пересчитать без LLM
+          Обновить рейтинг
         </button>
       </div>
     </header>
@@ -126,8 +130,8 @@ onBeforeUnmount(stopPolling)
     <p v-if="error" class="rounded-xl bg-rose-50 px-4 py-3 text-sm text-rose-700">{{ error }}</p>
 
     <p class="text-xs text-slate-500">
-      «Пересчитать без LLM» — повторный матчинг по сохранённому разбору резюме: без обращения к
-      модели, нужен после добавления новых вакансий.
+      «Обновить рейтинг» пересчитывает совпадения по уже сохранённому разбору резюме: LLM не
+      вызывается. Это нужно после добавления новых вакансий.
     </p>
 
     <div
@@ -150,7 +154,7 @@ onBeforeUnmount(stopPolling)
       v-else-if="!ranking?.items?.length"
       class="rounded-3xl border border-dashed border-slate-300 px-6 py-12 text-center text-sm text-slate-500"
     >
-      Пока нет оценённых вакансий. Убедитесь, что в системе есть вакансии.
+      Пока нет оценённых вакансий. Добавьте вакансию и обновите рейтинг.
     </div>
     <div v-else class="overflow-hidden rounded-3xl border border-slate-200 bg-white shadow-sm">
       <table class="w-full text-left text-sm">

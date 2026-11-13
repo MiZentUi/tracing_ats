@@ -110,11 +110,13 @@ onMounted(load)
       <div>
         <p class="section-label">Рабочее пространство</p>
         <h1 class="mt-1 text-3xl font-semibold tracking-tight text-slate-900">Вакансии</h1>
-        <p class="mt-1 text-sm text-slate-500">Шаблоны требований, типы навыков и история расстановки HR.</p>
+        <p class="mt-1 text-sm text-slate-500">
+          Шаблоны требований и кандидаты, которые подходят под каждую вакансию.
+        </p>
       </div>
       <RouterLink to="/vacancies/new" class="btn-primary">
         <Plus :size="18" />
-        Создать вакансию
+        Добавить вакансию
       </RouterLink>
     </div>
 
@@ -133,7 +135,7 @@ onMounted(load)
           <CheckCircle2 :size="20" />
         </span>
         <div>
-          <p class="text-xs font-medium uppercase tracking-wide text-slate-400">Подтверждено</p>
+          <p class="text-xs font-medium uppercase tracking-wide text-slate-400">Шаблон установлен</p>
           <p class="text-2xl font-semibold text-slate-900">{{ confirmedPercent }}%</p>
         </div>
       </div>
@@ -158,7 +160,7 @@ onMounted(load)
           <select v-model="statusFilter" class="input lg:w-40" aria-label="Фильтр по статусу">
             <option value="ALL">Все статусы</option>
             <option value="DRAFT">Черновики</option>
-            <option value="ACTIVE">Подтверждённые</option>
+            <option value="ACTIVE">Шаблон установлен</option>
           </select>
           <select v-model="specializationFilter" class="input lg:w-44" aria-label="Фильтр по специализации">
             <option value="ALL">Все специализации</option>
@@ -194,11 +196,11 @@ onMounted(load)
       </span>
       <h2 class="mt-4 text-lg font-semibold text-slate-900">Вакансий пока нет</h2>
       <p class="mt-1 max-w-md text-sm text-slate-500">
-        Загрузите описание вакансии — модель разложит его на требования, а вы поправите типы навыков.
+        Добавьте описание вакансии — модель выделит требования, а вы назначите приоритеты.
       </p>
       <RouterLink to="/vacancies/new" class="btn-primary mt-5">
         <Plus :size="18" />
-        Создать первую вакансию
+        Добавить первую вакансию
       </RouterLink>
     </div>
 
@@ -239,17 +241,25 @@ onMounted(load)
               <td class="px-4 py-4 text-slate-600">{{ levelLabel(item.level) }}</td>
               <td class="px-4 py-4">
                 <span :class="item.is_confirmed ? 'badge-success' : 'badge-warning'">
-                  {{ item.is_confirmed ? 'Подтверждена' : 'Черновик' }}
+                  {{ item.is_confirmed ? 'Шаблон установлен' : 'Черновик' }}
                 </span>
               </td>
               <td class="px-4 py-4 text-center">
                 <span class="badge-neutral">{{ item.requirements_count }}</span>
               </td>
               <td class="px-4 py-4 text-slate-500">{{ formatDate(item.created_at) }}</td>
-              <td class="px-4 py-4 text-right">
-                <button class="icon-btn text-slate-400 hover:bg-red-50 hover:text-red-600" title="Удалить вакансию" @click="askDelete(item)">
-                  <Trash2 :size="16" />
-                </button>
+              <td class="px-4 py-4">
+                <div class="flex items-center justify-end gap-3">
+                  <RouterLink
+                    :to="`/vacancies/${item.id}/candidates`"
+                    class="text-sm font-medium text-indigo-600 hover:text-indigo-700"
+                  >
+                    Подобрать кандидатов
+                  </RouterLink>
+                  <button class="icon-btn text-slate-400 hover:bg-red-50 hover:text-red-600" title="Удалить вакансию" @click="askDelete(item)">
+                    <Trash2 :size="16" />
+                  </button>
+                </div>
               </td>
             </tr>
           </tbody>
@@ -268,14 +278,22 @@ onMounted(load)
               </p>
             </div>
             <span :class="item.is_confirmed ? 'badge-success' : 'badge-warning'">
-              {{ item.is_confirmed ? 'Подтверждена' : 'Черновик' }}
+              {{ item.is_confirmed ? 'Шаблон установлен' : 'Черновик' }}
             </span>
           </div>
           <div class="mt-3 flex items-center justify-between text-xs text-slate-500">
             <span>Требований: {{ item.requirements_count }} · {{ formatDate(item.created_at) }}</span>
-            <button class="icon-btn text-slate-400 hover:bg-red-50 hover:text-red-600" title="Удалить вакансию" @click="askDelete(item)">
-              <Trash2 :size="16" />
-            </button>
+            <div class="flex items-center gap-2">
+              <RouterLink
+                :to="`/vacancies/${item.id}/candidates`"
+                class="font-medium text-indigo-600 hover:text-indigo-700"
+              >
+                Подобрать
+              </RouterLink>
+              <button class="icon-btn text-slate-400 hover:bg-red-50 hover:text-red-600" title="Удалить вакансию" @click="askDelete(item)">
+                <Trash2 :size="16" />
+              </button>
+            </div>
           </div>
         </div>
       </div>

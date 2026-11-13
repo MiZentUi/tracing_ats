@@ -13,7 +13,7 @@ import ToastHost from '@/components/ToastHost.vue'
           </span>
           <span>
             <span class="block text-sm font-semibold tracking-tight text-slate-900">Tracing ATS</span>
-            <span class="block text-xs text-slate-500">Вакансии и шаблоны</span>
+            <span class="block text-xs text-slate-500">Вакансии и резюме</span>
           </span>
         </RouterLink>
 
@@ -26,18 +26,11 @@ import ToastHost from '@/components/ToastHost.vue'
             Вакансии
           </RouterLink>
           <RouterLink
-            to="/match"
+            to="/resumes"
             class="rounded-xl px-3 py-2 text-sm font-medium text-slate-600 transition hover:bg-slate-100 hover:text-slate-900"
             active-class="bg-slate-100 !text-slate-900"
           >
-            Подбор
-          </RouterLink>
-          <RouterLink
-            to="/analyses"
-            class="rounded-xl px-3 py-2 text-sm font-medium text-slate-600 transition hover:bg-slate-100 hover:text-slate-900"
-            active-class="bg-slate-100 !text-slate-900"
-          >
-            Разборы
+            Резюме
           </RouterLink>
         </nav>
 
