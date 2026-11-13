@@ -20,7 +20,7 @@ import type {
 import { apiErrorMessage, referenceApi, vacanciesApi } from '@/api'
 import ConfirmDialog from '@/components/ConfirmDialog.vue'
 import { useToast } from '@/composables/useToast'
-import { formatDate } from '@/lib/format'
+import { formatDate, requirementsCount } from '@/lib/format'
 import { levelLabel } from '@/types'
 
 const { success, error: toastError } = useToast()
@@ -328,7 +328,7 @@ onMounted(load)
           <div class="mt-4 flex flex-wrap gap-1.5">
             <span v-if="item.is_confirmed" class="badge-info">Шаблон</span>
             <span class="badge-neutral">{{ levelLabel(item.level) }}</span>
-            <span class="badge-neutral">{{ item.requirements_count }} требований</span>
+            <span class="badge-neutral">{{ requirementsCount(item.requirements_count) }}</span>
           </div>
 
           <div class="mt-auto flex items-center justify-between gap-3 border-t border-slate-100 pt-4">

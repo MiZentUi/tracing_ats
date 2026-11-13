@@ -77,7 +77,7 @@ function updateKind(event: Event) {
           type="number"
           min="0"
           max="50"
-          step="0.5"
+          step="1"
           class="w-14 rounded-md border border-slate-300 px-1.5 py-1 text-sm text-slate-900 outline-none focus:border-indigo-500"
           aria-label="Лет опыта"
           @input="updateYears"

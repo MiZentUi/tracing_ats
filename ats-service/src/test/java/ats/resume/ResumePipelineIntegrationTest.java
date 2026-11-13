@@ -2,6 +2,7 @@ package ats.resume;
 
 import static org.assertj.core.api.Assertions.assertThat;
 
+import ats.gateway.model.ReportDecisionRequest;
 import ats.gateway.model.UpdateResumeRequest;
 import ats.resume.domain.ingestion.UploadOutcome;
 import ats.resume.domain.scoring.ParsedResume;
@@ -30,6 +31,7 @@ import ats.resume.infrastructure.pii.ner.NerEntity;
 import ats.resume.infrastructure.pii.ner.NerModel;
 import ats.resume.infrastructure.ranking.RankingService;
 import ats.resume.infrastructure.ranking.ResumeRankingService;
+import ats.resume.infrastructure.report.ReportDecisionService;
 import ats.resume.infrastructure.report.ReportService;
 import ats.resume.infrastructure.report.RevealService;
 import ats.resume.infrastructure.screening.ResumeMatchService;
@@ -74,6 +76,7 @@ class ResumePipelineIntegrationTest {
     @Autowired private ResumeMatchService resumeMatchService;
     @Autowired private ResumeRepository resumeRepository;
     @Autowired private ReportService reportService;
+    @Autowired private ReportDecisionService reportDecisionService;
     @Autowired private RevealService revealService;
 
     @Test
@@ -318,6 +321,47 @@ class ResumePipelineIntegrationTest {
                 .contains("[PII_EMAIL_1]");
         assertThat(parsed.getMaskedText()).contains("6 years");
         awaitResumeStatus(outcome.resumeId(), "MATCHED", Duration.ofSeconds(10));
+    }
+
+    @Test
+    void savesHrDecisionForReport() {
+        String text =
+                """
+                Иван Петров
+                Email: ivan.petrov@example.com
+                Опыт работы
+                Java developer with 5 years.
+                """;
+        UploadOutcome outcome =
+                ingestionService.ingest(
+                        null,
+                        false,
+                        new MockMultipartFile(
+                                "files",
+                                "resume.txt",
+                                "text/plain",
+                                text.getBytes(StandardCharsets.UTF_8)));
+        awaitResumeStatus(outcome.resumeId(), "MATCHED", Duration.ofSeconds(10));
+        UUID vacancyId =
+                resumeRankingService
+                        .ranking(outcome.resumeId(), "PRELIMINARY")
+                        .items()
+                        .getFirst()
+                        .vacancyId();
+
+        reportDecisionService.save(
+                outcome.resumeId(),
+                vacancyId,
+                new ReportDecisionRequest()
+                        .decision(ReportDecisionRequest.DecisionEnum.SHORTLISTED)
+                        .comment("Пригласить на интервью"));
+
+        ReportService.ReportView report =
+                reportService
+                        .reportForMatch(outcome.resumeId(), vacancyId, "PRELIMINARY")
+                        .orElseThrow();
+        assertThat(report.hrDecision()).isEqualTo("SHORTLISTED");
+        assertThat(report.hrComment()).isEqualTo("Пригласить на интервью");
     }
 
     private ApplicationEntity awaitStatus(UUID applicationId, String status, Duration timeout) {

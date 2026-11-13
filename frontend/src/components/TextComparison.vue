@@ -1,11 +1,20 @@
 <script setup lang="ts">
 import { computed } from 'vue'
+import { Eye, EyeOff, Loader2 } from '@lucide/vue'
 import type { RequirementReportItem } from '@/api/generated'
 
 const props = defineProps<{
   vacancyText: string
   resumeText: string
   requirements: RequirementReportItem[]
+  resumeId?: string
+  resumeRevealed?: boolean
+  revealing?: boolean
+}>()
+
+const emit = defineEmits<{
+  reveal: []
+  hide: []
 }>()
 
 const matched = computed(() =>
@@ -88,10 +97,10 @@ function segments(text: string, terms: string[]): Segment[] {
     <h2 class="text-base font-semibold text-slate-900">Сравнение текстов</h2>
     <div class="grid gap-4 lg:grid-cols-2">
       <article class="rounded-xl border border-slate-200 bg-white">
-        <header class="border-b border-slate-100 px-4 py-3">
+        <header class="flex items-center justify-between gap-2 border-b border-slate-100 px-4 py-3">
           <p class="text-xs font-medium uppercase tracking-wide text-indigo-600">Вакансия</p>
         </header>
-        <div class="max-h-[32rem] overflow-auto px-4 py-3">
+        <div class="px-4 py-3">
           <pre
             v-if="vacancyText"
             class="whitespace-pre-wrap font-mono text-sm leading-6 text-slate-800"
@@ -104,10 +113,30 @@ function segments(text: string, terms: string[]): Segment[] {
       </article>
 
       <article class="rounded-xl border border-slate-200 bg-white">
-        <header class="border-b border-slate-100 px-4 py-3">
+        <header class="flex items-center justify-between gap-2 border-b border-slate-100 px-4 py-3">
           <p class="text-xs font-medium uppercase tracking-wide text-indigo-600">Резюме</p>
+          <button
+            v-if="resumeId && !resumeRevealed"
+            type="button"
+            class="btn-secondary px-2.5 py-1 text-xs"
+            :disabled="revealing"
+            @click="emit('reveal')"
+          >
+            <Loader2 v-if="revealing" :size="13" class="animate-spin" />
+            <Eye v-else :size="13" />
+            Показать персональные данные
+          </button>
+          <button
+            v-else-if="resumeRevealed"
+            type="button"
+            class="btn-secondary px-2.5 py-1 text-xs"
+            @click="emit('hide')"
+          >
+            <EyeOff :size="13" />
+            Скрыть персональные данные
+          </button>
         </header>
-        <div class="max-h-[32rem] overflow-auto px-4 py-3">
+        <div class="px-4 py-3">
           <pre
             v-if="resumeText"
             class="whitespace-pre-wrap font-mono text-sm leading-6 text-slate-800"

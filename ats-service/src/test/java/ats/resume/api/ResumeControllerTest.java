@@ -4,12 +4,14 @@ import static org.assertj.core.api.Assertions.assertThat;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyBoolean;
 import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
 import ats.gateway.model.ResumeBatchUploadResponse;
 import ats.gateway.model.ResumeList;
 import ats.gateway.model.ResumeUploadResult;
 import ats.resume.domain.ingestion.UploadOutcome;
+import ats.resume.infrastructure.edit.ResumeDeleteService;
 import ats.resume.infrastructure.edit.ResumeEditService;
 import ats.resume.infrastructure.ingestion.ResumeIngestionService;
 import ats.resume.infrastructure.ingestion.ResumeQueryService;
@@ -48,6 +50,7 @@ class ResumeControllerTest {
                                 ingestion,
                                 query,
                                 mock(ResumeEditService.class),
+                                mock(ResumeDeleteService.class),
                                 mock(ats.resume.infrastructure.report.RevealService.class))
                         .listResumes(10, 0);
 
@@ -77,6 +80,7 @@ class ResumeControllerTest {
                                 ingestion,
                                 query,
                                 mock(ResumeEditService.class),
+                                mock(ResumeDeleteService.class),
                                 mock(ats.resume.infrastructure.report.RevealService.class))
                         .getResumeText(resumeId);
 
@@ -108,6 +112,7 @@ class ResumeControllerTest {
                                 ingestion,
                                 query,
                                 edit,
+                                mock(ResumeDeleteService.class),
                                 mock(ats.resume.infrastructure.report.RevealService.class))
                         .updateResume(
                                 resumeId,
@@ -116,6 +121,26 @@ class ResumeControllerTest {
         assertThat(response.getStatusCode().value()).isEqualTo(200);
         assertThat(response.getBody()).isNotNull();
         assertThat(response.getBody().getTitle()).isEqualTo("Java Engineer");
+    }
+
+    @Test
+    void deletesResume() {
+        ResumeIngestionService ingestion = mock(ResumeIngestionService.class);
+        ResumeQueryService query = mock(ResumeQueryService.class);
+        ResumeDeleteService delete = mock(ResumeDeleteService.class);
+        UUID resumeId = UUID.randomUUID();
+
+        ResponseEntity<Void> response =
+                new ResumeController(
+                                ingestion,
+                                query,
+                                mock(ResumeEditService.class),
+                                delete,
+                                mock(ats.resume.infrastructure.report.RevealService.class))
+                        .deleteResume(resumeId);
+
+        assertThat(response.getStatusCode().value()).isEqualTo(204);
+        verify(delete).delete(resumeId);
     }
 
     @Test
@@ -139,6 +164,7 @@ class ResumeControllerTest {
                                 ingestion,
                                 query,
                                 mock(ResumeEditService.class),
+                                mock(ResumeDeleteService.class),
                                 mock(ats.resume.infrastructure.report.RevealService.class))
                         .uploadResumes(List.of(file), vacancyId, false);
 

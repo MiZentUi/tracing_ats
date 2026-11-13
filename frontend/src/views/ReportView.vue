@@ -2,11 +2,17 @@
 import { computed, onMounted, ref } from 'vue'
 import { useRoute } from 'vue-router'
 import { ArrowLeft, LockKeyholeOpen } from '@lucide/vue'
-import type { ApplicationReport, RevealedCandidate } from '@/api/generated'
+import type {
+  ApplicationReport,
+  ReportDecisionRequestDecisionEnum,
+  RevealedCandidate,
+} from '@/api/generated'
 import { apiErrorMessage, reportsApi, resumesApi, vacanciesApi } from '@/api'
+import AppModal from '@/components/AppModal.vue'
 import RevealPiiDialog from '@/components/RevealPiiDialog.vue'
 import TextComparison from '@/components/TextComparison.vue'
 import { useToast } from '@/composables/useToast'
+import { requirementsCount } from '@/lib/format'
 import { decisionLabel, kindLabel } from '@/lib/labels'
 
 const route = useRoute()
@@ -16,6 +22,14 @@ const report = ref<ApplicationReport | null>(null)
 const revealed = ref<RevealedCandidate | null>(null)
 const vacancyText = ref('')
 const resumeText = ref('')
+const revealedResumeText = ref('')
+const resumeRevealOpen = ref(false)
+const resumeRevealing = ref(false)
+const decisionOpen = ref(false)
+const decisionValue = ref<ReportDecisionRequestDecisionEnum>('SHORTLISTED')
+const decisionComment = ref('')
+const decisionError = ref('')
+const savingDecision = ref(false)
 const loading = ref(true)
 const revealing = ref(false)
 const revealOpen = ref(false)
@@ -43,6 +57,13 @@ const analysisLink = computed(() => {
 })
 
 const analysisLabel = computed(() => (report.value?.applicationId ? 'К вакансии' : 'К резюме'))
+const comparisonResumeText = computed(() => revealedResumeText.value || resumeText.value)
+
+const decisionOptions: Array<{ value: ReportDecisionRequestDecisionEnum; label: string }> = [
+  { value: 'SHORTLISTED', label: decisionLabel('SHORTLISTED') },
+  { value: 'BORDERLINE', label: decisionLabel('BORDERLINE') },
+  { value: 'NOT_SHORTLISTED', label: decisionLabel('NOT_SHORTLISTED') },
+]
 
 const statusLabel: Record<string, string> = {
   COVERED: 'Подтверждено',
@@ -140,6 +161,73 @@ function hideRevealed() {
   revealed.value = null
 }
 
+async function revealResume(reason: string) {
+  const value = report.value
+  if (!value?.resumeId) {
+    return
+  }
+  resumeRevealing.value = true
+  try {
+    const response = await resumesApi.revealResumeText({
+      resumeId: value.resumeId,
+      revealTextRequest: {
+        reason,
+        applicationId: value.applicationId ?? undefined,
+      },
+    })
+    revealedResumeText.value = response.data.text
+    resumeRevealOpen.value = false
+  } catch (e) {
+    const message = apiErrorMessage(e)
+    error.value = message
+    toastError('Не удалось показать персональные данные', message)
+  } finally {
+    resumeRevealing.value = false
+  }
+}
+
+function hideResumeReveal() {
+  revealedResumeText.value = ''
+}
+
+function openDecision() {
+  decisionValue.value = report.value?.hrDecision ?? 'SHORTLISTED'
+  decisionComment.value = report.value?.hrComment ?? ''
+  decisionError.value = ''
+  decisionOpen.value = true
+}
+
+async function saveDecision() {
+  const value = report.value
+  if (!value?.resumeId || !value.vacancyId || savingDecision.value) {
+    return
+  }
+  const comment = decisionComment.value.trim()
+  if (comment.length < 3) {
+    decisionError.value = 'Добавьте комментарий: минимум 3 символа'
+    return
+  }
+  savingDecision.value = true
+  decisionError.value = ''
+  try {
+    await reportsApi.saveReportDecision({
+      resumeId: value.resumeId,
+      vacancyId: value.vacancyId,
+      reportDecisionRequest: {
+        decision: decisionValue.value,
+        comment,
+      },
+    })
+    decisionOpen.value = false
+    success('Решение сохранено')
+    await load()
+  } catch (e) {
+    decisionError.value = apiErrorMessage(e)
+  } finally {
+    savingDecision.value = false
+  }
+}
+
 onMounted(load)
 </script>
 
@@ -149,7 +237,7 @@ onMounted(load)
       <div>
         <h1 class="text-2xl font-semibold tracking-tight text-slate-900">Отчёт о соответствии</h1>
         <p v-if="report" class="mt-1 text-sm text-slate-500">
-          {{ report.requirements?.length ?? 0 }} требований
+          {{ requirementsCount(report.requirements?.length ?? 0) }}
         </p>
       </div>
       <div class="flex items-center gap-2">
@@ -185,8 +273,14 @@ onMounted(load)
         <div class="rounded-xl border border-slate-200 bg-white p-5">
           <p class="text-xs uppercase tracking-wide text-slate-500">Решение</p>
           <p class="mt-2 text-lg font-semibold text-slate-900">
-            {{ report.decision ? decisionLabel(report.decision) : '—' }}
+            {{ report.hrDecision ? decisionLabel(report.hrDecision) : 'Не выбрано' }}
           </p>
+          <p v-if="report.hrComment" class="mt-1 text-sm text-slate-500">
+            {{ report.hrComment }}
+          </p>
+          <button class="btn-secondary mt-3 px-3 py-1.5 text-xs" @click="openDecision">
+            {{ report.hrDecision ? 'Изменить решение' : 'Выбрать решение' }}
+          </button>
         </div>
       </div>
 
@@ -238,8 +332,13 @@ onMounted(load)
       <TextComparison
         v-if="report.resumeId && report.vacancyId"
         :vacancy-text="vacancyText"
-        :resume-text="resumeText"
+        :resume-text="comparisonResumeText"
         :requirements="report.requirements"
+        :resume-id="report.resumeId"
+        :resume-revealed="!!revealedResumeText"
+        :revealing="resumeRevealing"
+        @reveal="resumeRevealOpen = true"
+        @hide="hideResumeReveal"
       />
     </template>
 
@@ -249,5 +348,51 @@ onMounted(load)
       @close="revealOpen = false"
       @confirm="reveal"
     />
+
+    <RevealPiiDialog
+      :open="resumeRevealOpen"
+      :submitting="resumeRevealing"
+      @close="resumeRevealOpen = false"
+      @confirm="revealResume"
+    />
+
+    <AppModal
+      :open="decisionOpen"
+      title="Решение по отчёту"
+      description="Выберите решение и добавьте комментарий."
+      @close="decisionOpen = false"
+    >
+      <div class="space-y-4">
+        <div>
+          <label class="label" for="report-decision">Решение</label>
+          <select id="report-decision" v-model="decisionValue" class="input">
+            <option v-for="option in decisionOptions" :key="option.value" :value="option.value">
+              {{ option.label }}
+            </option>
+          </select>
+        </div>
+        <div>
+          <label class="label" for="report-comment">Комментарий</label>
+          <textarea
+            id="report-comment"
+            v-model="decisionComment"
+            class="textarea min-h-28"
+            maxlength="2000"
+            placeholder="Почему выбрано это решение"
+          />
+        </div>
+        <p v-if="decisionError" class="rounded-lg bg-rose-50 px-3 py-2 text-sm text-rose-700">
+          {{ decisionError }}
+        </p>
+        <div class="flex justify-end gap-2">
+          <button class="btn-secondary" :disabled="savingDecision" @click="decisionOpen = false">
+            Отмена
+          </button>
+          <button class="btn-primary" :disabled="savingDecision" @click="saveDecision">
+            {{ savingDecision ? 'Сохраняем…' : 'Сохранить' }}
+          </button>
+        </div>
+      </div>
+    </AppModal>
   </section>
 </template>

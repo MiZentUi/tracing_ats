@@ -401,6 +401,21 @@ paths:
           $ref: "#/components/responses/unprocessable"
         default:
           $ref: "#/components/responses/default"
+    delete:
+      tags:
+        - Resumes
+      summary: Удалить резюме
+      description: Удаляет резюме, связанные PII, разбор, скоры и отклики.
+      operationId: deleteResume
+      parameters:
+        - $ref: "#/components/parameters/ResumeId"
+      responses:
+        "204":
+          description: Резюме удалено
+        "404":
+          description: Не найдено
+        default:
+          $ref: "#/components/responses/default"
 
   /resumes/{resumeId}/text:
     get:
@@ -514,6 +529,35 @@ paths:
                 $ref: "#/components/schemas/ApplicationReport"
         "404":
           description: Не найдено
+        default:
+          $ref: "#/components/responses/default"
+
+  /resumes/{resumeId}/vacancies/{vacancyId}/decision:
+    put:
+      tags:
+        - Reports
+      summary: Сохранить решение HR по отчёту
+      operationId: saveReportDecision
+      parameters:
+        - $ref: "#/components/parameters/ResumeId"
+        - $ref: "#/components/parameters/VacancyPathId"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/ReportDecisionRequest"
+      responses:
+        "200":
+          description: Решение сохранено
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ReportDecision"
+        "404":
+          description: Не найдено
+        "422":
+          $ref: "#/components/responses/unprocessable"
         default:
           $ref: "#/components/responses/default"
 
@@ -1425,6 +1469,16 @@ components:
             - SHORTLISTED
             - BORDERLINE
             - NOT_SHORTLISTED
+        hrDecision:
+          type: string
+          nullable: true
+          enum:
+            - SHORTLISTED
+            - BORDERLINE
+            - NOT_SHORTLISTED
+        hrComment:
+          type: string
+          nullable: true
         requirements:
           type: array
           items:
@@ -1439,6 +1493,49 @@ components:
             type: string
         blind:
           type: boolean
+
+    ReportDecisionRequest:
+      type: object
+      required:
+        - decision
+        - comment
+      properties:
+        decision:
+          type: string
+          enum:
+            - SHORTLISTED
+            - BORDERLINE
+            - NOT_SHORTLISTED
+        comment:
+          type: string
+          minLength: 3
+          maxLength: 2000
+
+    ReportDecision:
+      type: object
+      required:
+        - resumeId
+        - vacancyId
+        - decision
+        - comment
+      properties:
+        resumeId:
+          type: string
+          format: uuid
+        vacancyId:
+          type: string
+          format: uuid
+        decision:
+          type: string
+          enum:
+            - SHORTLISTED
+            - BORDERLINE
+            - NOT_SHORTLISTED
+        comment:
+          type: string
+        updatedAt:
+          type: string
+          format: date-time
 
     RequirementReportItem:
       type: object

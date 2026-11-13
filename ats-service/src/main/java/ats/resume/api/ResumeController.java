@@ -10,6 +10,7 @@ import ats.gateway.model.ResumeUploadResult;
 import ats.gateway.model.RevealTextRequest;
 import ats.gateway.model.UpdateResumeRequest;
 import ats.resume.domain.ingestion.UploadOutcome;
+import ats.resume.infrastructure.edit.ResumeDeleteService;
 import ats.resume.infrastructure.edit.ResumeEditService;
 import ats.resume.infrastructure.ingestion.ResumeIngestionService;
 import ats.resume.infrastructure.ingestion.ResumeQueryService;
@@ -32,6 +33,7 @@ public class ResumeController implements ResumesApi {
     private final ResumeIngestionService ingestionService;
     private final ResumeQueryService queryService;
     private final ResumeEditService editService;
+    private final ResumeDeleteService deleteService;
     private final RevealService revealService;
 
     @Override
@@ -80,6 +82,12 @@ public class ResumeController implements ResumesApi {
     public ResponseEntity<ResumeSummary> updateResume(
             UUID resumeId, UpdateResumeRequest updateResumeRequest) {
         return ResponseEntity.ok(summary(editService.update(resumeId, updateResumeRequest)));
+    }
+
+    @Override
+    public ResponseEntity<Void> deleteResume(UUID resumeId) {
+        deleteService.delete(resumeId);
+        return ResponseEntity.noContent().build();
     }
 
     @Override

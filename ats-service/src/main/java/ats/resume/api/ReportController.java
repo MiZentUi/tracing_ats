@@ -3,11 +3,15 @@ package ats.resume.api;
 import ats.api.ReportsApi;
 import ats.gateway.model.ApplicationReport;
 import ats.gateway.model.ExternalEvidenceItem;
+import ats.gateway.model.ReportDecision;
+import ats.gateway.model.ReportDecisionRequest;
 import ats.gateway.model.RequirementReportItem;
 import ats.gateway.model.RevealRequest;
 import ats.gateway.model.RevealedCandidate;
+import ats.resume.infrastructure.report.ReportDecisionService;
 import ats.resume.infrastructure.report.ReportService;
 import ats.resume.infrastructure.report.RevealService;
+import java.time.ZoneOffset;
 import java.util.UUID;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.ResponseEntity;
@@ -20,6 +24,7 @@ import org.springframework.web.bind.annotation.RestController;
 public class ReportController implements ReportsApi {
 
     private final ReportService reportService;
+    private final ReportDecisionService decisionService;
     private final RevealService revealService;
 
     @Override
@@ -37,6 +42,20 @@ public class ReportController implements ReportsApi {
                 .reportForMatch(resumeId, vacancyId, "PRELIMINARY")
                 .map(report -> ResponseEntity.ok(response(report)))
                 .orElseGet(() -> ResponseEntity.notFound().build());
+    }
+
+    @Override
+    public ResponseEntity<ReportDecision> saveReportDecision(
+            UUID resumeId, UUID vacancyId, ReportDecisionRequest reportDecisionRequest) {
+        ReportDecisionService.DecisionView view =
+                decisionService.save(resumeId, vacancyId, reportDecisionRequest);
+        return ResponseEntity.ok(
+                new ReportDecision()
+                        .resumeId(view.resumeId())
+                        .vacancyId(view.vacancyId())
+                        .decision(ReportDecision.DecisionEnum.valueOf(view.decision()))
+                        .comment(view.comment())
+                        .updatedAt(view.updatedAt().atOffset(ZoneOffset.UTC)));
     }
 
     @Override
@@ -73,6 +92,11 @@ public class ReportController implements ReportsApi {
                         report.decision() == null
                                 ? null
                                 : ApplicationReport.DecisionEnum.valueOf(report.decision()))
+                .hrDecision(
+                        report.hrDecision() == null
+                                ? null
+                                : ApplicationReport.HrDecisionEnum.valueOf(report.hrDecision()))
+                .hrComment(report.hrComment())
                 .requirements(report.requirements().stream().map(this::requirement).toList())
                 .externalEvidence(report.externalEvidence().stream().map(this::external).toList())
                 .flags(report.flags())

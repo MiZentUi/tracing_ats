@@ -9,12 +9,14 @@ import {
   Plus,
   RefreshCcw,
   Search,
+  Trash2,
   X,
 } from '@lucide/vue'
 import type { ResumeSummary } from '@/api/generated'
 import { apiErrorMessage, resumesApi } from '@/api'
+import ConfirmDialog from '@/components/ConfirmDialog.vue'
 import { useToast } from '@/composables/useToast'
-import { resumeDisplayTitle } from '@/lib/format'
+import { formatBytes, formatDate, resumeDisplayTitle } from '@/lib/format'
 import { resumeStatusClass, resumeStatusLabel } from '@/lib/labels'
 
 const { error: toastError } = useToast()
@@ -28,6 +30,8 @@ const appliedSearch = ref('')
 const filtersOpen = ref(false)
 const statusFilter = ref<'ALL' | 'PROCESSING' | 'READY' | 'PROBLEM'>('ALL')
 const appliedStatus = ref<'ALL' | 'PROCESSING' | 'READY' | 'PROBLEM'>('ALL')
+const deleteTarget = ref<ResumeSummary | null>(null)
+const deleting = ref(false)
 let timer: number | null = null
 
 const inProgress = computed(() =>
@@ -90,6 +94,27 @@ function resetFilters() {
   appliedSearch.value = ''
   appliedStatus.value = 'ALL'
   filtersOpen.value = false
+}
+
+function askDelete(item: ResumeSummary) {
+  deleteTarget.value = item
+}
+
+async function confirmDelete() {
+  const target = deleteTarget.value
+  if (!target || deleting.value) {
+    return
+  }
+  deleting.value = true
+  try {
+    await resumesApi.deleteResume({ resumeId: target.resumeId })
+    deleteTarget.value = null
+    await load(true)
+  } catch (e) {
+    error.value = apiErrorMessage(e)
+  } finally {
+    deleting.value = false
+  }
 }
 
 function stopPolling() {
@@ -254,12 +279,27 @@ onBeforeUnmount(stopPolling)
                 {{ resumeDisplayTitle(item.title, item.createdAt) }}
               </RouterLink>
             </div>
-            <span
-              class="shrink-0 rounded-md px-2 py-0.5 text-[11px] font-medium"
-              :class="resumeStatusClass(item.status)"
-            >
-              {{ resumeStatusLabel(item.status) }}
-            </span>
+            <div class="flex shrink-0 items-center gap-1">
+              <span
+                class="rounded-md px-2 py-0.5 text-[11px] font-medium"
+                :class="resumeStatusClass(item.status)"
+              >
+                {{ resumeStatusLabel(item.status) }}
+              </span>
+              <button
+                class="icon-btn h-8 w-8 text-slate-400 hover:bg-red-50 hover:text-red-600"
+                title="Удалить резюме"
+                @click="askDelete(item)"
+              >
+                <Trash2 :size="15" />
+              </button>
+            </div>
+          </div>
+
+          <div class="mt-3 flex flex-wrap gap-1.5">
+            <span class="badge-neutral">{{ item.fileType.toUpperCase() }}</span>
+            <span class="badge-neutral">{{ formatBytes(item.sizeBytes) }}</span>
+            <span class="badge-neutral">{{ formatDate(item.createdAt) }}</span>
           </div>
 
           <div class="mt-auto flex items-center justify-end border-t border-slate-100 pt-4">
@@ -274,5 +314,15 @@ onBeforeUnmount(stopPolling)
         </article>
       </div>
     </template>
+
+    <ConfirmDialog
+      :open="deleteTarget !== null"
+      title="Удалить резюме?"
+      :message="`Резюме «${deleteTarget ? resumeDisplayTitle(deleteTarget.title, deleteTarget.createdAt) : ''}» будет удалено без возможности восстановления.`"
+      confirm-label="Удалить"
+      danger
+      @cancel="deleteTarget = null"
+      @confirm="confirmDelete"
+    />
   </section>
 </template>

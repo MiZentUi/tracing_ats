@@ -16,6 +16,7 @@ import type { ReferenceItem, Specialization, Vacancy, VacancySummary } from '@/a
 import { apiErrorMessage, referenceApi, vacanciesApi } from '@/api'
 import AppModal from '@/components/AppModal.vue'
 import { useToast } from '@/composables/useToast'
+import { requirementsCount } from '@/lib/format'
 
 const router = useRouter()
 const { success, error: toastError } = useToast()
@@ -280,7 +281,7 @@ async function submit() {
             <select v-model="templateId" class="input" aria-label="Шаблон вакансии">
               <option value="">Без шаблона</option>
               <option v-for="item in templates" :key="item.id" :value="item.id">
-                {{ item.title || 'Без названия' }} · {{ item.requirements_count }} требований
+                {{ item.title || 'Без названия' }} · {{ requirementsCount(item.requirements_count) }}
               </option>
             </select>
             <button

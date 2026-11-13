@@ -123,10 +123,6 @@ function onMove(event: Event, item: EditableRequirement) {
 
 <template>
   <div class="space-y-4">
-    <p class="text-xs text-slate-500">
-      Перетаскивайте карточки между колонками. Все поля требования доступны прямо на доске.
-    </p>
-
     <div class="grid gap-4 lg:grid-cols-3">
       <section
         v-for="column in columns"
@@ -194,7 +190,7 @@ function onMove(event: Event, item: EditableRequirement) {
                       type="number"
                       min="0"
                       max="50"
-                      step="0.5"
+                      step="1"
                       class="w-12 rounded-md border border-slate-300 px-1.5 py-1 text-xs text-slate-900 outline-none focus:border-indigo-500"
                       aria-label="Лет опыта"
                       @input="updateYears($event, item)"

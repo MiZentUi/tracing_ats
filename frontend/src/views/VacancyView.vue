@@ -11,7 +11,7 @@ import { apiErrorMessage, rankingApi, referenceApi, vacanciesApi } from '@/api'
 import MarkdownText from '@/components/MarkdownText.vue'
 import { useToast } from '@/composables/useToast'
 import { decisionLabel } from '@/lib/labels'
-import { resumeDisplayTitle } from '@/lib/format'
+import { requirementsCount, resumeDisplayTitle } from '@/lib/format'
 import { levelLabel } from '@/types'
 
 const props = defineProps<{ id: string }>()
@@ -198,7 +198,7 @@ onMounted(() => load())
               <div>
                 <dt class="text-xs uppercase tracking-wide text-slate-400">Требований</dt>
                 <dd class="mt-1 font-medium text-slate-900">
-                  {{ vacancy.template.requirements.length }}
+                  {{ requirementsCount(vacancy.template.requirements.length) }}
                 </dd>
               </div>
             </dl>

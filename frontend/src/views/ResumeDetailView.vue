@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { computed, onBeforeUnmount, onMounted, ref } from 'vue'
+import { computed, nextTick, onBeforeUnmount, onMounted, ref } from 'vue'
 import {
   ArrowLeft,
   Eye,
@@ -7,7 +7,6 @@ import {
   Loader2,
   Pencil,
   RefreshCcw,
-  ShieldCheck,
 } from '@lucide/vue'
 import type {
   ResumeFullText,
@@ -16,7 +15,6 @@ import type {
   ResumeVacancyRankingResponse,
 } from '@/api/generated'
 import { apiErrorMessage, resumeRankingApi, resumesApi } from '@/api'
-import AppModal from '@/components/AppModal.vue'
 import RevealPiiDialog from '@/components/RevealPiiDialog.vue'
 import { useToast } from '@/composables/useToast'
 import { resumeDisplayTitle } from '@/lib/format'
@@ -38,6 +36,7 @@ const pendingEdit = ref(false)
 const editOpen = ref(false)
 const editTitle = ref('')
 const editText = ref('')
+const editTextarea = ref<HTMLTextAreaElement | null>(null)
 const editSubmitting = ref(false)
 const error = ref('')
 let timer: number | null = null
@@ -54,6 +53,21 @@ const inProgress = computed(() => {
 
 const vacancies = computed(() => ranking.value?.items ?? [])
 const displayText = computed(() => revealed.value?.text ?? resumeText.value?.maskedText ?? '')
+
+function resizeEdit() {
+  const element = editTextarea.value
+  if (!element) {
+    return
+  }
+  element.style.height = 'auto'
+  element.style.height = `${element.scrollHeight}px`
+}
+
+function openEditor(text: string) {
+  editText.value = text
+  editOpen.value = true
+  void nextTick(resizeEdit)
+}
 
 async function load() {
   loading.value = true
@@ -132,8 +146,7 @@ function stopPolling() {
 function startEdit() {
   editTitle.value = resume.value?.title ?? ''
   if (revealed.value?.text) {
-    editText.value = revealed.value.text
-    editOpen.value = true
+    openEditor(revealed.value.text)
     return
   }
   pendingEdit.value = true
@@ -151,8 +164,7 @@ async function reveal(reason: string) {
     revealReason.value = reason
     revealOpen.value = false
     if (pendingEdit.value) {
-      editText.value = response.data.text
-      editOpen.value = true
+      openEditor(response.data.text)
       pendingEdit.value = false
     }
   } catch (e) {
@@ -258,18 +270,37 @@ onBeforeUnmount(stopPolling)
         <div class="space-y-5">
           <article class="card p-5">
             <div class="flex flex-wrap items-start justify-between gap-4">
-              <div class="min-w-0">
-                <h1 class="text-2xl font-semibold tracking-tight text-slate-900">
-                  {{ resumeDisplayTitle(resume.title, resume.createdAt) }}
-                </h1>
-                <span
-                  class="mt-2 inline-flex rounded-md px-2 py-0.5 text-xs font-medium"
-                  :class="resumeStatusClass(resume.status)"
-                >
-                  {{ resumeStatusLabel(resume.status) }}
-                </span>
+              <div class="min-w-0 flex-1">
+                <template v-if="editOpen">
+                  <label class="label" for="resume-title">Название</label>
+                  <input id="resume-title" v-model="editTitle" class="input" maxlength="255" />
+                </template>
+                <template v-else>
+                  <h1 class="text-2xl font-semibold tracking-tight text-slate-900">
+                    {{ resumeDisplayTitle(resume.title, resume.createdAt) }}
+                  </h1>
+                  <span
+                    class="mt-2 inline-flex rounded-md px-2 py-0.5 text-xs font-medium"
+                    :class="resumeStatusClass(resume.status)"
+                  >
+                    {{ resumeStatusLabel(resume.status) }}
+                  </span>
+                </template>
               </div>
-              <button class="btn-secondary shrink-0" :disabled="inProgress" @click="startEdit">
+              <div v-if="editOpen" class="flex shrink-0 gap-2">
+                <button class="btn-secondary" :disabled="editSubmitting" @click="cancelEdit">
+                  Отмена
+                </button>
+                <button class="btn-primary" :disabled="editSubmitting" @click="saveEdit">
+                  {{ editSubmitting ? 'Сохраняем…' : 'Сохранить' }}
+                </button>
+              </div>
+              <button
+                v-else
+                class="btn-secondary shrink-0"
+                :disabled="inProgress"
+                @click="startEdit"
+              >
                 <Pencil :size="16" />
                 Редактировать
               </button>
@@ -279,20 +310,22 @@ onBeforeUnmount(stopPolling)
           <article class="card overflow-hidden">
             <div class="flex items-center justify-between gap-3 border-b border-slate-100 px-5 py-4">
               <h2 class="text-base font-semibold text-slate-900">Текст резюме</h2>
-              <button
-                v-if="!revealed"
-                class="btn-secondary"
-                :disabled="revealing"
-                @click="revealOpen = true"
-              >
-                <Loader2 v-if="revealing" :size="16" class="animate-spin" />
-                <Eye v-else :size="16" />
-                Показать персональные данные
-              </button>
-              <button v-else class="btn-secondary" @click="hideRevealed">
-                <EyeOff :size="16" />
-                Скрыть персональные данные
-              </button>
+              <template v-if="!editOpen">
+                <button
+                  v-if="!revealed"
+                  class="btn-secondary"
+                  :disabled="revealing"
+                  @click="revealOpen = true"
+                >
+                  <Loader2 v-if="revealing" :size="16" class="animate-spin" />
+                  <Eye v-else :size="16" />
+                  Показать персональные данные
+                </button>
+                <button v-else class="btn-secondary" @click="hideRevealed">
+                  <EyeOff :size="16" />
+                  Скрыть персональные данные
+                </button>
+              </template>
             </div>
             <div
               v-if="resumeText?.warnings?.length"
@@ -300,7 +333,15 @@ onBeforeUnmount(stopPolling)
             >
               {{ resumeText.warnings.join(', ') }}
             </div>
-            <div class="whitespace-pre-wrap px-5 py-4 text-sm leading-6 text-slate-700">
+            <textarea
+              v-if="editOpen"
+              ref="editTextarea"
+              v-model="editText"
+              class="min-h-72 w-full resize-none overflow-hidden border-0 bg-transparent px-5 py-4 font-mono text-sm leading-6 text-slate-700 outline-none"
+              aria-label="Текст резюме"
+              @input="resizeEdit"
+            />
+            <div v-else class="whitespace-pre-wrap px-5 py-4 text-sm leading-6 text-slate-700">
               {{ displayText || 'Текст резюме недоступен' }}
             </div>
           </article>
@@ -316,7 +357,7 @@ onBeforeUnmount(stopPolling)
               <button class="btn-primary mt-3 w-full" :disabled="matching || inProgress" @click="rematch">
                 <Loader2 v-if="matching" :size="16" class="animate-spin" />
                 <RefreshCcw v-else :size="16" />
-                Обновить подбор
+                Подобрать вакансии
               </button>
             </div>
 
@@ -374,40 +415,5 @@ onBeforeUnmount(stopPolling)
       @close="closeReveal"
       @confirm="reveal"
     />
-
-    <AppModal
-      :open="editOpen"
-      title="Редактировать резюме"
-      description="Обновите название или текст резюме."
-      @close="cancelEdit"
-    >
-      <div class="space-y-4">
-        <div>
-          <label class="label" for="resume-title">Название</label>
-          <input id="resume-title" v-model="editTitle" class="input" maxlength="255" />
-        </div>
-        <div>
-          <label class="label" for="resume-text">Текст резюме</label>
-          <textarea
-            id="resume-text"
-            v-model="editText"
-            class="textarea min-h-72"
-          />
-        </div>
-        <p v-if="error" class="rounded-lg bg-rose-50 px-3 py-2 text-sm text-rose-700">
-          {{ error }}
-        </p>
-        <div class="flex justify-end gap-2">
-          <button class="btn-secondary" :disabled="editSubmitting" @click="cancelEdit">
-            Отмена
-          </button>
-          <button class="btn-primary" :disabled="editSubmitting" @click="saveEdit">
-            <Loader2 v-if="editSubmitting" :size="16" class="animate-spin" />
-            <ShieldCheck v-else :size="16" />
-            {{ editSubmitting ? 'Сохраняем…' : 'Сохранить' }}
-          </button>
-        </div>
-      </div>
-    </AppModal>
   </section>
 </template>

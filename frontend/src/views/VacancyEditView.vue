@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { computed, nextTick, onMounted, ref } from 'vue'
+import { computed, nextTick, onMounted, ref, watch } from 'vue'
 import { onBeforeRouteLeave, useRouter } from 'vue-router'
 import {
   AlertTriangle,
@@ -32,6 +32,7 @@ const vacancy = ref<Vacancy | null>(null)
 const requirements = ref<EditableRequirement[]>([])
 const title = ref('')
 const sourceTextDraft = ref('')
+const sourceTextarea = ref<HTMLTextAreaElement | null>(null)
 const specialization = ref('')
 const level = ref('none')
 const specializations = ref<Specialization[]>([])
@@ -57,6 +58,19 @@ const needsLevel = computed(
 )
 
 const isConfirmed = computed(() => vacancy.value?.template.is_confirmed === true)
+
+function resizeSource() {
+  const element = sourceTextarea.value
+  if (!element) {
+    return
+  }
+  element.style.height = 'auto'
+  element.style.height = `${element.scrollHeight}px`
+}
+
+watch(sourceTextDraft, () => {
+  void nextTick(resizeSource)
+})
 
 function serialize() {
   return JSON.stringify({
@@ -94,6 +108,7 @@ function apply(value: Vacancy) {
   level.value = value.level
   requirements.value = value.template.requirements.map(toEditable)
   snapshot.value = serialize()
+  void nextTick(resizeSource)
 }
 
 async function load() {
@@ -380,9 +395,6 @@ onMounted(load)
 
       <div class="card p-5">
         <h2 class="text-base font-semibold text-slate-900">Параметры вакансии</h2>
-        <p class="mt-0.5 text-sm text-slate-500">
-          Название, специализация и уровень.
-        </p>
         <div class="mt-4 grid gap-4 sm:grid-cols-2">
           <div class="sm:col-span-2">
             <label class="label" for="editor-title">Название вакансии</label>
@@ -525,10 +537,12 @@ onMounted(load)
           </button>
         </div>
         <textarea
+          ref="sourceTextarea"
           v-model="sourceTextDraft"
           data-testid="vacancy-source-text"
-          class="min-h-64 w-full resize-y border-0 bg-transparent px-4 py-4 font-mono text-sm leading-6 text-slate-700 outline-none"
+          class="min-h-64 w-full resize-none overflow-hidden border-0 bg-transparent px-4 py-4 font-mono text-sm leading-6 text-slate-700 outline-none"
           aria-label="Текст вакансии"
+          @input="resizeSource"
         />
       </article>
 

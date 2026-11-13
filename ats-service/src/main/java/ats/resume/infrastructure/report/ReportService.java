@@ -7,6 +7,7 @@ import ats.resume.infrastructure.persistence.entity.RequirementResultEntity;
 import ats.resume.infrastructure.persistence.entity.ScoreRunEntity;
 import ats.resume.infrastructure.persistence.repository.ApplicationRepository;
 import ats.resume.infrastructure.persistence.repository.ExternalEvidenceRepository;
+import ats.resume.infrastructure.persistence.repository.ReportDecisionRepository;
 import ats.resume.infrastructure.persistence.repository.RequirementResultRepository;
 import ats.resume.infrastructure.persistence.repository.ScoreRunRepository;
 import com.fasterxml.jackson.core.type.TypeReference;
@@ -26,6 +27,7 @@ public class ReportService {
     private final ScoreRunRepository scoreRunRepository;
     private final RequirementResultRepository requirementResultRepository;
     private final ExternalEvidenceRepository externalEvidenceRepository;
+    private final ReportDecisionRepository decisionRepository;
     private final JsonCodec jsonCodec;
 
     public Optional<ReportView> report(UUID applicationId, String phase) {
@@ -80,6 +82,8 @@ public class ReportService {
                 externalEvidenceRepository.findByScoreRunIdOrderByCreatedAtAsc(run.getId()).stream()
                         .map(this::toExternal)
                         .toList();
+        var hrDecision =
+                decisionRepository.findByResumeIdAndVacancyId(resumeId, vacancyId).orElse(null);
         return new ReportView(
                 applicationId,
                 resumeId,
@@ -94,7 +98,9 @@ public class ReportService {
                 requirements,
                 external,
                 flags(run),
-                true);
+                true,
+                hrDecision == null ? null : hrDecision.getDecision(),
+                hrDecision == null ? null : hrDecision.getComment());
     }
 
     private RequirementReportItem toRequirement(RequirementResultEntity entity) {
@@ -161,7 +167,9 @@ public class ReportService {
             List<RequirementReportItem> requirements,
             List<ExternalEvidenceItem> externalEvidence,
             List<String> flags,
-            boolean blind) {}
+            boolean blind,
+            String hrDecision,
+            String hrComment) {}
 
     public record RequirementReportItem(
             String requirementId,
