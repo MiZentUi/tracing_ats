@@ -54,6 +54,21 @@ public final class DictionaryModels {
 
     public record Relation(UUID leftSkillId, UUID rightSkillId, String kind) {}
 
+    public record QualificationReview(
+            UUID id,
+            String key,
+            List<String> samples,
+            long occurrences,
+            String status,
+            UUID suggestedQualificationId,
+            Double suggestedConfidence,
+            UUID resolvedQualificationId,
+            String resolvedBy,
+            String resolvedAt) {}
+
+    public record QualificationReviewResult(
+            QualificationReview review, Qualification qualification) {}
+
     public record Review(
             UUID id,
             String key,

@@ -71,6 +71,23 @@ class ReviewItem:
 
 
 @dataclass(frozen=True, slots=True)
+class QualificationReviewItem:
+    id: str
+    key: str
+    sample_masked: tuple[str, ...]
+    occurrences: int
+    status: str
+    suggested_qualification_id: str | None
+    suggested_confidence: float | None
+    candidates: tuple[Candidate, ...]
+    resolved_qualification_id: str | None
+    resolved_by: str | None
+    resolved_at: str | None
+    first_seen: str
+    last_seen: str
+
+
+@dataclass(frozen=True, slots=True)
 class Meta:
     dictionary_version: int
     embedding_model_id: str

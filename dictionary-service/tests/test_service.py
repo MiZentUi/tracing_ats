@@ -265,3 +265,24 @@ def test_delete_qualification_removes_aliases(service: DictionaryService) -> Non
     service.add_qualification_alias(qualification.id, "удаляемый допуск", "ru", "AUTO", "hr")
     service.delete_qualification(qualification.id, "hr")
     assert resolve_qualification(service, "удаляемый допуск").qualification_id is None
+
+
+def test_unknown_qualification_goes_to_review(service: DictionaryService) -> None:
+    item = resolve_qualification(service, "Свидетельство пилота")
+    assert item.qualification_id is None
+    items, total = service.list_qualification_review("PENDING", 10, 0)
+    assert total == 1
+    assert items[0].key == "свидетельство пилота"
+
+
+def test_resolve_qualification_review_as_alias(service: DictionaryService) -> None:
+    resolve_qualification(service, "Свидетельство пилота")
+    review, _ = service.list_qualification_review("PENDING", 10, 0)
+    target = resolve_qualification(service, "III группа по электробезопасности").qualification_id
+    assert target
+    resolved, qualification = service.resolve_qualification_review(
+        review[0].id, "ALIAS", "hr", target, None, None, []
+    )
+    assert resolved.status == "RESOLVED_ALIAS"
+    assert qualification is not None
+    assert resolve_qualification(service, "Свидетельство пилота").qualification_id == target

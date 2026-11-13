@@ -28,6 +28,10 @@ service DictionaryService {
   rpc SetCanonicalAlias(SetCanonicalAliasRequest) returns (Skill);
   rpc DeleteAlias(DeleteAliasRequest) returns (google.protobuf.Empty);
 
+  rpc ListQualificationReviewItems(ListQualificationReviewItemsRequest)
+      returns (ListQualificationReviewItemsResponse);
+  rpc ResolveQualificationReviewItem(ResolveQualificationReviewItemRequest)
+      returns (ResolveQualificationReviewItemResponse);
   rpc ListQualifications(ListQualificationsRequest) returns (ListQualificationsResponse);
   rpc CreateQualification(CreateQualificationRequest) returns (Qualification);
   rpc AddQualificationAlias(AddQualificationAliasRequest) returns (QualificationAlias);
@@ -114,6 +118,52 @@ enum ReviewAction {
   REVIEW_ACTION_ALIAS = 1;
   REVIEW_ACTION_NEW_SKILL = 2;
   REVIEW_ACTION_REJECT = 3;
+}
+
+enum QualificationReviewAction {
+  QUALIFICATION_REVIEW_ACTION_UNSPECIFIED = 0;
+  QUALIFICATION_REVIEW_ACTION_ALIAS = 1;
+  QUALIFICATION_REVIEW_ACTION_NEW_QUALIFICATION = 2;
+  QUALIFICATION_REVIEW_ACTION_REJECT = 3;
+}
+
+message QualificationReviewItem {
+  string id = 1;
+  string key = 2;
+  repeated string samples = 3;
+  int64 occurrences = 4;
+  string status = 5;
+  string suggested_qualification_id = 6;
+  double suggested_confidence = 7;
+  string resolved_qualification_id = 8;
+  string resolved_by = 9;
+  string resolved_at = 10;
+}
+
+message ListQualificationReviewItemsRequest {
+  string status = 1;
+  int32 limit = 2;
+  int32 offset = 3;
+}
+
+message ListQualificationReviewItemsResponse {
+  repeated QualificationReviewItem items = 1;
+  int32 total = 2;
+}
+
+message ResolveQualificationReviewItemRequest {
+  string review_id = 1;
+  QualificationReviewAction action = 2;
+  string actor = 3;
+  string qualification_id = 4;
+  string canonical_name = 5;
+  string qualification_type = 6;
+  repeated string additional_aliases = 7;
+}
+
+message ResolveQualificationReviewItemResponse {
+  QualificationReviewItem item = 1;
+  Qualification qualification = 2;
 }
 
 message RawSkill {

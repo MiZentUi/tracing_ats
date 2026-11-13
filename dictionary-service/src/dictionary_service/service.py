@@ -12,6 +12,7 @@ from .domain import (
     NotFound,
     Qualification,
     QualificationAlias,
+    QualificationReviewItem,
     Resolved,
     ResolvedQualification,
     ReviewItem,
@@ -185,6 +186,7 @@ class DictionaryService:
         self,
         items: list[ResolveQualificationInput],
         as_of: str = "",
+        skip_review: bool = False,
     ) -> tuple[str, list[ResolvedQualification]]:
         meta = self.version()
         resolver_version = meta.resolver_version
@@ -210,6 +212,10 @@ class DictionaryService:
                     hit_kind = kind
                     break
             if hit is None:
+                if not as_of and not skip_review and normalized_key:
+                    self._store.enqueue_qualification_review(
+                        normalized_key, item.raw_label, item.source
+                    )
                 result.append(
                     ResolvedQualification(
                         raw_label=item.raw_label,
@@ -321,6 +327,33 @@ class DictionaryService:
     def delete_qualification(self, qualification_id: str, actor: str) -> None:
         self._store.delete_qualification(qualification_id, actor)
         self._commit_qualification()
+
+    def list_qualification_review(
+        self, status: str, limit: int, offset: int
+    ) -> tuple[list[QualificationReviewItem], int]:
+        return self._store.list_qualification_review(status, limit, offset)
+
+    def resolve_qualification_review(
+        self,
+        review_id: str,
+        action: str,
+        actor: str,
+        qualification_id: str | None,
+        canonical_name: str | None,
+        qualification_type: str | None,
+        additional_aliases: list[str],
+    ) -> tuple[QualificationReviewItem, Qualification | None]:
+        item, qualification = self._store.resolve_qualification_review(
+            review_id,
+            action,
+            actor,
+            qualification_id,
+            canonical_name,
+            qualification_type,
+            additional_aliases,
+        )
+        self._commit_qualification()
+        return item, qualification
 
     def list_relations(self, limit: int, offset: int) -> tuple[list[SkillRelation], int]:
         return self._store.list_relations(limit, offset)

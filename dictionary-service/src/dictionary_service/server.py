@@ -17,6 +17,7 @@ from .domain import (
     NotFound,
     Qualification,
     QualificationAlias,
+    QualificationReviewItem,
     ReviewItem,
     Skill,
 )
@@ -163,7 +164,7 @@ class DictionaryServicer(pb_grpc.DictionaryServiceServicer):
             )
         try:
             version, resolved_items = self._service.resolve_qualifications(
-                raw_items, request.as_of_resolver_version
+                raw_items, request.as_of_resolver_version, request.skip_review
             )
         except NotFound as error:
             context.abort(grpc.StatusCode.NOT_FOUND, f"VERSION_NOT_FOUND|{error}")
@@ -349,6 +350,61 @@ class DictionaryServicer(pb_grpc.DictionaryServiceServicer):
             context.abort(grpc.StatusCode.NOT_FOUND, _error(error))
         return empty_pb2.Empty()
 
+    def ListQualificationReviewItems(
+        self,
+        request: pb.ListQualificationReviewItemsRequest,
+        context: grpc.ServicerContext,
+    ):
+        status = (
+            request.status
+            if request.status
+            in (
+                "PENDING",
+                "RESOLVED_ALIAS",
+                "RESOLVED_NEW_QUALIFICATION",
+                "REJECTED",
+            )
+            else ""
+        )
+        items, total = self._service.list_qualification_review(
+            status, request.limit or 50, request.offset
+        )
+        return pb.ListQualificationReviewItemsResponse(
+            items=[_qualification_review(item) for item in items],
+            total=total,
+        )
+
+    def ResolveQualificationReviewItem(
+        self,
+        request: pb.ResolveQualificationReviewItemRequest,
+        context: grpc.ServicerContext,
+    ):
+        action = {
+            pb.QUALIFICATION_REVIEW_ACTION_ALIAS: "ALIAS",
+            pb.QUALIFICATION_REVIEW_ACTION_NEW_QUALIFICATION: "NEW_QUALIFICATION",
+            pb.QUALIFICATION_REVIEW_ACTION_REJECT: "REJECT",
+        }.get(request.action)
+        if not action:
+            context.abort(grpc.StatusCode.INVALID_ARGUMENT, "REVIEW_ACTION_REQUIRED")
+        try:
+            item, qualification = self._service.resolve_qualification_review(
+                request.review_id,
+                action,
+                request.actor or "hr",
+                request.qualification_id or None,
+                request.canonical_name or None,
+                request.qualification_type or None,
+                list(request.additional_aliases),
+            )
+        except AliasConflict as error:
+            context.abort(grpc.StatusCode.FAILED_PRECONDITION, _error(error))
+        except NotFound as error:
+            context.abort(grpc.StatusCode.NOT_FOUND, _error(error))
+        response = pb.ResolveQualificationReviewItemResponse(item=_qualification_review(item))
+        if qualification is not None:
+            response.qualification.CopyFrom(_qualification(qualification))
+        return response
+
     def ListQualifications(
         self, request: pb.ListQualificationsRequest, context: grpc.ServicerContext
     ):
@@ -531,6 +587,21 @@ def _qualification_alias(alias: QualificationAlias) -> pb.QualificationAlias:
         lemma_mode=_LEMMA_MODE_TO_PROTO.get(alias.lemma_mode, pb.LEMMA_MODE_AUTO),
         created_by=alias.created_by,
         created_at=alias.created_at,
+    )
+
+
+def _qualification_review(item: QualificationReviewItem) -> pb.QualificationReviewItem:
+    return pb.QualificationReviewItem(
+        id=item.id,
+        key=item.key,
+        samples=list(item.sample_masked),
+        occurrences=item.occurrences,
+        status=item.status,
+        suggested_qualification_id=item.suggested_qualification_id or "",
+        suggested_confidence=item.suggested_confidence or 0.0,
+        resolved_qualification_id=item.resolved_qualification_id or "",
+        resolved_by=item.resolved_by or "",
+        resolved_at=item.resolved_at or "",
     )
 
 

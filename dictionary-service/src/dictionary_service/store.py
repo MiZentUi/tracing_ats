@@ -20,6 +20,7 @@ from .domain import (
     Qualification,
     QualificationAlias,
     QualificationAliasRef,
+    QualificationReviewItem,
     ReviewItem,
     Skill,
     SkillRelation,
@@ -119,6 +120,24 @@ class Store(Protocol):
     def create_relation(self, left: str, right: str, kind: str, actor: str) -> SkillRelation: ...
     def delete_relation(self, left: str, right: str, actor: str) -> None: ...
 
+    def enqueue_qualification_review(
+        self, key: str, raw: str, source: str
+    ) -> QualificationReviewItem: ...
+    def list_qualification_review(
+        self, status: str, limit: int, offset: int
+    ) -> tuple[list[QualificationReviewItem], int]: ...
+    def get_qualification_review(self, review_id: str) -> QualificationReviewItem | None: ...
+    def resolve_qualification_review(
+        self,
+        review_id: str,
+        action: str,
+        actor: str,
+        qualification_id: str | None,
+        canonical_name: str | None,
+        qualification_type: str | None,
+        additional_aliases: list[str],
+    ) -> tuple[QualificationReviewItem, Qualification | None]: ...
+
     def enqueue_review(self, key: str, raw: str, source: str) -> ReviewItem: ...
     def list_review(self, status: str, limit: int, offset: int) -> tuple[list[ReviewItem], int]: ...
     def get_review(self, review_id: str) -> ReviewItem | None: ...
@@ -144,6 +163,8 @@ class InMemoryStore:
         self._alias_keys: dict[str, tuple[str, str]] = {}
         self._review: dict[str, ReviewItem] = {}
         self._review_by_key: dict[str, str] = {}
+        self._qualification_review: dict[str, QualificationReviewItem] = {}
+        self._qualification_review_by_key: dict[str, str] = {}
         self._snapshots: dict[str, dict] = {}
         self._qualifications: dict[str, Qualification] = {}
         self._qualification_aliases: dict[str, QualificationAlias] = {}
@@ -465,6 +486,100 @@ class InMemoryStore:
         if key not in self._relations:
             raise NotFound("relation not found")
         self._relations.pop(key, None)
+
+    def enqueue_qualification_review(
+        self, key: str, raw: str, source: str
+    ) -> QualificationReviewItem:
+        existing_id = self._qualification_review_by_key.get(key)
+        if existing_id is not None:
+            item = self._qualification_review[existing_id]
+            samples = tuple(dict.fromkeys((*item.sample_masked, raw)))[:3]
+            updated = replace(
+                item,
+                sample_masked=samples,
+                occurrences=item.occurrences + 1,
+                last_seen=now_iso(),
+            )
+            self._qualification_review[existing_id] = updated
+            return updated
+        item = QualificationReviewItem(
+            str(uuid.uuid4()),
+            key,
+            (raw,),
+            1,
+            "PENDING",
+            None,
+            None,
+            (),
+            None,
+            None,
+            None,
+            now_iso(),
+            now_iso(),
+        )
+        self._qualification_review[item.id] = item
+        self._qualification_review_by_key[key] = item.id
+        return item
+
+    def list_qualification_review(
+        self, status: str, limit: int, offset: int
+    ) -> tuple[list[QualificationReviewItem], int]:
+        items = list(self._qualification_review.values())
+        if status:
+            items = [item for item in items if item.status == status]
+        items.sort(key=lambda item: item.first_seen)
+        return items[offset : offset + limit], len(items)
+
+    def get_qualification_review(self, review_id: str) -> QualificationReviewItem | None:
+        return self._qualification_review.get(review_id)
+
+    def resolve_qualification_review(
+        self,
+        review_id: str,
+        action: str,
+        actor: str,
+        qualification_id: str | None,
+        canonical_name: str | None,
+        qualification_type: str | None,
+        additional_aliases: list[str],
+    ) -> tuple[QualificationReviewItem, Qualification | None]:
+        item = self._qualification_review.get(review_id)
+        if item is None:
+            raise NotFound(f"qualification review {review_id} not found")
+        qualification: Qualification | None = None
+        status = item.status
+        if action == "ALIAS":
+            if not qualification_id:
+                raise NotFound("qualification_id is required for ALIAS")
+            self.add_qualification_alias(
+                qualification_id, item.sample_masked[0], "mixed", "AUTO", "HR", actor
+            )
+            for raw in additional_aliases:
+                self.add_qualification_alias(qualification_id, raw, "mixed", "AUTO", "HR", actor)
+            status = "RESOLVED_ALIAS"
+            qualification = self._require_qualification(qualification_id)
+        elif action == "NEW_QUALIFICATION":
+            qualification = self.create_qualification(
+                canonical_name or item.sample_masked[0],
+                qualification_type or "OTHER",
+                actor,
+                "HR",
+            )
+            for raw in additional_aliases:
+                self.add_qualification_alias(qualification.id, raw, "mixed", "AUTO", "HR", actor)
+            status = "RESOLVED_NEW_QUALIFICATION"
+            qualification = self._require_qualification(qualification.id)
+        elif action == "REJECT":
+            status = "REJECTED"
+        updated = replace(
+            item,
+            status=status,
+            resolved_qualification_id=qualification.id if qualification else None,
+            resolved_by=actor,
+            resolved_at=now_iso(),
+        )
+        self._qualification_review[review_id] = updated
+        return updated, qualification
 
     # --- чтение -------------------------------------------------------------
     def lookup(self, key: str) -> AliasRef | None:

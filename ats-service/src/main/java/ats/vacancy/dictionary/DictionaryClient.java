@@ -17,14 +17,17 @@ import ats.dictionary.proto.DeleteSkillRequest;
 import ats.dictionary.proto.DeprecateSkillRequest;
 import ats.dictionary.proto.DictionaryServiceGrpc;
 import ats.dictionary.proto.GetVersionRequest;
+import ats.dictionary.proto.ListQualificationReviewItemsRequest;
 import ats.dictionary.proto.ListQualificationsRequest;
 import ats.dictionary.proto.ListRelationsRequest;
 import ats.dictionary.proto.ListReviewItemsRequest;
 import ats.dictionary.proto.ListSkillsRequest;
+import ats.dictionary.proto.QualificationReviewAction;
 import ats.dictionary.proto.RawSkill;
 import ats.dictionary.proto.RelationKind;
 import ats.dictionary.proto.ResolveBatchRequest;
 import ats.dictionary.proto.ResolveBatchResponse;
+import ats.dictionary.proto.ResolveQualificationReviewItemRequest;
 import ats.dictionary.proto.ResolveReviewItemRequest;
 import ats.dictionary.proto.ResolveReviewItemResponse;
 import ats.dictionary.proto.ResolveSource;
@@ -426,6 +429,67 @@ public class DictionaryClient {
                                                 .build()));
     }
 
+    public List<DictionaryModels.QualificationReview> listQualificationReview(
+            String status, int limit, int offset) {
+        var response =
+                call(
+                        () ->
+                                stub.withDeadlineAfter(
+                                                properties.getDeadline().toMillis(),
+                                                TimeUnit.MILLISECONDS)
+                                        .listQualificationReviewItems(
+                                                ListQualificationReviewItemsRequest.newBuilder()
+                                                        .setStatus(status == null ? "" : status)
+                                                        .setLimit(limit)
+                                                        .setOffset(offset)
+                                                        .build()));
+        return response.getItemsList().stream()
+                .map(DictionaryClient::toQualificationReview)
+                .toList();
+    }
+
+    public DictionaryModels.QualificationReviewResult resolveQualificationReview(
+            UUID reviewId,
+            String action,
+            UUID qualificationId,
+            String canonicalName,
+            String qualificationType,
+            List<String> additionalAliases) {
+        var response =
+                call(
+                        () ->
+                                stub.withDeadlineAfter(
+                                                properties.getDeadline().toMillis(),
+                                                TimeUnit.MILLISECONDS)
+                                        .resolveQualificationReviewItem(
+                                                ResolveQualificationReviewItemRequest.newBuilder()
+                                                        .setReviewId(reviewId.toString())
+                                                        .setAction(
+                                                                qualificationReviewAction(action))
+                                                        .setActor("hr")
+                                                        .setQualificationId(
+                                                                qualificationId == null
+                                                                        ? ""
+                                                                        : qualificationId
+                                                                                .toString())
+                                                        .setCanonicalName(
+                                                                canonicalName == null
+                                                                        ? ""
+                                                                        : canonicalName)
+                                                        .setQualificationType(
+                                                                qualificationType == null
+                                                                        ? ""
+                                                                        : qualificationType)
+                                                        .addAllAdditionalAliases(
+                                                                additionalAliases == null
+                                                                        ? List.of()
+                                                                        : additionalAliases)
+                                                        .build()));
+        return new DictionaryModels.QualificationReviewResult(
+                toQualificationReview(response.getItem()),
+                response.hasQualification() ? toQualification(response.getQualification()) : null);
+    }
+
     public void deleteQualification(UUID qualificationId) {
         call(
                 () ->
@@ -532,6 +596,15 @@ public class DictionaryClient {
         };
     }
 
+    private static QualificationReviewAction qualificationReviewAction(String action) {
+        return switch (action == null ? "" : action) {
+            case "NEW_QUALIFICATION" ->
+                    QualificationReviewAction.QUALIFICATION_REVIEW_ACTION_NEW_QUALIFICATION;
+            case "REJECT" -> QualificationReviewAction.QUALIFICATION_REVIEW_ACTION_REJECT;
+            default -> QualificationReviewAction.QUALIFICATION_REVIEW_ACTION_ALIAS;
+        };
+    }
+
     private static RelationKind relationKind(String kind) {
         return switch (kind == null ? "" : kind) {
             case "SAME_GROUP" -> RelationKind.RELATION_KIND_SAME_GROUP;
@@ -578,6 +651,25 @@ public class DictionaryClient {
                 alias.getLemmaMode().name().replace("LEMMA_MODE_", ""),
                 alias.getCreatedBy(),
                 alias.getCreatedAt());
+    }
+
+    private static DictionaryModels.QualificationReview toQualificationReview(
+            ats.dictionary.proto.QualificationReviewItem item) {
+        return new DictionaryModels.QualificationReview(
+                UUID.fromString(item.getId()),
+                item.getKey(),
+                item.getSamplesList(),
+                item.getOccurrences(),
+                item.getStatus(),
+                item.getSuggestedQualificationId().isBlank()
+                        ? null
+                        : UUID.fromString(item.getSuggestedQualificationId()),
+                item.getSuggestedConfidence(),
+                item.getResolvedQualificationId().isBlank()
+                        ? null
+                        : UUID.fromString(item.getResolvedQualificationId()),
+                item.getResolvedBy(),
+                item.getResolvedAt());
     }
 
     private static DictionaryModels.Qualification toQualification(

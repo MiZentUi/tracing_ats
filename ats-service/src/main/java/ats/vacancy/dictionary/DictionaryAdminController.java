@@ -83,6 +83,26 @@ public class DictionaryAdminController {
         dictionaryClient.deleteAlias(id);
     }
 
+    @GetMapping("/qualification-review-items")
+    public List<DictionaryModels.QualificationReview> qualificationReviewItems(
+            @RequestParam(defaultValue = "PENDING") String status,
+            @RequestParam(defaultValue = "50") int limit,
+            @RequestParam(defaultValue = "0") int offset) {
+        return dictionaryClient.listQualificationReview(status, limit, offset);
+    }
+
+    @PostMapping("/qualification-review-items/{id}/resolve")
+    public DictionaryModels.QualificationReviewResult resolveQualificationReview(
+            @PathVariable UUID id, @RequestBody ResolveQualificationReviewRequest request) {
+        return dictionaryClient.resolveQualificationReview(
+                id,
+                request.action(),
+                request.qualificationId(),
+                request.canonicalName(),
+                request.qualificationType(),
+                request.additionalAliases());
+    }
+
     @GetMapping("/qualifications")
     public List<DictionaryModels.Qualification> qualifications(
             @RequestParam(defaultValue = "") String query,
@@ -195,4 +215,11 @@ public class DictionaryAdminController {
     public record AddQualificationAliasRequest(String raw, String lang, String lemmaMode) {}
 
     public record CreateRelationRequest(UUID leftSkillId, UUID rightSkillId, String kind) {}
+
+    public record ResolveQualificationReviewRequest(
+            String action,
+            UUID qualificationId,
+            String canonicalName,
+            String qualificationType,
+            List<String> additionalAliases) {}
 }

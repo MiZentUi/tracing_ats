@@ -20,6 +20,7 @@ from .domain import (
     Qualification,
     QualificationAlias,
     QualificationAliasRef,
+    QualificationReviewItem,
     ReviewItem,
     Skill,
     SkillRelation,
@@ -692,6 +693,133 @@ class PostgresStore:
             )
             if result.rowcount == 0:
                 raise NotFound("relation not found")
+
+    def enqueue_qualification_review(
+        self, key: str, raw: str, source: str
+    ) -> QualificationReviewItem:
+        with self._pool.connection() as conn, conn.transaction():
+            row = conn.execute(
+                "SELECT id, occurrences, sample_masked FROM qualification_review_item "
+                "WHERE key = %s",
+                (key,),
+            ).fetchone()
+            if row is not None:
+                samples = list(dict.fromkeys([*row[2], raw]))[:3]
+                conn.execute(
+                    "UPDATE qualification_review_item SET occurrences = occurrences + 1, "
+                    "sample_masked = %s, last_seen = now() WHERE id = %s",
+                    (samples, row[0]),
+                )
+                return self._qualification_review(conn, str(row[0]))
+            item_id = str(uuid.uuid4())
+            conn.execute(
+                "INSERT INTO qualification_review_item "
+                "(id, key, sample_masked) VALUES (%s, %s, %s)",
+                (item_id, key, [raw]),
+            )
+            return self._qualification_review(conn, item_id)
+
+    def _qualification_review(self, conn, review_id: str) -> QualificationReviewItem:
+        row = conn.execute(
+            "SELECT id, key, sample_masked, occurrences, status, "
+            "suggested_qualification_id, suggested_confidence, resolved_qualification_id, "
+            "resolved_by, resolved_at, first_seen, last_seen "
+            "FROM qualification_review_item WHERE id = %s",
+            (review_id,),
+        ).fetchone()
+        return QualificationReviewItem(
+            str(row[0]),
+            row[1],
+            tuple(row[2] or ()),
+            row[3],
+            row[4],
+            str(row[5]) if row[5] else None,
+            row[6],
+            (),
+            str(row[7]) if row[7] else None,
+            row[8],
+            row[9].isoformat() if row[9] else None,
+            row[10].isoformat(),
+            row[11].isoformat(),
+        )
+
+    def list_qualification_review(
+        self, status: str, limit: int, offset: int
+    ) -> tuple[list[QualificationReviewItem], int]:
+        where = ""
+        params: list = []
+        if status:
+            where = " WHERE status = %s"
+            params.append(status)
+        with self._pool.connection() as conn:
+            total = conn.execute(
+                f"SELECT count(*) FROM qualification_review_item{where}", params
+            ).fetchone()[0]
+            rows = conn.execute(
+                f"SELECT id FROM qualification_review_item{where} "
+                "ORDER BY first_seen LIMIT %s OFFSET %s",
+                [*params, limit, offset],
+            ).fetchall()
+            return [self._qualification_review(conn, str(row[0])) for row in rows], total
+
+    def get_qualification_review(self, review_id: str) -> QualificationReviewItem | None:
+        with self._pool.connection() as conn:
+            row = conn.execute(
+                "SELECT id FROM qualification_review_item WHERE id = %s", (review_id,)
+            ).fetchone()
+            return self._qualification_review(conn, review_id) if row else None
+
+    def resolve_qualification_review(
+        self,
+        review_id: str,
+        action: str,
+        actor: str,
+        qualification_id: str | None,
+        canonical_name: str | None,
+        qualification_type: str | None,
+        additional_aliases: list[str],
+    ) -> tuple[QualificationReviewItem, Qualification | None]:
+        item = self.get_qualification_review(review_id)
+        if item is None:
+            raise NotFound(f"qualification review {review_id} not found")
+        qualification: Qualification | None = None
+        status = item.status
+        if action == "ALIAS":
+            if not qualification_id:
+                raise NotFound("qualification_id is required for ALIAS")
+            self.add_qualification_alias(
+                qualification_id, item.sample_masked[0], "mixed", "AUTO", "HR", actor
+            )
+            for raw in additional_aliases:
+                self.add_qualification_alias(qualification_id, raw, "mixed", "AUTO", "HR", actor)
+            status = "RESOLVED_ALIAS"
+            qualification = self._qualification_by_id(qualification_id)
+        elif action == "NEW_QUALIFICATION":
+            qualification = self.create_qualification(
+                canonical_name or item.sample_masked[0],
+                qualification_type or "OTHER",
+                actor,
+                "HR",
+            )
+            for raw in additional_aliases:
+                self.add_qualification_alias(qualification.id, raw, "mixed", "AUTO", "HR", actor)
+            status = "RESOLVED_NEW_QUALIFICATION"
+        elif action == "REJECT":
+            status = "REJECTED"
+        with self._pool.connection() as conn:
+            conn.execute(
+                "UPDATE qualification_review_item SET status = %s, "
+                "resolved_qualification_id = %s, resolved_by = %s, resolved_at = now() "
+                "WHERE id = %s",
+                (status, qualification.id if qualification else None, actor, review_id),
+            )
+            conn.commit()
+            item = self._qualification_review(conn, review_id)
+        return item, qualification
+
+    def _qualification_by_id(self, qualification_id: str) -> Qualification | None:
+        with self._pool.connection() as conn:
+            return self._qualification(conn, qualification_id)
 
     # --- очередь ревью ------------------------------------------------------
     def enqueue_review(self, key: str, raw: str, source: str) -> ReviewItem:
