@@ -75,6 +75,12 @@ ats:
     grpc:
       target: ${ATS_VACANCY_GRPC_TARGET:localhost:9090}
       deadline: 5s
+  dictionary:
+    grpc:
+      # Словарь навыков. При недоступности ats падает на локальные таблицы.
+      enabled: ${ATS_DICTIONARY_ENABLED:false}
+      target: ${DICTIONARY_GRPC_TARGET:localhost:8084}
+      deadline: ${ATS_DICTIONARY_DEADLINE:2s}
     screening:
       # Стартовые гипотезы для MVP; политика не входит в обученную модель.
       threshold: ${ATS_SCREENING_THRESHOLD:50}

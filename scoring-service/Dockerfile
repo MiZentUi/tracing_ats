@@ -33,7 +33,8 @@ RUN --mount=type=cache,target=/root/.cache/uv \
         scoring_service/v1/models/features.proto \
         scoring_service/v1/models/features/skill.proto \
         scoring_service/v1/models/messages.proto \
-        scoring_service/v1/scoring.proto
+        scoring_service/v1/scoring.proto \
+        dictionary_service/v1/dictionary.proto
 
 RUN --mount=type=cache,target=/root/.cache/uv \
     uv sync --locked --no-dev

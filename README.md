@@ -3,6 +3,18 @@
 
 **Источники:** математическая модель скоринга (`scoring_model.pdf`). Всё, что помечено «гипотеза», нужно калибровать на данных.
 
+## Быстрый запуск демо словаря
+
+```bash
+export ATS_PROFILES=mock-llm
+export SCORING_SERVICE_LLM_PROVIDER=mock
+docker compose up -d --build
+./scripts/demo-skill-dictionary.sh
+```
+
+UI: <http://localhost:3000>, раздел «Словарь» — <http://localhost:3000/dictionary>.
+Сценарии и ожидаемый результат: `docs/demo-skill-dictionary.md`.
+
 ---
 
 ## Содержание
@@ -861,6 +873,10 @@ tracing-ats/
 │   ├── src/api/                 # gRPC-сервер, конфигурация и scoring
 │   ├── src/scoring_service/     # сгенерированные protobuf/gRPC-модули
 │   └── tests/                   # golden и контрактные проверки
+├── dictionary-service/          # Python 3.12, gRPC: навыки, алиасы, очередь NEW
+│   ├── src/dictionary_service/  # нормализация, Resolve, админские RPC
+│   ├── tests/                   # кейсы нормализации и Resolve
+│   └── Dockerfile
 ├── ml-trainer/                  # Python 3.14, только офлайн-обучение
 │   ├── train/                   # обучение λ, wM, wN, wF
 │   ├── datasets/                # локальные снапшоты для прогонов
@@ -869,6 +885,7 @@ tracing-ats/
 ├── contracts/
 │   ├── openapi.yaml             # публичный REST-контракт
 │   ├── proto/scoring_service/v1/scoring.proto # gRPC-контракт (до фиксации модели — черновик)
+│   ├── proto/dictionary_service/v1/dictionary.proto # словарь навыков и алиасы
 │   └── training-artifact.schema.json
 ├── frontend/                    # Vue 3 + TypeScript
 ├── infra/

@@ -168,7 +168,10 @@ def to_feature_assessment(match: RequirementScore) -> features_pb2.FeatureAssess
 def to_evaluate_response(
     evaluation: Evaluation,
 ) -> messages_pb2.EvaluateResumeMatchResponse:
-    response = messages_pb2.EvaluateResumeMatchResponse()
+    response = messages_pb2.EvaluateResumeMatchResponse(
+        resolver_version=evaluation.resolver_version,
+        dictionary_mode=evaluation.dictionary_mode,
+    )
     response.general_score.CopyFrom(to_general_score(evaluation.general))
     for key, match in evaluation.matches.items():
         response.matches[key].CopyFrom(to_feature_match(match))
@@ -182,7 +185,10 @@ def to_evaluate_response(
 
 
 def to_score_response(evaluation: Evaluation) -> messages_pb2.ScoreResumeResponse:
-    response = messages_pb2.ScoreResumeResponse()
+    response = messages_pb2.ScoreResumeResponse(
+        resolver_version=evaluation.resolver_version,
+        dictionary_mode=evaluation.dictionary_mode,
+    )
     response.general_score.CopyFrom(to_general_score(evaluation.general))
     for key, match in evaluation.matches.items():
         response.features[key].CopyFrom(to_feature_assessment(match))

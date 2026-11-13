@@ -3,6 +3,8 @@ package ats.vacancy.api;
 import ats.extraction.domain.error.ExtractionException;
 import ats.gateway.model.ApiStatusResponse;
 import ats.vacancy.application.ApiException;
+import ats.vacancy.dictionary.DictionaryRpcException;
+import ats.vacancy.dictionary.DictionaryUnavailableException;
 import ats.vacancy.llm.LlmException;
 import ats.vacancy.support.LogSupport;
 import jakarta.validation.ConstraintViolationException;
@@ -27,6 +29,32 @@ public class ApiExceptionHandler {
                 exception.code(),
                 exception.getMessage());
         return response(exception.status(), exception.code(), exception.getMessage());
+    }
+
+    @ExceptionHandler(DictionaryUnavailableException.class)
+    public ResponseEntity<ApiStatusResponse> handleDictionaryUnavailable(
+            DictionaryUnavailableException exception) {
+        log.warn("dictionary_unavailable error={}", LogSupport.describe(exception));
+        return response(
+                HttpStatus.SERVICE_UNAVAILABLE,
+                "DICTIONARY_UNAVAILABLE",
+                "Dictionary service is unavailable");
+    }
+
+    @ExceptionHandler(DictionaryRpcException.class)
+    public ResponseEntity<ApiStatusResponse> handleDictionaryRpc(DictionaryRpcException exception) {
+        HttpStatus status =
+                switch (exception.code()) {
+                    case NOT_FOUND -> HttpStatus.NOT_FOUND;
+                    case FAILED_PRECONDITION, ALREADY_EXISTS -> HttpStatus.CONFLICT;
+                    case INVALID_ARGUMENT -> HttpStatus.UNPROCESSABLE_ENTITY;
+                    default -> HttpStatus.BAD_GATEWAY;
+                };
+        log.info(
+                "dictionary_request_rejected code={} detail={}",
+                exception.code(),
+                exception.getMessage());
+        return response(status, "DICTIONARY_ERROR", exception.getMessage());
     }
 
     @ExceptionHandler(LlmException.class)

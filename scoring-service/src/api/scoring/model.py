@@ -76,3 +76,5 @@ class Evaluation:
     risks: list[str]
     questions: list[str]
     recruiter_note: str
+    resolver_version: str = ""
+    dictionary_mode: str = ""

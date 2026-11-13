@@ -1,0 +1,6 @@
+src/dictionary_service/v1/*_pb2.py
+src/dictionary_service/v1/*_pb2.pyi
+src/dictionary_service/v1/*_pb2_grpc.py
+__pycache__/
+.pytest_cache/
+*.egg-info/

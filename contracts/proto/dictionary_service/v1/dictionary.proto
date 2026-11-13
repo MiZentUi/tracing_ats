@@ -1,0 +1,286 @@
+syntax = "proto3";
+
+package dictionary_service.v1;
+
+import "google/protobuf/empty.proto";
+
+option java_multiple_files = true;
+option java_outer_classname = "DictionaryProto";
+option java_package = "ats.dictionary.proto";
+
+// Словарь навыков. Владелец данных — dictionary-service.
+// Resolve вызывают ats-service и scoring-service. Админские методы вызывает
+// только ats-service (BFF), потому что только он знает ссылки на skill_id.
+service DictionaryService {
+  rpc Resolve(ResolveBatchRequest) returns (ResolveBatchResponse);
+  rpc GetVersion(GetVersionRequest) returns (GetVersionResponse);
+  rpc GetSkills(GetSkillsRequest) returns (GetSkillsResponse);
+
+  rpc ListReviewItems(ListReviewItemsRequest) returns (ListReviewItemsResponse);
+  rpc ResolveReviewItem(ResolveReviewItemRequest) returns (ResolveReviewItemResponse);
+
+  rpc ListSkills(ListSkillsRequest) returns (ListSkillsResponse);
+  rpc CreateSkill(CreateSkillRequest) returns (Skill);
+  rpc AddAlias(AddAliasRequest) returns (Alias);
+  rpc SetCanonicalAlias(SetCanonicalAliasRequest) returns (Skill);
+  rpc DeleteAlias(DeleteAliasRequest) returns (google.protobuf.Empty);
+  rpc DeprecateSkill(DeprecateSkillRequest) returns (Skill);
+  rpc DeleteSkill(DeleteSkillRequest) returns (google.protobuf.Empty);
+  // Пакетное применение подтверждённых HR черновиков: один dictionary_version++.
+  rpc ApplySkills(ApplySkillsRequest) returns (ApplySkillsResponse);
+}
+
+enum ResolveSource {
+  RESOLVE_SOURCE_UNSPECIFIED = 0;
+  RESOLVE_SOURCE_VACANCY = 1;
+  RESOLVE_SOURCE_RESUME = 2;
+  RESOLVE_SOURCE_ADMIN = 3;
+}
+
+enum ResolveMethod {
+  RESOLVE_METHOD_UNSPECIFIED = 0;
+  RESOLVE_METHOD_ALIAS_EXACT = 1;
+  RESOLVE_METHOD_ALIAS_FOLDED = 2;
+  RESOLVE_METHOD_ALIAS_LEMMA = 3;
+  RESOLVE_METHOD_ALIAS_LEMMA_FOLDED = 4;
+  RESOLVE_METHOD_NEW = 5;
+  // Зарезервирован: в v1 не выдаётся, подсказки живут только в candidates.
+  RESOLVE_METHOD_EMBEDDING = 6;
+}
+
+enum SkillType {
+  SKILL_TYPE_UNSPECIFIED = 0;
+  SKILL_TYPE_TECH = 1;
+  SKILL_TYPE_TOOL = 2;
+  SKILL_TYPE_DOMAIN = 3;
+  SKILL_TYPE_SOFT = 4;
+  SKILL_TYPE_OTHER = 5;
+}
+
+enum SkillStatus {
+  SKILL_STATUS_UNSPECIFIED = 0;
+  SKILL_STATUS_ACTIVE = 1;
+  SKILL_STATUS_DEPRECATED = 2;
+}
+
+enum AliasSource {
+  ALIAS_SOURCE_UNSPECIFIED = 0;
+  ALIAS_SOURCE_SEED = 1;
+  ALIAS_SOURCE_HR = 2;
+  ALIAS_SOURCE_LLM = 3;
+  ALIAS_SOURCE_EMBEDDING_CONFIRMED = 4;
+}
+
+enum LemmaMode {
+  LEMMA_MODE_UNSPECIFIED = 0;
+  LEMMA_MODE_AUTO = 1;
+  // Жаргон, где лемма меняет смысл: "кубы" -> "куб".
+  LEMMA_MODE_RAW_ONLY = 2;
+}
+
+enum ReviewStatus {
+  REVIEW_STATUS_UNSPECIFIED = 0;
+  REVIEW_STATUS_PENDING = 1;
+  REVIEW_STATUS_RESOLVED_ALIAS = 2;
+  REVIEW_STATUS_RESOLVED_NEW_SKILL = 3;
+  REVIEW_STATUS_REJECTED = 4;
+}
+
+enum ReviewAction {
+  REVIEW_ACTION_UNSPECIFIED = 0;
+  REVIEW_ACTION_ALIAS = 1;
+  REVIEW_ACTION_NEW_SKILL = 2;
+  REVIEW_ACTION_REJECT = 3;
+}
+
+message RawSkill {
+  // Клиентский ключ для склейки ответа.
+  string key = 1;
+  string raw_name = 2;
+  string lang_hint = 3;
+  ResolveSource source = 4;
+}
+
+message Candidate {
+  string skill_id = 1;
+  string canonical_name = 2;
+  double confidence = 3;
+}
+
+message ResolvedSkill {
+  string key = 1;
+  string raw_name = 2;
+  string normalized_key = 3;
+  string folded_key = 4;
+  string skill_id = 5;
+  string canonical_name = 6;
+  ResolveMethod method = 7;
+  double confidence = 8;
+  repeated Candidate candidates = 9;
+}
+
+message ResolveBatchRequest {
+  repeated RawSkill items = 1;
+  // Пусто — текущая версия. Для запуска скоринга версия фиксируется.
+  string as_of_resolver_version = 2;
+  // true — не создавать review_item для NEW (например, проверка черновиков HR).
+  bool skip_review = 3;
+}
+
+message ResolveBatchResponse {
+  string resolver_version = 1;
+  repeated ResolvedSkill items = 2;
+}
+
+message GetVersionRequest {}
+
+message GetVersionResponse {
+  string resolver_version = 1;
+  int64 dictionary_version = 2;
+  string embedding_model_id = 3;
+  string config_hash = 4;
+  string pymorphy_version = 5;
+  string homoglyph_rules_version = 6;
+}
+
+message GetSkillsRequest {
+  repeated string skill_ids = 1;
+}
+
+message GetSkillsResponse {
+  map<string, Skill> skills = 1;
+}
+
+message Alias {
+  string id = 1;
+  string skill_id = 2;
+  string raw = 3;
+  bool is_canonical = 4;
+  string lang = 5;
+  AliasSource source = 6;
+  LemmaMode lemma_mode = 7;
+  string created_by = 8;
+  string created_at = 9;
+}
+
+message Skill {
+  string id = 1;
+  string canonical_name = 2;
+  SkillType skill_type = 3;
+  SkillStatus status = 4;
+  repeated Alias aliases = 5;
+}
+
+message ReviewItem {
+  string id = 1;
+  string key = 2;
+  repeated string sample_masked = 3;
+  int64 occurrences = 4;
+  ReviewStatus status = 5;
+  string suggested_skill_id = 6;
+  double suggested_confidence = 7;
+  repeated Candidate candidates = 8;
+  string resolved_skill_id = 9;
+  string resolved_by = 10;
+  string resolved_at = 11;
+}
+
+message ListReviewItemsRequest {
+  ReviewStatus status = 1;
+  int32 limit = 2;
+  int32 offset = 3;
+}
+
+message ListReviewItemsResponse {
+  repeated ReviewItem items = 1;
+  int32 total = 2;
+}
+
+message ResolveReviewItemRequest {
+  string review_id = 1;
+  ReviewAction action = 2;
+  string actor = 3;
+  string skill_id = 4;
+  string canonical_name = 5;
+  SkillType skill_type = 6;
+  repeated string additional_aliases = 7;
+}
+
+message ResolveReviewItemResponse {
+  ReviewItem item = 1;
+  Skill skill = 2;
+}
+
+message ListSkillsRequest {
+  string query = 1;
+  SkillType skill_type = 2;
+  SkillStatus status = 3;
+  int32 limit = 4;
+  int32 offset = 5;
+}
+
+message ListSkillsResponse {
+  repeated Skill items = 1;
+  int32 total = 2;
+}
+
+message CreateSkillRequest {
+  string canonical_name = 1;
+  SkillType skill_type = 2;
+  string actor = 3;
+}
+
+message AddAliasRequest {
+  string skill_id = 1;
+  string alias_raw = 2;
+  string lang = 3;
+  LemmaMode lemma_mode = 4;
+  string actor = 5;
+}
+
+message SetCanonicalAliasRequest {
+  string skill_id = 1;
+  string alias_id = 2;
+  string actor = 3;
+}
+
+message DeleteAliasRequest {
+  string alias_id = 1;
+  string actor = 2;
+}
+
+message DeprecateSkillRequest {
+  string skill_id = 1;
+  string actor = 2;
+  // false — только soft-delete (status=DEPRECATED).
+  bool hard_delete = 3;
+}
+
+message DeleteSkillRequest {
+  string skill_id = 1;
+  string actor = 2;
+}
+
+message AliasInput {
+  string text = 1;
+  string lang = 2;
+  string category = 3;
+}
+
+message ApplySkillInput {
+  string canonical = 1;
+  SkillType skill_type = 2;
+  // Пусто — создать новый навык. Иначе алиасы добавляются к существующему.
+  string target_skill_id = 3;
+  repeated AliasInput aliases = 4;
+}
+
+message ApplySkillsRequest {
+  repeated ApplySkillInput skills = 1;
+  string actor = 2;
+}
+
+message ApplySkillsResponse {
+  repeated Skill skills = 1;
+  string resolver_version = 2;
+}

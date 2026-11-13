@@ -24,7 +24,7 @@ requires = ["uv_build>=0.13.7,<0.14.0"]
 build-backend = "uv_build"
 
 [tool.uv.build-backend]
-module-name = ["api", "scoring_service"]
+module-name = ["api", "scoring_service", "dictionary_service"]
 
 [dependency-groups]
 dev = ["grpcio-tools>=1.85.1", "pytest>=9.2.0", "ruff>=0.17.4"]
@@ -36,7 +36,8 @@ testpaths = ["tests"]
 line-length = 100
 target-version = "py314"
 exclude = [
-    "src/scoring_service"
+    "src/scoring_service",
+    "src/dictionary_service",
 ]
 
 [tool.ruff.lint]
@@ -46,6 +47,7 @@ select = ["E", "F", "I", "UP", "B", "SIM", "RUF"]
 # Русский текст в промптах и синтетических данных — намеренный.
 "src/api/prompts/*" = ["RUF001", "RUF002", "RUF003"]
 "src/api/llm/mock.py" = ["RUF001", "RUF002", "RUF003"]
+"src/api/extraction/normalize.py" = ["RUF001", "RUF002", "RUF003"]
 "src/api/extraction/quotes.py" = ["RUF002"]
 "src/api/extraction/schema.py" = ["RUF001", "RUF002", "RUF003"]
 "src/api/scoring/*.py" = ["RUF001", "RUF002", "RUF003"]

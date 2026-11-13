@@ -1,0 +1,46 @@
+[project]
+name = "dictionary-service"
+version = "0.1.0"
+description = "Skill dictionary, normalization and alias resolution"
+readme = "README.md"
+requires-python = ">=3.12"
+dependencies = [
+    "grpcio>=1.85.1",
+    "grpcio-health-checking>=1.85.1",
+    "grpcio-reflection>=1.85.1",
+    "psycopg[binary,pool]>=3.2.0",
+    "pymorphy3>=2.0.0",
+]
+
+[project.scripts]
+dictionary-service = "dictionary_service.__main__:main"
+dictionary-service-healthcheck = "dictionary_service.healthcheck:main"
+
+[build-system]
+requires = ["setuptools>=75"]
+build-backend = "setuptools.build_meta"
+
+[tool.setuptools.packages.find]
+where = ["src"]
+
+[tool.setuptools.package-data]
+dictionary_service = ["*.sql"]
+
+[dependency-groups]
+dev = ["grpcio-tools>=1.85.1", "pytest>=8.3.0", "ruff>=0.9.0"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+pythonpath = ["src"]
+
+[tool.ruff]
+line-length = 100
+target-version = "py312"
+exclude = ["src/dictionary_service/v1"]
+
+[tool.ruff.lint]
+select = ["E", "F", "I", "UP", "B", "SIM", "RUF"]
+
+[tool.ruff.lint.per-file-ignores]
+"tests/*" = ["RUF001", "RUF002", "RUF003"]
+"src/dictionary_service/*.py" = ["RUF001", "RUF002", "RUF003"]

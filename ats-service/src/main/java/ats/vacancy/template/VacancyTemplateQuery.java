@@ -32,8 +32,8 @@ public class VacancyTemplateQuery {
 
     private static final String REQUIREMENTS_SQL =
             """
-            SELECT r.id, COALESCE(s.name, r.raw_text) AS requirement_text,
-                   COALESCE(s.name, '') AS skill_name,
+            SELECT r.id, COALESCE(s.name, r.skill_text, r.raw_text) AS requirement_text,
+                   COALESCE(s.name, r.skill_text, '') AS skill_name,
                    -- Числового weight в схеме больше нет (009): важность задаёт kind.
                    CASE r.kind WHEN 'MUST' THEN 3 WHEN 'NICE' THEN 2 ELSE 1 END AS weight,
                    r.kind, r.critical,
