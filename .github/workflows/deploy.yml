@@ -209,12 +209,12 @@ jobs:
               docker compose \
                 --env-file .env.example \
                 --env-file .env.production \
-                -f compose.yaml -f compose.prod.yaml ps || true
+                -f compose.yaml -f compose.prod.yaml ps -a || true
               docker compose \
                 --env-file .env.example \
                 --env-file .env.production \
                 -f compose.yaml -f compose.prod.yaml logs \
-                --no-color --tail=200 migrations postgres || true
+                --no-color --tail=200 || true
               exit 1
             fi
 

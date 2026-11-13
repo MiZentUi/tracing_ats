@@ -147,6 +147,11 @@ docker compose \
   -f compose.yaml -f compose.prod.yaml up -d --no-build
 ```
 
+Если при ручном запуске видны предупреждения
+`The "IMAGE_PREFIX" variable is not set` и `The "IMAGE_TAG" variable is not set`,
+значит не экспортированы переменные образов. В GitHub Actions они выставляются
+автоматически; для ручного запуска экспортируй их, как показано выше.
+
 ## 6. TLS и домен
 
 Workflow не настраивает TLS. Для production поставь перед frontend reverse proxy
