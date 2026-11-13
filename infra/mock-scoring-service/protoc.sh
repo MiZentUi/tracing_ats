@@ -9,6 +9,7 @@ PROTOBUFS="scoring_service/v1/models/features/common.proto \
     scoring_service/v1/models/features/education.proto \
     scoring_service/v1/models/features/experience.proto \
     scoring_service/v1/models/features.proto \
+    scoring_service/v1/models/features/qualification.proto \
     scoring_service/v1/models/features/skill.proto \
     scoring_service/v1/models/messages.proto \
     scoring_service/v1/scoring.proto"
