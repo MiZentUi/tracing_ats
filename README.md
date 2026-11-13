@@ -677,7 +677,7 @@ erDiagram
 
 `EvaluateResumeMatch` и `EvaluateResumeMatches` используют одну и ту же математику; различие — в количестве вакансий. Передача внешних `q_i^l` и отдельные `Score_pre`/`Score_final` пока не зафиксированы в контракте: это следующий шаг после RFC по модели.
 
-`EvaluateResumeMatch` и `EvaluateResumeMatches` дополнительно возвращают `strengths`, `risks`, `questions` и `recruiter_note`. Эти поля собираются детерминированно по каталогу `feedback-templates.v1`, без вызова LLM; правила и каталог — `docs/rfc/rfc-feedback-generation.md`. Java сохраняет объяснения в `score_run.parsed`, но REST-отчёт и UI пока не отдают `strengths`, `risks`, `questions` и `recruiter_note`.
+`EvaluateResumeMatch` и `EvaluateResumeMatches` дополнительно возвращают `strengths`, `risks`, `questions` и `recruiter_note`. Эти поля собираются детерминированно по каталогу `feedback-templates.v2`, без вызова LLM; правила и каталог — `docs/rfc/rfc-feedback-generation.md`. Java сохраняет объяснения в `score_run.parsed`, но REST-отчёт и UI пока не отдают `strengths`, `risks`, `questions` и `recruiter_note`.
 
 ### Контракт обучения весов (Python, офлайн)
 

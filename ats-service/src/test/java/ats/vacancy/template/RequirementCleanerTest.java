@@ -48,7 +48,12 @@ class RequirementCleanerTest {
 
     private static LlmTemplatePayload.LlmRequirement requirement(
             String skill, String kind, BigDecimal years, String quote, String warning) {
-        return new LlmTemplatePayload.LlmRequirement(skill, kind, years, quote, warning);
+        return new LlmTemplatePayload.LlmRequirement(skill, null, kind, years, quote, warning);
+    }
+
+    private static LlmTemplatePayload.LlmRequirement qualification(
+            String label, String kind, String quote) {
+        return new LlmTemplatePayload.LlmRequirement(null, label, kind, null, quote, null);
     }
 
     @Test
@@ -56,7 +61,7 @@ class RequirementCleanerTest {
         CleanedTemplate result =
                 cleaner.clean(
                         new LlmTemplatePayload(
-                                2,
+                                3,
                                 null,
                                 List.of(
                                         requirement(
@@ -71,7 +76,7 @@ class RequirementCleanerTest {
         CleanedTemplate result =
                 cleaner.clean(
                         new LlmTemplatePayload(
-                                2,
+                                3,
                                 null,
                                 List.of(requirement("Java", "MUST", null, "Java и SQL", null))),
                         "Java\nи\u00A0SQL");
@@ -83,7 +88,7 @@ class RequirementCleanerTest {
         CleanedTemplate result =
                 cleaner.clean(
                         new LlmTemplatePayload(
-                                2, null, List.of(requirement(null, "NICE", null, "Java", null))),
+                                3, null, List.of(requirement(null, "NICE", null, "Java", null))),
                         "Java");
         assertThat(result.requirements()).isEmpty();
         assertThat(result.droppedRequirements()).isEqualTo(1);
@@ -94,7 +99,7 @@ class RequirementCleanerTest {
         CleanedTemplate result =
                 cleaner.clean(
                         new LlmTemplatePayload(
-                                2,
+                                3,
                                 null,
                                 List.of(
                                         requirement(
@@ -123,7 +128,7 @@ class RequirementCleanerTest {
         CleanedTemplate negative =
                 cleaner.clean(
                         new LlmTemplatePayload(
-                                2,
+                                3,
                                 null,
                                 List.of(
                                         requirement(
@@ -136,7 +141,7 @@ class RequirementCleanerTest {
         CleanedTemplate huge =
                 cleaner.clean(
                         new LlmTemplatePayload(
-                                2,
+                                3,
                                 null,
                                 List.of(
                                         requirement(
@@ -151,12 +156,73 @@ class RequirementCleanerTest {
     }
 
     @Test
+    void keepsQualificationAsOpenLabelWithoutSkill() {
+        CleanedTemplate result =
+                cleaner.clean(
+                        new LlmTemplatePayload(
+                                3,
+                                null,
+                                List.of(
+                                        qualification(
+                                                "III группа по электробезопасности",
+                                                "MUST",
+                                                "Допуск: III группа по электробезопасности."))),
+                        "Допуск: III группа по электробезопасности.");
+
+        assertThat(result.requirements()).hasSize(1);
+        DraftRequirement requirement = result.requirements().get(0);
+        assertThat(requirement.qualification()).isTrue();
+        assertThat(requirement.skill()).isEqualTo("III группа по электробезопасности");
+        assertThat(requirement.skillId()).isNull();
+        assertThat(requirement.normalizedKey()).isEqualTo("iii группа по электробезопасности");
+    }
+
+    @Test
+    void dropsQualificationWhenLabelIsNotInQuote() {
+        CleanedTemplate result =
+                cleaner.clean(
+                        new LlmTemplatePayload(
+                                3,
+                                null,
+                                List.of(
+                                        qualification(
+                                                "IV группа по электробезопасности",
+                                                "MUST",
+                                                "Допуск: III группа по электробезопасности."))),
+                        "Допуск: III группа по электробезопасности.");
+
+        assertThat(result.requirements()).isEmpty();
+        assertThat(result.droppedRequirements()).isEqualTo(1);
+    }
+
+    @Test
+    void dropsAmbiguousSkillAndQualification() {
+        CleanedTemplate result =
+                cleaner.clean(
+                        new LlmTemplatePayload(
+                                3,
+                                null,
+                                List.of(
+                                        new LlmTemplatePayload.LlmRequirement(
+                                                "Python",
+                                                "III группа по электробезопасности",
+                                                "MUST",
+                                                null,
+                                                "Python, III группа по электробезопасности",
+                                                null))),
+                        "Python, III группа по электробезопасности");
+
+        assertThat(result.requirements()).isEmpty();
+        assertThat(result.droppedRequirements()).isEqualTo(1);
+    }
+
+    @Test
     void truncatesToMaxRequirements() {
         properties.setMaxRequirements(2);
         CleanedTemplate result =
                 cleaner.clean(
                         new LlmTemplatePayload(
-                                2,
+                                3,
                                 null,
                                 List.of(
                                         requirement("Java", "MUST", null, "Java", null),

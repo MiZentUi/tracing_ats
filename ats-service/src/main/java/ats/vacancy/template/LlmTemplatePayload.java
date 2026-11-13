@@ -14,6 +14,7 @@ public record LlmTemplatePayload(
     @JsonIgnoreProperties(ignoreUnknown = true)
     public record LlmRequirement(
             String skill,
+            String qualification,
             String kind,
             @JsonProperty("years_required") BigDecimal yearsRequired,
             String quote,

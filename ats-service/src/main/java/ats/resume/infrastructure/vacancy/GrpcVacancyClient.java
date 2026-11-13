@@ -101,7 +101,8 @@ public class GrpcVacancyClient implements VacancyClient {
                                                 requirement.getWeight(),
                                                 requirement.getCritical(),
                                                 requirement.getYearsRequired(),
-                                                requirement.getHalfLifeYears()))
+                                                requirement.getHalfLifeYears(),
+                                                requirement.getQualification()))
                         .toList());
     }
 

@@ -425,7 +425,15 @@ class ResumePipelineIntegrationTest {
         private static List<Requirement> requirements() {
             return List.of(
                     new Requirement(
-                            UUID.randomUUID(), "Java", "Java", RequirementKind.MUST, 3, true, 3, 5),
+                            UUID.randomUUID(),
+                            "Java",
+                            "Java",
+                            RequirementKind.MUST,
+                            3,
+                            true,
+                            3,
+                            5,
+                            false),
                     new Requirement(
                             UUID.randomUUID(),
                             "Spring Boot",
@@ -434,7 +442,8 @@ class ResumePipelineIntegrationTest {
                             3,
                             false,
                             2,
-                            3),
+                            3,
+                            false),
                     new Requirement(
                             UUID.randomUUID(),
                             "Kafka",
@@ -443,7 +452,8 @@ class ResumePipelineIntegrationTest {
                             1,
                             false,
                             1,
-                            3));
+                            3,
+                            false));
         }
 
         private static VacancyTemplate template(

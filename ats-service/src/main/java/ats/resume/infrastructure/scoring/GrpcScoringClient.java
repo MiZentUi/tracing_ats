@@ -3,6 +3,7 @@ package ats.resume.infrastructure.scoring;
 import ats.resume.config.ScoringGrpcProperties;
 import ats.resume.domain.scoring.EvidenceValidator;
 import ats.resume.domain.scoring.ParsedResume;
+import ats.resume.domain.scoring.QualificationCatalog;
 import ats.resume.domain.scoring.ScoringBatchItem;
 import ats.resume.domain.scoring.ScoringClient;
 import ats.resume.domain.scoring.ScoringRequest;
@@ -26,6 +27,7 @@ import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Component;
 import scoring_service.v1.models.Messages;
 import scoring_service.v1.models.features.Common;
+import scoring_service.v1.models.features.Qualification;
 import scoring_service.v1.models.features.Skill;
 
 /**
@@ -36,11 +38,12 @@ import scoring_service.v1.models.features.Skill;
 @RequiredArgsConstructor
 public class GrpcScoringClient implements ScoringClient {
 
-    private static final String SCORING_VERSION = "grpc-scoring-service-v2";
+    private static final String SCORING_VERSION = "grpc-scoring-service-v3";
     private static final String NO_EVIDENCE_GAP = "Навык не найден в обезличенном тексте";
 
     private final ScoringServiceGrpc.ScoringServiceBlockingStub stub;
     private final ScoringGrpcProperties properties;
+    private final QualificationCatalog qualificationCatalog;
 
     @Override
     public ParsedResume extract(String maskedText) {
@@ -70,6 +73,7 @@ public class GrpcScoringClient implements ScoringClient {
                         .setUnprocessedResume(unprocessed(request.maskedText()))
                         .setVacancy(vacancy(request.template()))
                         .setReferenceDate(referenceDate())
+                        .setQualificationCatalog(qualificationCatalogSnapshot())
                         .build();
         try {
             Messages.EvaluateResumeMatchResponse response =
@@ -94,7 +98,8 @@ public class GrpcScoringClient implements ScoringClient {
                 Messages.EvaluateResumeMatchesRequest.newBuilder()
                         .setResume(parsedResume(parsed))
                         .setUnprocessedResume(unprocessed(maskedText))
-                        .setReferenceDate(referenceDate());
+                        .setReferenceDate(referenceDate())
+                        .setQualificationCatalog(qualificationCatalogSnapshot());
         for (VacancyTemplate template : templates) {
             request.putVacancies(template.vacancyId().toString(), vacancy(template));
         }
@@ -264,21 +269,43 @@ public class GrpcScoringClient implements ScoringClient {
     }
 
     private FeatureRequirement requirement(Requirement requirement) {
-        String skill =
+        String subject =
                 nullToEmpty(requirement.skill()).isBlank()
                         ? requirement.text()
                         : requirement.skill();
-        return FeatureRequirement.newBuilder()
-                .setCriticality(criticality(requirement))
-                .setSkill(
+        FeatureRequirement.Builder builder =
+                FeatureRequirement.newBuilder().setCriticality(criticality(requirement));
+        if (requirement.qualification()) {
+            return builder.setQualification(
+                            Qualification.QualificationRequirement.newBuilder()
+                                    .setLabel(nullToEmpty(subject))
+                                    .build())
+                    .build();
+        }
+        return builder.setSkill(
                         Skill.SkillRequirement.newBuilder()
-                                .setName(nullToEmpty(skill))
-                                .setNormalizedName(normalize(skill))
+                                .setName(nullToEmpty(subject))
+                                .setNormalizedName(normalize(subject))
                                 .setDescription(nullToEmpty(requirement.text()))
                                 .setTenure(
                                         Math.max(0, (int) Math.round(requirement.yearsRequired())))
                                 .build())
                 .build();
+    }
+
+    private Qualification.QualificationCatalog qualificationCatalogSnapshot() {
+        Qualification.QualificationCatalog.Builder builder =
+                Qualification.QualificationCatalog.newBuilder()
+                        .setVersion(nullToEmpty(qualificationCatalog.version()));
+        for (QualificationCatalog.Alias alias : qualificationCatalog.aliases()) {
+            builder.addAliases(
+                    Qualification.QualificationAlias.newBuilder()
+                            .setAliasNormalized(nullToEmpty(alias.aliasNormalized()))
+                            .setCanonicalKey(nullToEmpty(alias.canonicalKey()))
+                            .setCanonicalLabel(nullToEmpty(alias.canonicalLabel()))
+                            .build());
+        }
+        return builder.build();
     }
 
     private Common.FeatureCriticality criticality(Requirement requirement) {

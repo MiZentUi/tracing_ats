@@ -54,6 +54,9 @@ public class RequirementEntity {
     @Column(nullable = false)
     private boolean critical;
 
+    @Column(nullable = false)
+    private boolean qualification;
+
     @Column(name = "years_required", nullable = false, precision = 4, scale = 1)
     private BigDecimal yearsRequired;
 

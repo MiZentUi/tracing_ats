@@ -58,8 +58,8 @@ Python 3.14, uv, gRPC, Pydantic. Онлайн-ML: разбор обезличе�
 вызывается: `EvaluateResumeMatch` и `EvaluateResumeMatches` остаются
 детерминированными.
 
-- Каталог `feedback-templates.v1` содержит 30 шаблонов: 5 сильных сторон,
-  8 рисков, 9 вопросов, 6 элементов рекомендации и 2 fallback.
+- Каталог `feedback-templates.v2` содержит 32 шаблона: 6 сильных сторон,
+  8 рисков, 10 вопросов, 6 элементов рекомендации и 2 fallback.
 - Факты выбираются по статусу, `gap_reason`, критичности, стажу, цитате и
   датам; шаблон только формулирует факт.
 - Вариант шаблона выбирается стабильным хешем `fact_id`, поэтому один и тот же
@@ -80,7 +80,7 @@ Python 3.14, uv, gRPC, Pydantic. Онлайн-ML: разбор обезличе�
 ## LLM
 
 - Промпт и JSON-схема лежат в `src/api/prompts/resume_extraction.py`, версия
-  промпта — `resume-extraction.v1`.
+  промпта — `resume-extraction.v3`.
 - Клиент — `src/api/llm/client.py` на официальном SDK `openai`. `base_url`
   настраивается, поэтому подходит OpenRouter и локальные OpenAI-совместимые
   серверы. Повторы на 429/5xx и сетевые ошибки делает SDK (`max_retries`);

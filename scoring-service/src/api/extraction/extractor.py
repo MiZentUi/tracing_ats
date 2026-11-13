@@ -9,8 +9,14 @@ from pydantic import ValidationError
 
 from ..llm.client import LlmClient, LlmInvalidResponse
 from ..prompts import PROMPT_VERSION, resume_extraction
-from .quotes import QuoteIndex
-from .schema import ExtractedEducation, ExtractedExperience, ExtractedSkill, ParsedResume
+from .quotes import QuoteIndex, collapse
+from .schema import (
+    ExtractedEducation,
+    ExtractedExperience,
+    ExtractedQualification,
+    ExtractedSkill,
+    ParsedResume,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -83,6 +89,21 @@ class ResumeExtractor:
                 continue
             skills.append(skill)
 
+        qualifications: list[ExtractedQualification] = []
+        for qualification in parsed.qualifications:
+            located = index.locate(qualification.quote)
+            if located is None:
+                dropped += 1
+                logger.debug("qualification dropped due to a bad quote")
+                continue
+            quote = index.slice(*located)
+            label, _ = collapse(qualification.label.strip())
+            if not label.strip() or label.strip() not in collapse(quote)[0]:
+                dropped += 1
+                logger.debug("qualification dropped because label is not a quote fragment")
+                continue
+            qualifications.append(qualification)
+
         education: list[ExtractedEducation] = []
         for item in parsed.education:
             if index.locate(item.quote) is None:
@@ -106,6 +127,11 @@ class ResumeExtractor:
             experience.append(item.model_copy(update={"metrics": metrics}))
 
         cleaned = parsed.model_copy(
-            update={"skills": skills, "education": education, "experience": experience}
+            update={
+                "skills": skills,
+                "qualifications": qualifications,
+                "education": education,
+                "experience": experience,
+            }
         )
         return ExtractionResult(parsed=cleaned, dropped=dropped)

@@ -40,6 +40,7 @@
 
 1. Класс фичи:
     * `Skill`
+    * `Qualification`
     * `Education`
     * `Prior Experience`
     * `Unclassified`
@@ -59,6 +60,7 @@
 | Класс              | Общие свойства | Свойства вакансии | Свойства резюме | Свойства синтеза |
 |--------------------|----------------|-------------------|-----------------|------------------|
 | `Skill`            | normalized name, tenure | - | recency | relevance, coverage, evidence  |
+| `Qualification`    | canonical key, label | label | label | relevance, coverage, evidence |
 | `Education`        | master, level         | - | university*, graduation year* | relevance, evidence |
 | `Prior Experience` | tenure, category | - | dates, metrics, position | relevance, coverage |
 | `Unclassified`     | plain text* | - | - | evidence |
@@ -69,6 +71,10 @@
 можно применить и оценки соответствия образования, добавляя соответствующим образом веса.
 Под evidence понимается текстовое доказательство: дословная цитата из
 входного текста резюме с границами.
+
+Квалификация — бинарный признак: `S^{ij} = 1` при совпадении канонических ключей
+и `0` иначе; `t_i = 1`, `\tau_i = 1`, вес берётся из критичности требования.
+Отсутствие квалификации даёт `NOT_STATED` с точкой `0` и верхней границей `1`.
 
 Расширение будет произведено после реализации скоринга по навыкам. Данный раздел
 больше приведен для документирования требуемых параметров от вакансии и облегчения

@@ -173,11 +173,11 @@ compose.yaml
 
 ### 6.2 Шаблон из LLM
 
-- Промпт `vacancy-template.v2` + строгая JSON-схема; текст вакансии передаётся как данные
+- Промпт `vacancy-template.v3` + строгая JSON-схема; текст вакансии передаётся как данные
   в `<vacancy_text>`.
-- `TemplateResponseParser`: `schema_version=2`, `kind` из `MUST/NICE/OPTIONAL`.
+- `TemplateResponseParser`: `schema_version=3`, `kind` из `MUST/NICE/OPTIONAL`, `qualification` — открытый label квалификации.
 - `RequirementCleaner`: цитата — подстрока текста, дедупликация с приоритетом
-  `MUST > NICE > OPTIONAL`, отбрасывание пунктов без навыка и предупреждения, лимит 50.
+  `MUST > NICE > OPTIONAL`, отбрасывание пунктов без навыка/квалификации и предупреждения, проверка label как подстроки цитаты, лимит 50.
 - `SkillCatalog`/`SkillNormalizer`: алиасы (`JS → JavaScript`, `C#`, `.NET`).
 - `KindHistoryService`: подсказка типа по `skill_kind_stat` (3 наблюдения, доля 0.6).
 - Один повтор при невалидном ответе; при недоступности LLM вакансия создаётся с пустым

@@ -25,11 +25,17 @@ class ScriptedLlm:
         return self._responses[index]
 
 
-TEXT = "Python developer\nМГУ, 2019\nООО Ромашка, 2020-2023"
+TEXT = "Python developer\nМГУ, 2019\nООО Ромашка, 2020-2023\nIII группа по электробезопасности"
 
 VALID_PAYLOAD = {
-    "schema_version": 2,
+    "schema_version": 3,
     "skills": [{"name": "Python", "years": 3, "quote": "Python developer"}],
+    "qualifications": [
+        {
+            "label": "III группа по электробезопасности",
+            "quote": "III группа по электробезопасности",
+        }
+    ],
     "education": [
         {
             "institution": "МГУ",
@@ -98,6 +104,7 @@ def test_extract_returns_parsed_resume() -> None:
 
     assert result.dropped == 0
     assert result.parsed.skills[0].name == "Python"
+    assert result.parsed.qualifications[0].label == "III группа по электробезопасности"
     assert result.parsed.education[0].institution == "МГУ"
     assert result.parsed.experience[0].category == "backend"
     assert result.parsed.experience[0].metrics == ["Python developer"]
@@ -116,6 +123,24 @@ def test_extract_drops_feature_with_unknown_quote() -> None:
     assert result.parsed.skills == []
 
 
+def test_extract_drops_qualification_when_label_is_not_in_quote() -> None:
+    payload = {
+        **VALID_PAYLOAD,
+        "qualifications": [
+            {
+                "label": "IV группа по электробезопасности",
+                "quote": "III группа по электробезопасности",
+            }
+        ],
+    }
+    extractor = ResumeExtractor(ScriptedLlm([json.dumps(payload)]))
+
+    result = extractor.extract(TEXT)
+
+    assert result.dropped == 1
+    assert result.parsed.qualifications == []
+
+
 def test_extract_retries_once_on_invalid_json() -> None:
     client = ScriptedLlm(["not json", _valid_json()])
     extractor = ResumeExtractor(client)
@@ -124,6 +149,7 @@ def test_extract_retries_once_on_invalid_json() -> None:
 
     assert client.calls == 2
     assert result.parsed.skills[0].name == "Python"
+    assert result.parsed.qualifications[0].label == "III группа по электробезопасности"
 
 
 def test_extract_fails_after_second_invalid_response() -> None:
@@ -138,7 +164,7 @@ def test_extract_fails_after_second_invalid_response() -> None:
 
 def test_schema_rejects_unknown_education_level() -> None:
     payload = {
-        "schema_version": 2,
+        "schema_version": 3,
         "education": [{"level": "phd", "quote": "МГУ"}],
     }
 
@@ -148,12 +174,12 @@ def test_schema_rejects_unknown_education_level() -> None:
 
 def test_schema_rejects_wrong_schema_version() -> None:
     with pytest.raises(ValidationError):
-        ParsedResume.model_validate({"schema_version": 1})
+        ParsedResume.model_validate({"schema_version": 2})
 
 
 def test_schema_rejects_long_skill_quote() -> None:
     payload = {
-        "schema_version": 2,
+        "schema_version": 3,
         "skills": [
             {
                 "name": "Python",
@@ -168,7 +194,7 @@ def test_schema_rejects_long_skill_quote() -> None:
 
 def test_schema_rejects_long_metric_quote() -> None:
     payload = {
-        "schema_version": 2,
+        "schema_version": 3,
         "experience": [
             {
                 "quote": "Опыт",
@@ -184,8 +210,9 @@ def test_schema_rejects_long_metric_quote() -> None:
 def test_prompt_contains_schema_and_marks_resume_as_data() -> None:
     prompt = system_prompt()
 
-    assert PROMPT_VERSION == "resume-extraction.v2"
+    assert PROMPT_VERSION == "resume-extraction.v3"
     assert '"skills"' in prompt
+    assert '"qualifications"' in prompt
     assert '"education"' in prompt
     assert '"experience"' in prompt
     assert "не ставь баллов" in prompt

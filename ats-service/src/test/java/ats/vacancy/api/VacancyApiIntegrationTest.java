@@ -22,6 +22,7 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 import java.nio.charset.StandardCharsets;
 import java.util.List;
 import java.util.Map;
+import java.util.UUID;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -290,6 +291,57 @@ class VacancyApiIntegrationTest {
 
         JsonNode savedJson = objectMapper.readTree(saved.getResponse().getContentAsString());
         assertThat(savedJson.path("source_text").asText()).isEqualTo("Обновлённый текст вакансии");
+    }
+
+    @Test
+    void savesOpenQualificationWithoutCreatingSkill() throws Exception {
+        String text = "Допуск: III группа по электробезопасности.";
+        String json =
+                """
+                {"schema_version": 3, "title": "Электромонтёр", "requirements": [
+                  {"skill": null, "qualification": "III группа по электробезопасности",
+                   "kind": "MUST", "years_required": null,
+                   "quote": "III группа по электробезопасности", "clarity_warning": null}
+                ]}
+                """;
+        when(llmClient.complete(any()))
+                .thenReturn(new LlmResponse(json, "mock/mock-model", 10, 20, "stop"));
+
+        MvcResult result =
+                mockMvc.perform(
+                                multipart("/api/v1/vacancies")
+                                        .param("specialization", "backend")
+                                        .param("level", "middle")
+                                        .param("text", text))
+                        .andExpect(status().isCreated())
+                        .andReturn();
+        JsonNode created = objectMapper.readTree(result.getResponse().getContentAsString());
+        JsonNode requirement = created.path("template").path("requirements").get(0);
+
+        assertThat(created.path("template").path("requirements")).hasSize(1);
+        assertThat(requirement.path("skill").asText())
+                .isEqualTo("III группа по электробезопасности");
+        assertThat(requirement.path("skill_id").isNull()).isTrue();
+
+        UUID vacancyId = UUID.fromString(created.path("vacancy_id").asText());
+        assertThat(
+                        jdbcTemplate.queryForObject(
+                                "SELECT qualification FROM vacancy_requirement r "
+                                        + "JOIN vacancy_template_version v "
+                                        + "ON v.id = r.template_version_id "
+                                        + "WHERE v.vacancy_id = ? ORDER BY v.version_no DESC LIMIT 1",
+                                Boolean.class,
+                                vacancyId))
+                .isTrue();
+        assertThat(
+                        jdbcTemplate.queryForObject(
+                                "SELECT count(*) FROM vacancy_requirement r "
+                                        + "JOIN vacancy_template_version v "
+                                        + "ON v.id = r.template_version_id "
+                                        + "WHERE v.vacancy_id = ? AND r.skill_id IS NOT NULL",
+                                Integer.class,
+                                vacancyId))
+                .isZero();
     }
 
     @Test

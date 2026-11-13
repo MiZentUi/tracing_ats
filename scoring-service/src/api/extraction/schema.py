@@ -14,7 +14,7 @@ from typing import Literal
 
 from pydantic import BaseModel, ConfigDict, Field, field_validator
 
-SCHEMA_VERSION = 2
+SCHEMA_VERSION = 3
 
 SKILL_QUOTE_MAX_CHARS = 160
 ITEM_QUOTE_MAX_CHARS = 240
@@ -58,6 +58,29 @@ class ExtractedSkill(_StrictModel):
             "Минимальная дословная цитата только для этого навыка. "
             "Если навыки перечислены в абзаце, верни только элемент списка, "
             "а не весь абзац."
+        ),
+    )
+
+
+class ExtractedQualification(_StrictModel):
+    """Бинарная квалификация: группа допуска, категория прав, аттестат.
+
+    Список квалификаций открытый. Модель возвращает `label` из текста, а не
+    значение из закрытого перечня; канонический ключ вычисляет словарь при
+    сопоставлении.
+    """
+
+    label: str = Field(
+        min_length=1,
+        max_length=128,
+        description="Название квалификации дословно из цитаты.",
+    )
+    quote: str = Field(
+        min_length=1,
+        max_length=SKILL_QUOTE_MAX_CHARS,
+        description=(
+            "Минимальная дословная цитата, где указана квалификация. "
+            "label должен быть её фрагментом."
         ),
     )
 
@@ -114,7 +137,8 @@ class ExtractedExperience(_StrictModel):
 class ParsedResume(_StrictModel):
     """Результат извлечения. Версия схемы фиксируется в каждом ответе."""
 
-    schema_version: Literal[2] = SCHEMA_VERSION
+    schema_version: Literal[3] = SCHEMA_VERSION
     skills: list[ExtractedSkill] = Field(default_factory=list)
+    qualifications: list[ExtractedQualification] = Field(default_factory=list)
     education: list[ExtractedEducation] = Field(default_factory=list)
     experience: list[ExtractedExperience] = Field(default_factory=list)

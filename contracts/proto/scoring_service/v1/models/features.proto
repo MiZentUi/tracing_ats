@@ -5,6 +5,7 @@ package scoring_service.v1.models;
 import "scoring_service/v1/models/features/education.proto";
 import "scoring_service/v1/models/features/skill.proto";
 import "scoring_service/v1/models/features/experience.proto";
+import "scoring_service/v1/models/features/qualification.proto";
 import "scoring_service/v1/models/features/common.proto";
 
 option java_multiple_files = true;
@@ -26,6 +27,7 @@ message FeatureAssessment {
     scoring_service.v1.models.features.EducationPerResume education = 6;
     scoring_service.v1.models.features.SkillPerResume skill = 7;
     scoring_service.v1.models.features.PriorExperiencePerResume experience = 8;
+    scoring_service.v1.models.features.QualificationPerResume qualification = 9;
   }
 }
 
@@ -40,6 +42,7 @@ message FeatureRequirement {
     scoring_service.v1.models.features.SkillRequirement skill = 4;
     scoring_service.v1.models.features.PriorExperienceRequirement experience = 5;
     scoring_service.v1.models.TextRequirement text_requirement = 6;
+    scoring_service.v1.models.features.QualificationRequirement qualification = 8;
   }
   // Источник требования: явное требование или обязанность
   scoring_service.v1.models.features.RequirementSource source = 7;

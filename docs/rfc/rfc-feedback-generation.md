@@ -163,6 +163,7 @@ Gap { requirement_id, reason }
 | Тип требования | Статус / причина | Шаблон |
 |---|---|---|
 | `skill` | `NOT_STATED` | `question.skill_not_stated` |
+| `qualification` | `NOT_STATED` | `question.qualification_not_stated` |
 | `experience` | `NOT_STATED` | `question.experience_not_stated` |
 | `education` | `NOT_STATED` | `question.education_not_stated` |
 | `text` | `NOT_STATED` | `question.text_not_stated` |
@@ -241,11 +242,11 @@ Gap { requirement_id, reason }
 Сортировка фактов: `(-priority, fact_id)`. Это гарантирует, что при одинаковом
 приоритете порядок не зависит от порядка словаря или protobuf-map.
 
-## 6. Каталог шаблонов v1
+## 6. Каталог шаблонов v2
 
-Версия каталога: `FEEDBACK_TEMPLATE_VERSION = "feedback-templates.v1"`.
+Версия каталога: `FEEDBACK_TEMPLATE_VERSION = "feedback-templates.v2"`.
 
-Состав: **30 шаблонов** — 5 сильных сторон, 8 рисков, 9 вопросов, 6 элементов
+Состав: **32 шаблона** — 6 сильных сторон, 8 рисков, 10 вопросов, 6 элементов
 рекомендации и 2 fallback.
 
 Формат ID: `{kind}.{condition}` или `{kind}.{condition}.v{n}` для вариантов
@@ -257,6 +258,7 @@ Gap { requirement_id, reason }
 | `strength.skill_full` | `strength` | `skill_full` | Навык «{label}» подтверждён в резюме: {evidence}.{tenure_note} |
 | `strength.experience_full` | `strength` | `experience_full` | Опыт в категории «{label}» подтверждён: {evidence}.{tenure_note} |
 | `strength.education_full` | `strength` | `education_full` | Образование по направлению «{label}» подтверждено: {evidence}. |
+| `strength.qualification_full` | `strength` | `qualification_full` | Квалификация «{label}» подтверждена: {evidence}. |
 | `strength.text_full` | `strength` | `text_full` | Требование «{label}» подтверждено текстом резюме: {evidence}. |
 | `risk.critical_gap` | `risk` | `critical_gap` | Критичное требование «{label}» {status_phrase} — это ключевой риск для вакансии. |
 | `risk.required_gap.v1` | `risk` | `required_gap` | Обязательное требование «{label}» не закрыто полностью: {status_note}. |
@@ -267,6 +269,7 @@ Gap { requirement_id, reason }
 | `risk.wide_interval` | `risk` | `wide_interval` | Доля требований без сведений в резюме — {not_stated_count} из {total_count}; вилка оценки широкая. |
 | `risk.missing_data` | `risk` | `missing_data` | В резюме нет раздела «{section}»; выводы по связанным требованиям опираются на неполные данные. |
 | `question.skill_not_stated` | `question` | `skill_not_stated` | В резюме не указан навык «{label}». Приведите пример задачи, где вы его применяли, и сколько времени это занимало? |
+| `question.qualification_not_stated` | `question` | `qualification_not_stated` | В резюме не указана квалификация «{label}». Подтвердите, есть ли она у вас, и приложите документ. |
 | `question.experience_not_stated` | `question` | `experience_not_stated` | В резюме не указан опыт в категории «{label}». Расскажите о релевантных проектах и вашей роли в них. |
 | `question.education_not_stated` | `question` | `education_not_stated` | В резюме не указано образование по направлению «{label}». Уточните профиль обучения и пройденные курсы. |
 | `question.text_not_stated` | `question` | `text_not_stated` | В резюме не указано подтверждение требования «{label}». Приведите конкретный пример из опыта. |
@@ -348,8 +351,8 @@ Gap { requirement_id, reason }
 структурированным, `matches[requirement_id]` хранит цитату, комментарий и
 найденный стаж.
 
-Версия каталога `feedback-templates.v1` пока не входит в контракт. Она
-пишется в лог `evaluate resume match` как `feedback=feedback-templates.v1`.
+Версия каталога `feedback-templates.v2` пока не входит в контракт. Она
+пишется в лог `evaluate resume match` как `feedback=feedback-templates.v2`.
 Чтобы версия сохранялась в неизменяемом запуске скоринга, нужно добавить поле
 в `EvaluateResumeMatchResponse` и в `score_run`; это отдельное изменение
 контракта.
@@ -369,7 +372,7 @@ Gap { requirement_id, reason }
 Пример события:
 
 ```text
-evaluate resume match requirements=5 matches=5 gaps=2 strengths=3 risks=2 questions=2 feedback=feedback-templates.v1
+evaluate resume match requirements=5 matches=5 gaps=2 strengths=3 risks=2 questions=2 feedback=feedback-templates.v2
 ```
 
 ## 11. Тесты
@@ -400,7 +403,7 @@ evaluate resume match requirements=5 matches=5 gaps=2 strengths=3 risks=2 questi
 
 ## 12. Открытые вопросы
 
-1. **Версия каталога в контракте.** Сейчас `feedback-templates.v1` есть только
+1. **Версия каталога в контракте.** Сейчас `feedback-templates.v2` есть только
    в коде и логах. Для воспроизводимости сохранённых запусков нужно поле в
    `EvaluateResumeMatchResponse` и `score_run`.
 2. **Отображение в UI.** `ReportService`, OpenAPI и `ReportView.vue` пока не

@@ -36,7 +36,7 @@ public class VacancyTemplateQuery {
                    COALESCE(s.name, r.skill_text, '') AS skill_name,
                    -- Числового weight в схеме больше нет (009): важность задаёт kind.
                    CASE r.kind WHEN 'MUST' THEN 3 WHEN 'NICE' THEN 2 ELSE 1 END AS weight,
-                   r.kind, r.critical,
+                   r.kind, r.critical, r.qualification,
                    r.years_required, COALESCE(r.half_life_years, 0) AS half_life_years
             FROM vacancy_requirement r
             LEFT JOIN skill s ON s.id = r.skill_id
@@ -77,7 +77,7 @@ public class VacancyTemplateQuery {
                                     rs.getDouble("w_n"),
                                     rs.getDouble("w_f"),
                                     rs.getString("llm_prompt_version"),
-                                    "scoring-v1",
+                                    "scoring-v2",
                                     "v" + rs.getInt("weights_version"),
                                     requirements);
                         },
@@ -97,7 +97,8 @@ public class VacancyTemplateQuery {
                                 rs.getInt("weight"),
                                 rs.getBoolean("critical"),
                                 rs.getDouble("years_required"),
-                                rs.getDouble("half_life_years")),
+                                rs.getDouble("half_life_years"),
+                                rs.getBoolean("qualification")),
                 templateId);
     }
 }

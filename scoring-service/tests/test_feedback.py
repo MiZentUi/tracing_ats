@@ -20,6 +20,7 @@ from scoring_service.v1.models.features import (
     common_pb2,
     education_pb2,
     experience_pb2,
+    qualification_pb2,
     skill_pb2,
 )
 
@@ -67,6 +68,16 @@ def _education_requirement(
             master=master,
             level=education_pb2.EDUCATION_LEVEL_MASTER,
         ),
+    )
+
+
+def _qualification_requirement(
+    label: str,
+    criticality: int = common_pb2.FEATURE_CRITICALITY_REQUIRED,
+) -> features_pb2.FeatureRequirement:
+    return features_pb2.FeatureRequirement(
+        criticality=criticality,
+        qualification=qualification_pb2.QualificationRequirement(label=label),
     )
 
 
@@ -124,12 +135,15 @@ def _general(score: float = 0.5) -> GeneralScore:
 def _parsed_resume(
     *,
     skills: dict[str, skill_pb2.SkillPerResume] | None = None,
+    qualifications: dict[str, qualification_pb2.QualificationPerResume] | None = None,
     education: dict[str, education_pb2.EducationPerResume] | None = None,
     experience: dict[str, experience_pb2.PriorExperiencePerResume] | None = None,
 ) -> messages_pb2.ParsedResume:
     parsed = messages_pb2.ParsedResume()
     for key, value in (skills or {}).items():
         parsed.skills[key].CopyFrom(value)
+    for key, value in (qualifications or {}).items():
+        parsed.qualifications[key].CopyFrom(value)
     for key, value in (education or {}).items():
         parsed.education[key].CopyFrom(value)
     for key, value in (experience or {}).items():
@@ -166,15 +180,15 @@ def _build(
     )
 
 
-def test_catalog_has_30_unique_templates() -> None:
-    assert FEEDBACK_TEMPLATE_VERSION == "feedback-templates.v1"
-    assert len(FEEDBACK_TEMPLATES) == 30
+def test_catalog_has_32_unique_templates() -> None:
+    assert FEEDBACK_TEMPLATE_VERSION == "feedback-templates.v2"
+    assert len(FEEDBACK_TEMPLATES) == 32
     ids = [template.id for template in FEEDBACK_TEMPLATES]
     assert len(ids) == len(set(ids))
     assert Counter(template.kind for template in FEEDBACK_TEMPLATES) == {
-        "strength": 5,
+        "strength": 6,
         "risk": 8,
-        "question": 9,
+        "question": 10,
         "note": 6,
         "fallback": 2,
     }
@@ -221,6 +235,50 @@ def test_strengths_put_critical_first_and_include_evidence() -> None:
     assert "Найденный стаж — 2 года, требуется 2 года" in feedback.strengths[0]
     assert any("Python" in text for text in feedback.strengths)
     assert any("Прикладная математика" in text for text in feedback.strengths)
+
+
+def test_qualification_strength_and_not_stated_question() -> None:
+    label = "III группа по электробезопасности"
+    vacancy = _vacancy({"electrical": _qualification_requirement(label)})
+    resume = _parsed_resume(
+        qualifications={
+            "qualification:0": qualification_pb2.QualificationPerResume(
+                label=label,
+                evidence=common_pb2.FeatureEvidence(text=label),
+            )
+        }
+    )
+    matches = {
+        "electrical": _match(
+            "electrical",
+            label=label,
+            evidence=label,
+            years_found=None,
+            resume_kind="qualification",
+        )
+    }
+
+    feedback = _build(resume=resume, vacancy=vacancy, matches=matches, general=_general(0.9))
+
+    assert any(
+        "Квалификация «III группа по электробезопасности» подтверждена" in item
+        for item in feedback.strengths
+    )
+
+    not_stated = {
+        "electrical": _match(
+            "electrical",
+            status=common_pb2.CORRESPONDENCE_NOT_STATED,
+            label=label,
+            evidence=None,
+            years_found=None,
+            gap_reason=common_pb2.GAP_REASON_NOT_STATED,
+            resume_kind=None,
+        )
+    }
+    feedback = _build(resume=_parsed_resume(), vacancy=vacancy, matches=not_stated)
+
+    assert any("не указана квалификация" in item for item in feedback.questions)
 
 
 def test_long_quote_stays_a_substring_and_has_no_ellipsis() -> None:

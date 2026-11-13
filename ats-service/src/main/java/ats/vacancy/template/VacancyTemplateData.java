@@ -33,5 +33,6 @@ public record VacancyTemplateData(
             int weight,
             boolean critical,
             double yearsRequired,
-            double halfLifeYears) {}
+            double halfLifeYears,
+            boolean qualification) {}
 }

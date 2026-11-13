@@ -5,6 +5,7 @@ from __future__ import annotations
 from datetime import date
 
 from scoring_service.v1.models import messages_pb2
+from scoring_service.v1.models.features import qualification_pb2
 
 from ..extraction.quotes import QuoteIndex
 from .calculator import ScoringCalculator
@@ -13,6 +14,7 @@ from .feedback import FeedbackBuilder
 from .matcher import RequirementMatcher
 from .model import Evaluation, GapView
 from .policies import DomainMatcher
+from .qualification import QualificationNormalizer
 
 
 class ResumeEvaluator:
@@ -36,14 +38,24 @@ class ResumeEvaluator:
         text: str,
         vacancy: messages_pb2.Vacancy,
         reference_date: date,
+        qualification_catalog: qualification_pb2.QualificationCatalog | None = None,
     ) -> Evaluation:
         if not text.strip():
             raise ValueError("resume text is empty")
 
         index = QuoteIndex(text)
         resolution = self._matcher.prepare(vacancy, resume)
+        qualifications = QualificationNormalizer(qualification_catalog)
         matches = {
-            key: self._matcher.match(key, requirement, resume, index, reference_date, resolution)
+            key: self._matcher.match(
+                key,
+                requirement,
+                resume,
+                index,
+                reference_date,
+                resolution,
+                qualifications,
+            )
             for key, requirement in sorted(vacancy.requirements.items())
         }
 

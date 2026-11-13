@@ -23,7 +23,7 @@ from scoring_service.v1.models.features import common_pb2
 from .dates import end_date, start_date, total_experience_years
 from .model import GeneralScore, RequirementScore
 
-FEEDBACK_TEMPLATE_VERSION = "feedback-templates.v1"
+FEEDBACK_TEMPLATE_VERSION = "feedback-templates.v2"
 
 MAX_STRENGTHS = 5
 MAX_RISKS = 5
@@ -88,6 +88,12 @@ FEEDBACK_TEMPLATES: tuple[FeedbackTemplate, ...] = (
         kind="strength",
         condition="experience_full",
         text="Опыт в категории «{label}» подтверждён: {evidence}.{tenure_note}",
+    ),
+    FeedbackTemplate(
+        id="strength.qualification_full",
+        kind="strength",
+        condition="qualification_full",
+        text="Квалификация «{label}» подтверждена: {evidence}.",
     ),
     FeedbackTemplate(
         id="strength.education_full",
@@ -178,6 +184,15 @@ FEEDBACK_TEMPLATES: tuple[FeedbackTemplate, ...] = (
         text=(
             "В резюме не указан опыт в категории «{label}». "
             "Расскажите о релевантных проектах и вашей роли в них."
+        ),
+    ),
+    FeedbackTemplate(
+        id="question.qualification_not_stated",
+        kind="question",
+        condition="qualification_not_stated",
+        text=(
+            "В резюме не указана квалификация «{label}». "
+            "Подтвердите, есть ли она у вас, и приложите документ."
         ),
     ),
     FeedbackTemplate(
@@ -379,6 +394,8 @@ class FeedbackBuilder:
                 condition = "critical_full"
             elif kind == "skill":
                 condition = "skill_full"
+            elif kind == "qualification":
+                condition = "qualification_full"
             elif kind == "experience":
                 condition = "experience_full"
             elif kind == "education":
@@ -507,6 +524,7 @@ class FeedbackBuilder:
     ) -> str:
         if (
             not resume.skills
+            and not resume.qualifications
             and not resume.experience
             and not resume.education
             and all(
@@ -686,6 +704,7 @@ def _question_condition(kind: str, match: RequirementScore) -> str | None:
     if match.status == common_pb2.CORRESPONDENCE_NOT_STATED:
         return {
             "skill": "skill_not_stated",
+            "qualification": "qualification_not_stated",
             "experience": "experience_not_stated",
             "education": "education_not_stated",
             "text": "text_not_stated",
@@ -841,6 +860,8 @@ def _missing_data_risk_facts(
     sections: list[tuple[str, str]] = []
     if "skill" in kinds and not resume.skills:
         sections.append(("skills", "навыки"))
+    if "qualification" in kinds and not resume.qualifications:
+        sections.append(("qualifications", "квалификации"))
     if "experience" in kinds and not resume.experience:
         sections.append(("experience", "опыт работы"))
     if "education" in kinds and not resume.education:
@@ -863,6 +884,8 @@ def _topic(match: RequirementScore, vacancy: messages_pb2.Vacancy) -> str:
     label = _short_label(match.label)
     if kind == "skill":
         return f"навык «{label}»"
+    if kind == "qualification":
+        return f"квалификацию «{label}»"
     if kind == "experience":
         return f"опыт в категории «{label}»"
     if kind == "education":

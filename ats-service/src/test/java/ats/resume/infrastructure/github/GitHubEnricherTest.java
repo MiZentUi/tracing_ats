@@ -52,7 +52,8 @@ class GitHubEnricherTest {
                                         3,
                                         true,
                                         3,
-                                        5),
+                                        5,
+                                        false),
                                 new Requirement(
                                         UUID.randomUUID(),
                                         "Kafka",
@@ -61,7 +62,8 @@ class GitHubEnricherTest {
                                         1,
                                         false,
                                         1,
-                                        3)),
+                                        3,
+                                        false)),
                         Instant.parse("2026-11-10T00:00:00Z"));
 
         assertThat(evidence).hasSize(1);
@@ -85,7 +87,8 @@ class GitHubEnricherTest {
                                                 3,
                                                 true,
                                                 3,
-                                                5)),
+                                                5,
+                                                false)),
                                 Instant.now()))
                 .isEmpty();
     }

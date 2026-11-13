@@ -21,6 +21,7 @@ import ats.vacancy.template.Kind;
 import ats.vacancy.template.KindSource;
 import ats.vacancy.template.ResolvedSkill;
 import ats.vacancy.template.SkillCatalog;
+import ats.vacancy.template.SkillNormalizer;
 import ats.vacancy.template.SkillRef;
 import java.math.BigDecimal;
 import java.time.Instant;
@@ -198,6 +199,7 @@ public class VacancyStore {
                             .kindSource(item.kindSource().name())
                             .llmKind(item.llmKind() == null ? null : item.llmKind().name())
                             .critical(false)
+                            .qualification(item.qualification())
                             .yearsRequired(item.yearsRequired())
                             .clarityWarning(item.clarityWarning())
                             .build();
@@ -223,12 +225,12 @@ public class VacancyStore {
                 throw ApiException.unprocessable("INVALID_REQUIREMENT", "kind is required");
             }
             String rawSkill = command.skill() == null ? null : command.skill().strip();
+            if (rawSkill != null && rawSkill.isEmpty()) {
+                rawSkill = null;
+            }
             if (rawSkill != null && rawSkill.length() > 128) {
                 throw ApiException.unprocessable(
                         "SKILL_TOO_LONG", "Skill name is longer than 128 characters");
-            }
-            if (rawSkill != null && rawSkill.isEmpty()) {
-                rawSkill = null;
             }
             String quote =
                     command.quote() == null || command.quote().isBlank()
@@ -238,26 +240,48 @@ public class VacancyStore {
                     command.clarityWarning() == null || command.clarityWarning().isBlank()
                             ? null
                             : command.clarityWarning().strip();
+
+            RequirementEntity previous =
+                    command.id() == null ? null : previousById.get(parseId(command.id()));
+            boolean qualification = previous != null && previous.isQualification();
+            if (qualification && rawSkill == null) {
+                rawSkill = previous.getSkillText() == null ? null : previous.getSkillText().strip();
+            }
+            if (qualification && (rawSkill == null || rawSkill.isEmpty())) {
+                throw ApiException.unprocessable(
+                        "INVALID_REQUIREMENT", "Qualification label is required");
+            }
             if (rawSkill == null && quote == null) {
                 // Ограничение БД требует skill_id, skill_text или raw_text.
                 throw ApiException.unprocessable(
                         "INVALID_REQUIREMENT", "Requirement must have a skill or quote");
             }
 
-            ResolvedSkill resolved = skillCatalog.resolve(rawSkill, aliases);
-            if (resolved.skillId() != null) {
-                resolved = newSkillWriter.ensureMirror(resolved);
-                aliases.put(
-                        resolved.normalizedKey(),
-                        new SkillRef(resolved.skillId(), resolved.name()));
-            } else if (resolved.status() == ats.vacancy.template.NormalizationStatus.NEW
-                    && resolved.name() != null
-                    && resolved.normalizedKey() != null
-                    && !resolved.normalizedKey().isBlank()) {
-                resolved = newSkillWriter.ensureSkill(resolved);
-                aliases.put(
-                        resolved.normalizedKey(),
-                        new SkillRef(resolved.skillId(), resolved.name()));
+            ResolvedSkill resolved;
+            if (qualification) {
+                resolved =
+                        new ResolvedSkill(
+                                SkillNormalizer.normalizeKey(rawSkill),
+                                ats.vacancy.template.NormalizationStatus.NEW,
+                                null,
+                                rawSkill,
+                                rawSkill);
+            } else {
+                resolved = skillCatalog.resolve(rawSkill, aliases);
+                if (resolved.skillId() != null) {
+                    resolved = newSkillWriter.ensureMirror(resolved);
+                    aliases.put(
+                            resolved.normalizedKey(),
+                            new SkillRef(resolved.skillId(), resolved.name()));
+                } else if (resolved.status() == ats.vacancy.template.NormalizationStatus.NEW
+                        && resolved.name() != null
+                        && resolved.normalizedKey() != null
+                        && !resolved.normalizedKey().isBlank()) {
+                    resolved = newSkillWriter.ensureSkill(resolved);
+                    aliases.put(
+                            resolved.normalizedKey(),
+                            new SkillRef(resolved.skillId(), resolved.name()));
+                }
             }
 
             BigDecimal years = command.yearsRequired();
@@ -270,8 +294,6 @@ public class VacancyStore {
                         "INVALID_YEARS_REQUIRED", "years_required must be between 0 and 50");
             }
 
-            RequirementEntity previous =
-                    command.id() == null ? null : previousById.get(parseId(command.id()));
             KindSource kindSource;
             Kind llmKind;
             if (previous == null) {
@@ -286,7 +308,8 @@ public class VacancyStore {
                                 : KindSource.HR;
             }
 
-            String displaySkill = resolved.skillId() == null ? rawSkill : resolved.name();
+            String displaySkill =
+                    qualification || resolved.skillId() == null ? rawSkill : resolved.name();
             prepared.add(
                     new PreparedRequirement(
                             resolved,
@@ -296,7 +319,8 @@ public class VacancyStore {
                             llmKind,
                             years,
                             quote,
-                            clarity));
+                            clarity,
+                            qualification));
         }
         return prepared;
     }
@@ -315,7 +339,9 @@ public class VacancyStore {
         for (int index = 0; index < prepared.size(); index++) {
             PreparedRequirement item = prepared.get(index);
             String key;
-            if (item.resolved().skillId() != null) {
+            if (item.qualification()) {
+                key = "QUAL:" + item.resolved().normalizedKey();
+            } else if (item.resolved().skillId() != null) {
                 key = "S:" + item.resolved().skillId();
             } else if (item.resolved().normalizedKey() != null
                     && !item.resolved().normalizedKey().isBlank()) {
@@ -363,7 +389,7 @@ public class VacancyStore {
         Map<StatKey, Integer> contribution = new LinkedHashMap<>();
         for (RequirementEntity requirement :
                 requirementRepository.findByTemplateVersionIdOrderByPosition(version.getId())) {
-            if (requirement.getSkillId() != null) {
+            if (!requirement.isQualification() && requirement.getSkillId() != null) {
                 contribution.put(
                         new StatKey(
                                 version.getSpecializationId(),
@@ -387,7 +413,7 @@ public class VacancyStore {
 
         Map<StatKey, Integer> newContribution = new LinkedHashMap<>();
         for (PreparedRequirement item : prepared) {
-            if (item.resolved().skillId() != null) {
+            if (!item.qualification() && item.resolved().skillId() != null) {
                 newContribution.put(
                         new StatKey(
                                 specializationId,
@@ -438,6 +464,7 @@ public class VacancyStore {
                             .kindSource(draft.kindSource().name())
                             .llmKind(draft.llmKind() == null ? null : draft.llmKind().name())
                             .critical(false)
+                            .qualification(draft.qualification())
                             .yearsRequired(
                                     draft.yearsRequired() == null
                                             ? BigDecimal.ZERO
@@ -515,5 +542,6 @@ public class VacancyStore {
             Kind llmKind,
             BigDecimal yearsRequired,
             String quote,
-            String clarityWarning) {}
+            String clarityWarning,
+            boolean qualification) {}
 }

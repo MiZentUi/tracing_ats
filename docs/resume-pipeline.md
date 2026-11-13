@@ -190,7 +190,7 @@
   убедительность `t`, стаж и свежесть `τ`, покрытие `c_i`, `Score` и границы.
   LLM вызывается только для извлечения признаков из обезличенного текста.
 - gRPC-ответ `EvaluateResumeMatch` содержит `strengths`, `risks`, `questions` и
-  `recruiter_note`; они собираются по каталогу `feedback-templates.v1` без LLM.
+  `recruiter_note`; они собираются по каталогу `feedback-templates.v2` без LLM.
   Java сохраняет их в `score_run.parsed`, но REST-отчёт и UI пока не отдают эти
   поля.
 - В контракте `scoring-service` нет `Refine`, весов и внешних фактов, поэтому FINAL
