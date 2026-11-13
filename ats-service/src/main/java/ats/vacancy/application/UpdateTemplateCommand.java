@@ -7,5 +7,6 @@ public record UpdateTemplateCommand(
         String specialization,
         String level,
         String title,
+        String sourceText,
         boolean confirm,
         List<UpdateRequirementCommand> requirements) {}

@@ -13,8 +13,7 @@ const props = withDefaults(
   {
     submitting: false,
     title: 'Показать персональные данные?',
-    description:
-      'Данные будут показаны только вам, а действие попадёт в аудит. Укажите причину, чтобы было понятно, зачем вы их открыли.',
+    description: 'Укажите причину раскрытия.',
   },
 )
 
@@ -73,9 +72,7 @@ function confirm() {
         />
         <div class="mt-1 flex items-center justify-between gap-3">
           <p v-if="error" class="text-xs font-medium text-rose-700">{{ error }}</p>
-          <p v-else class="text-xs text-slate-400">
-            Причина сохранится в журнале аудита.
-          </p>
+          <span v-else />
           <span class="shrink-0 text-xs text-slate-400">{{ reason.length }} / 512</span>
         </div>
       </div>

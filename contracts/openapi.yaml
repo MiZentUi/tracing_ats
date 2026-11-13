@@ -370,6 +370,37 @@ paths:
           description: Не найдено
         default:
           $ref: "#/components/responses/default"
+    put:
+      tags:
+        - Resumes
+      summary: Обновить название или текст резюме
+      description: >-
+        Без `text` меняется только название. Если передан `text`, выполняется
+        повторная маскировка PII, обновление vault и parsed_resume, сброс
+        устаревших скоров и пересчёт подбора. Для изменения текста обязательна
+        причина.
+      operationId: updateResume
+      parameters:
+        - $ref: "#/components/parameters/ResumeId"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/UpdateResumeRequest"
+      responses:
+        "200":
+          description: Резюме обновлено
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ResumeSummary"
+        "404":
+          description: Не найдено
+        "422":
+          $ref: "#/components/responses/unprocessable"
+        default:
+          $ref: "#/components/responses/default"
 
   /resumes/{resumeId}/text:
     get:
@@ -941,6 +972,11 @@ components:
         title:
           type: string
           nullable: true
+        source_text:
+          type: string
+          nullable: true
+          maxLength: 30000
+          description: Новый исходный текст вакансии. Если не передан, текст не меняется.
         confirm:
           type: boolean
           nullable: true
@@ -1109,6 +1145,9 @@ components:
         resumeId:
           type: string
           format: uuid
+        title:
+          type: string
+          nullable: true
         status:
           type: string
         fileType:
@@ -1123,6 +1162,25 @@ components:
           type: array
           items:
             type: string
+
+    UpdateResumeRequest:
+      type: object
+      properties:
+        title:
+          type: string
+          nullable: true
+          maxLength: 255
+        text:
+          type: string
+          nullable: true
+          maxLength: 100000
+          description: Полный текст резюме с PII. Backend заново маскирует его перед сохранением.
+        reason:
+          type: string
+          nullable: true
+          minLength: 3
+          maxLength: 512
+          description: Обязательна, если передан text.
 
     ResumeVacancyRankingResponse:
       type: object
@@ -1265,12 +1323,10 @@ components:
       type: object
       required:
         - rank
-        - applicationId
         - score
         - scoreLow
         - scoreHigh
         - capApplied
-        - decision
         - flags
       properties:
         rank:
@@ -1278,6 +1334,19 @@ components:
         applicationId:
           type: string
           format: uuid
+          nullable: true
+          description: Заполнено для отклика; для автоподбора по резюме отсутствует.
+        resumeId:
+          type: string
+          format: uuid
+          nullable: true
+        resumeTitle:
+          type: string
+          nullable: true
+        resumeCreatedAt:
+          type: string
+          format: date-time
+          nullable: true
         relevance:
           type: number
           format: double
@@ -1295,6 +1364,7 @@ components:
           type: boolean
         decision:
           type: string
+          nullable: true
           enum:
             - SHORTLISTED
             - BORDERLINE

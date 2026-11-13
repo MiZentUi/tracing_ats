@@ -31,6 +31,7 @@ const { success, info, error: toastError } = useToast()
 const vacancy = ref<Vacancy | null>(null)
 const requirements = ref<EditableRequirement[]>([])
 const title = ref('')
+const sourceTextDraft = ref('')
 const specialization = ref('')
 const level = ref('none')
 const specializations = ref<Specialization[]>([])
@@ -56,12 +57,11 @@ const needsLevel = computed(
 )
 
 const isConfirmed = computed(() => vacancy.value?.template.is_confirmed === true)
-const sourceText = computed(() => vacancy.value?.source_text ?? '')
-const sourceChars = computed(() => sourceText.value.length.toLocaleString('ru-RU'))
 
 function serialize() {
   return JSON.stringify({
     title: title.value,
+    sourceText: sourceTextDraft.value,
     specialization: specialization.value,
     level: level.value,
     requirements: requirements.value.map((item) => ({
@@ -89,6 +89,7 @@ const canSave = computed(
 function apply(value: Vacancy) {
   vacancy.value = value
   title.value = value.title ?? ''
+  sourceTextDraft.value = value.source_text ?? ''
   specialization.value = value.specialization
   level.value = value.level
   requirements.value = value.template.requirements.map(toEditable)
@@ -233,6 +234,10 @@ async function save(mode: 'save' | 'template') {
     error.value = 'У требования должен быть навык или цитата'
     return
   }
+  if (!sourceTextDraft.value.trim()) {
+    error.value = 'Текст вакансии не может быть пустым'
+    return
+  }
   savingMode.value = mode
   error.value = ''
   savedMessage.value = ''
@@ -245,6 +250,7 @@ async function save(mode: 'save' | 'template') {
         specialization: specialization.value,
         level: needsLevel.value ? level.value : undefined,
         title: title.value.trim() || null,
+        source_text: sourceTextDraft.value,
         confirm: mode === 'template' || isConfirmed.value,
         requirements: requirements.value.map((item) => ({
           id: item.id,
@@ -258,18 +264,12 @@ async function save(mode: 'save' | 'template') {
     })
     apply(response.data)
     if (mode === 'template') {
-      success(
-        'Шаблон сохранён',
-        `Версия ${response.data.template.version} · ${response.data.template.requirements.length} требований`,
-      )
+      success('Шаблон сохранён')
       await router.push(`/vacancies/${props.id}`)
       return
     }
-    savedMessage.value = `Изменения сохранены, версия ${response.data.template.version}`
-    success(
-      'Изменения сохранены',
-      `Версия ${response.data.template.version} · ${response.data.template.requirements.length} требований`,
-    )
+    savedMessage.value = 'Изменения сохранены'
+    success('Изменения сохранены')
   } catch (e) {
     const message = apiErrorMessage(e)
     error.value = message
@@ -298,11 +298,11 @@ async function confirmDeleteVacancy() {
 }
 
 async function copySource() {
-  if (!sourceText.value) {
+  if (!sourceTextDraft.value) {
     return
   }
   try {
-    await navigator.clipboard.writeText(sourceText.value)
+    await navigator.clipboard.writeText(sourceTextDraft.value)
     success('Текст скопирован')
   } catch {
     toastError('Не удалось скопировать текст')
@@ -346,7 +346,7 @@ onMounted(load)
           </h1>
           <p class="mt-1 text-sm text-slate-500">
             {{ specializations.find((item) => item.code === specialization)?.name ?? specialization }}
-            · {{ levelLabel(level) }} · версия {{ vacancy.template.version }}
+            · {{ levelLabel(level) }}
           </p>
         </div>
       </header>
@@ -381,7 +381,7 @@ onMounted(load)
       <div class="card p-5">
         <h2 class="text-base font-semibold text-slate-900">Параметры вакансии</h2>
         <p class="mt-0.5 text-sm text-slate-500">
-          Название, специализация и уровень. Изменения сохраняются новой версией.
+          Название, специализация и уровень.
         </p>
         <div class="mt-4 grid gap-4 sm:grid-cols-2">
           <div class="sm:col-span-2">
@@ -484,12 +484,11 @@ onMounted(load)
 
         <div v-else>
           <div
-            class="hidden gap-3 border-b border-slate-100 bg-slate-50/80 px-4 py-2 text-[11px] font-medium uppercase tracking-wide text-slate-400 md:grid md:grid-cols-[minmax(0,1fr)_10rem_6.5rem_7rem_5.5rem]"
+            class="hidden gap-2 border-b border-slate-100 bg-slate-50/80 px-3 py-2 text-[11px] font-medium uppercase tracking-wide text-slate-400 md:grid md:grid-cols-[minmax(0,1fr)_9rem_5.5rem_4.5rem]"
           >
             <span>Навык</span>
             <span>Тип</span>
             <span>Опыт</span>
-            <span>Источник</span>
             <span class="text-right">Действия</span>
           </div>
           <div class="divide-y divide-slate-100">
@@ -519,27 +518,27 @@ onMounted(load)
 
       <article class="card">
         <div class="flex items-center justify-between gap-3 border-b border-slate-100 px-4 py-3">
-          <div>
-            <h2 class="text-sm font-semibold text-slate-900">Текст вакансии</h2>
-            <p class="mt-0.5 text-xs text-slate-400">
-              {{ sourceChars }} символов · зафиксирован при разборе
-            </p>
-          </div>
+          <h2 class="text-sm font-semibold text-slate-900">Текст вакансии</h2>
           <button class="btn-secondary px-3 py-1.5 text-xs" @click="copySource">
             <Copy :size="14" />
             Скопировать
           </button>
         </div>
-        <div
+        <textarea
+          v-model="sourceTextDraft"
           data-testid="vacancy-source-text"
-          class="whitespace-pre-wrap px-4 py-4 text-sm leading-6 text-slate-700"
-        >
-          {{ sourceText || 'Текст вакансии недоступен' }}
-        </div>
+          class="min-h-64 w-full resize-y border-0 bg-transparent px-4 py-4 font-mono text-sm leading-6 text-slate-700 outline-none"
+          aria-label="Текст вакансии"
+        />
       </article>
 
       <div class="sticky bottom-3 z-20">
         <div class="card flex flex-wrap items-center gap-2 p-3 shadow-xl backdrop-blur">
+          <button class="btn-secondary" :disabled="!canSave" @click="requestUseTemplate">
+            <LoaderCircle v-if="savingMode === 'template'" :size="16" class="animate-spin" />
+            <Sparkles v-else :size="16" />
+            {{ savingMode === 'template' ? 'Сохраняем…' : 'Использовать как шаблон' }}
+          </button>
           <span
             class="mr-auto flex items-center gap-2 px-1 text-xs font-medium"
             :class="dirty ? 'text-amber-700' : 'text-slate-400'"
@@ -556,11 +555,6 @@ onMounted(load)
             <Save v-else :size="16" />
             {{ savingMode === 'save' ? 'Сохраняем…' : 'Сохранить' }}
           </button>
-          <button class="btn-accent" :disabled="!canSave" @click="requestUseTemplate">
-            <LoaderCircle v-if="savingMode === 'template'" :size="16" class="animate-spin" />
-            <Sparkles v-else :size="16" />
-            {{ savingMode === 'template' ? 'Сохраняем…' : 'Использовать как шаблон' }}
-          </button>
         </div>
       </div>
     </template>
@@ -568,7 +562,7 @@ onMounted(load)
     <ConfirmDialog
       :open="useTemplateOpen"
       title="Использовать как шаблон?"
-      message="Текущая версия требований будет сохранена как шаблон. После этого вакансия откроется в режиме просмотра."
+      message="Текущие требования и текст вакансии будут сохранены как шаблон."
       confirm-label="Использовать"
       @cancel="useTemplateOpen = false"
       @confirm="confirmUseTemplate"
@@ -577,7 +571,7 @@ onMounted(load)
     <ConfirmDialog
       :open="deleteOpen"
       title="Удалить вакансию?"
-      message="Вакансия будет удалена вместе с версиями требований. Её вклад исчезнет из истории типов. Это действие необратимо."
+      message="Вакансия будет удалена без возможности восстановления."
       confirm-label="Удалить"
       danger
       @cancel="deleteOpen = false"

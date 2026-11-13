@@ -56,7 +56,6 @@ watch(
 )
 
 function appendFiles(incoming: File[]) {
-  const accepted: File[] = []
   for (const file of incoming) {
     const extension = file.name.split('.').pop()?.toLowerCase() ?? ''
     if (!ALLOWED_EXTENSIONS.includes(extension)) {
@@ -67,9 +66,9 @@ function appendFiles(incoming: File[]) {
       toastError('Файл слишком большой', `«${file.name}»: максимум 5 МБ`)
       continue
     }
-    accepted.push(file)
+    files.value = [file]
+    return
   }
-  files.value = [...files.value, ...accepted]
 }
 
 function pickFiles(event: Event) {
@@ -157,12 +156,11 @@ async function upload() {
         @drop.prevent="dropFiles"
       >
         <FileUp :size="20" class="text-indigo-500" />
-        <span class="text-xs font-medium text-slate-700">Загрузить файлы</span>
-        <span class="text-[11px] text-slate-400">PDF, DOCX, TXT, MD · до 5 МБ</span>
+        <span class="text-xs font-medium text-slate-700">Загрузить файл</span>
+        <span class="text-[11px] text-slate-400">PDF, DOCX, TXT, MD · до 5 МБ · один файл</span>
         <input
           ref="fileInput"
           type="file"
-          multiple
           accept=".pdf,.docx,.txt,.md"
           class="hidden"
           @change="pickFiles"
@@ -194,11 +192,10 @@ async function upload() {
       >
         <FileUp :size="24" class="text-indigo-500" />
         <span class="text-sm font-medium text-slate-800">Загрузить файл</span>
-        <span class="text-xs text-slate-500">PDF, DOCX, TXT или MD<br />до 5 МБ, можно несколько</span>
+        <span class="text-xs text-slate-500">PDF, DOCX, TXT или MD<br />до 5 МБ, один файл</span>
         <input
           ref="fileInput"
           type="file"
-          multiple
           accept=".pdf,.docx,.txt,.md"
           class="hidden"
           @change="pickFiles"
@@ -235,9 +232,6 @@ async function upload() {
         <Sparkles v-else :size="16" />
         {{ actionLabel }}
       </button>
-      <span class="text-xs text-slate-500">
-        В LLM уходит только обезличенный текст. Обработка идёт в фоне.
-      </span>
     </div>
   </div>
 </template>

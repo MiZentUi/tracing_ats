@@ -34,9 +34,15 @@ public class ReportService {
             return Optional.empty();
         }
         String normalizedPhase = normalizePhase(phase);
+        UUID runId =
+                "FINAL".equals(normalizedPhase)
+                        ? application.get().getFinalScoreRunId()
+                        : application.get().getPreliminaryScoreRunId();
+        if (runId == null) {
+            return Optional.empty();
+        }
         return scoreRunRepository
-                .findFirstByApplicationIdAndPhaseOrderByCreatedAtDesc(
-                        applicationId, normalizedPhase)
+                .findById(runId)
                 .map(
                         run ->
                                 view(

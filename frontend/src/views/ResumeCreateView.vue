@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import { computed, ref } from 'vue'
-import { ArrowLeft, FileText, ShieldCheck } from '@lucide/vue'
+import { ArrowLeft, FileText } from '@lucide/vue'
 import { useRouter } from 'vue-router'
 import type { ResumeBatchUploadResponse } from '@/api/generated'
 import ResumeUploader from '@/components/ResumeUploader.vue'
@@ -31,13 +31,13 @@ const previewMeta = computed(() => {
   if (selection.value.textLength > 0) {
     return `${selection.value.textLength.toLocaleString('ru-RU')} символов текста`
   }
-  return 'Название сформируется из даты загрузки и типа файла'
+  return ''
 })
 
 async function onUploaded(response: ResumeBatchUploadResponse) {
-  const first = response.resumes.find((item) => item.resumeId)
-  if (first?.resumeId) {
-    await router.push(`/resumes/${first.resumeId}`)
+  const uploaded = response.resumes.filter((item) => item.resumeId)
+  if (uploaded.length === 1 && uploaded[0].resumeId) {
+    await router.push(`/resumes/${uploaded[0].resumeId}`)
     return
   }
   await router.push('/resumes')
@@ -60,7 +60,7 @@ async function onUploaded(response: ResumeBatchUploadResponse) {
       <p class="section-label">Кандидаты</p>
       <h1 class="mt-1 text-3xl font-semibold tracking-tight text-slate-900">Добавить резюме</h1>
       <p class="mt-1 text-sm text-slate-500">
-        Загрузите файл или вставьте текст. Персональные данные будут скрыты до отдельного раскрытия.
+        Можно добавить один файл и текст. Если заполнены оба источника, появятся два резюме.
       </p>
     </header>
 
@@ -71,14 +71,10 @@ async function onUploaded(response: ResumeBatchUploadResponse) {
         </span>
         <div class="min-w-0">
           <h2 class="truncate text-lg font-semibold text-slate-900">{{ previewTitle }}</h2>
-          <p class="mt-0.5 text-sm text-slate-500">{{ previewMeta }}</p>
+          <p v-if="previewMeta" class="mt-0.5 text-sm text-slate-500">{{ previewMeta }}</p>
           <div class="mt-3 flex flex-wrap gap-1.5">
             <span class="badge-neutral">PDF, DOCX, TXT, MD</span>
-            <span class="badge-neutral">до 5 МБ</span>
-            <span class="badge-info">
-              <ShieldCheck :size="12" />
-              PII маскируется
-            </span>
+            <span class="badge-neutral">до 5 МБ, один файл</span>
           </div>
         </div>
       </div>
@@ -87,7 +83,7 @@ async function onUploaded(response: ResumeBatchUploadResponse) {
     <div class="card p-5">
       <h2 class="text-base font-semibold text-slate-900">Источник резюме</h2>
       <p class="mt-0.5 text-sm text-slate-500">
-        Можно добавить несколько файлов или вставить текст — они уйдут одной пачкой.
+        Файл и текст можно добавить вместе. Файл — только один.
       </p>
       <div class="mt-4">
         <ResumeUploader @uploaded="onUploaded" @selection="selection = $event" />

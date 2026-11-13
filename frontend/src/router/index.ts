@@ -6,7 +6,6 @@ import VacancyEditView from '@/views/VacancyEditView.vue'
 import ResumeListView from '@/views/ResumeListView.vue'
 import ResumeCreateView from '@/views/ResumeCreateView.vue'
 import ResumeDetailView from '@/views/ResumeDetailView.vue'
-import CompareView from '@/views/CompareView.vue'
 import ReportView from '@/views/ReportView.vue'
 
 const router = createRouter({
@@ -26,11 +25,6 @@ const router = createRouter({
     { path: '/resumes/new', name: 'resume-create', component: ResumeCreateView },
     { path: '/resumes/:id', name: 'resume-view', component: ResumeDetailView, props: true },
     {
-      path: '/compare',
-      name: 'compare',
-      component: CompareView,
-    },
-    {
       path: '/applications/:id/report',
       name: 'application-report',
       component: ReportView,
@@ -49,6 +43,22 @@ const router = createRouter({
       },
     },
     { path: '/analyses', redirect: (to) => ({ path: '/resumes', query: to.query }) },
+    {
+      path: '/compare',
+      redirect: (to) => {
+        const applicationId =
+          typeof to.query.applicationId === 'string' ? to.query.applicationId : ''
+        if (applicationId) {
+          return `/applications/${applicationId}/report`
+        }
+        const resumeId = typeof to.query.resumeId === 'string' ? to.query.resumeId : ''
+        const vacancyId = typeof to.query.vacancyId === 'string' ? to.query.vacancyId : ''
+        if (resumeId && vacancyId) {
+          return `/resumes/${resumeId}/vacancies/${vacancyId}/report`
+        }
+        return resumeId ? `/resumes/${resumeId}` : '/resumes'
+      },
+    },
     { path: '/vacancies/:id/candidates', redirect: (to) => `/vacancies/${to.params.id}` },
     { path: '/resumes/:id/text', redirect: (to) => `/resumes/${to.params.id}` },
   ],

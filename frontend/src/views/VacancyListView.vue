@@ -267,7 +267,7 @@ onMounted(load)
       </span>
       <h2 class="mt-4 text-lg font-semibold text-slate-900">Вакансий пока нет</h2>
       <p class="mt-1 max-w-md text-sm text-slate-500">
-        Добавьте описание вакансии — модель выделит требования, а вы назначите приоритеты.
+        Добавьте описание вакансии и назначьте приоритеты требованиям.
       </p>
       <RouterLink to="/vacancies/new" class="btn-primary mt-5">
         <Plus :size="18" />
@@ -329,7 +329,6 @@ onMounted(load)
             <span v-if="item.is_confirmed" class="badge-info">Шаблон</span>
             <span class="badge-neutral">{{ levelLabel(item.level) }}</span>
             <span class="badge-neutral">{{ item.requirements_count }} требований</span>
-            <span class="badge-neutral">версия {{ item.version }}</span>
           </div>
 
           <div class="mt-auto flex items-center justify-between gap-3 border-t border-slate-100 pt-4">
@@ -349,7 +348,7 @@ onMounted(load)
     <ConfirmDialog
       :open="deleteTarget !== null"
       title="Удалить вакансию?"
-      :message="`Вакансия «${deleteTarget?.title ?? ''}» будет удалена вместе с версиями требований. Её вклад исчезнет из истории типов. Это действие необратимо.`"
+      :message="`Вакансия «${deleteTarget?.title ?? ''}» будет удалена без возможности восстановления.`"
       confirm-label="Удалить"
       danger
       @cancel="deleteTarget = null"

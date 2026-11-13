@@ -33,16 +33,29 @@ public class RankingController implements RankingApi {
                                                         new RankingItem()
                                                                 .rank(item.rank())
                                                                 .applicationId(item.applicationId())
+                                                                .resumeId(item.resumeId())
+                                                                .resumeTitle(item.resumeTitle())
+                                                                .resumeCreatedAt(
+                                                                        item.resumeCreatedAt()
+                                                                                        == null
+                                                                                ? null
+                                                                                : item.resumeCreatedAt()
+                                                                                        .atOffset(
+                                                                                                ZoneOffset
+                                                                                                        .UTC))
                                                                 .relevance(item.relevance())
                                                                 .score(item.score())
                                                                 .scoreLow(item.scoreLow())
                                                                 .scoreHigh(item.scoreHigh())
                                                                 .capApplied(item.capApplied())
                                                                 .decision(
-                                                                        RankingItem.DecisionEnum
-                                                                                .valueOf(
-                                                                                        item
-                                                                                                .decision()))
+                                                                        item.decision() == null
+                                                                                ? null
+                                                                                : RankingItem
+                                                                                        .DecisionEnum
+                                                                                        .valueOf(
+                                                                                                item
+                                                                                                        .decision()))
                                                                 .flags(item.flags()))
                                         .toList());
         return ResponseEntity.ok(response);

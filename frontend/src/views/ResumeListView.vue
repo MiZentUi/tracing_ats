@@ -14,7 +14,7 @@ import {
 import type { ResumeSummary } from '@/api/generated'
 import { apiErrorMessage, resumesApi } from '@/api'
 import { useToast } from '@/composables/useToast'
-import { formatBytes, formatDate, resumeTitle, shortId } from '@/lib/format'
+import { resumeDisplayTitle } from '@/lib/format'
 import { resumeStatusClass, resumeStatusLabel } from '@/lib/labels'
 
 const { error: toastError } = useToast()
@@ -41,9 +41,7 @@ const filteredItems = computed(() =>
     const query = appliedSearch.value.toLowerCase()
     const matchesSearch =
       query === '' ||
-      item.resumeId.toLowerCase().includes(query) ||
-      shortId(item.resumeId).toLowerCase().includes(query) ||
-      item.fileType.toLowerCase().includes(query) ||
+      resumeDisplayTitle(item.title, item.createdAt).toLowerCase().includes(query) ||
       resumeStatusLabel(item.status).toLowerCase().includes(query)
     let matchesStatus = true
     if (appliedStatus.value === 'PROCESSING') {
@@ -154,7 +152,7 @@ onBeforeUnmount(stopPolling)
           <input
             v-model="searchInput"
             class="input pl-9"
-            placeholder="Поиск по номеру, типу файла или статусу"
+            placeholder="Поиск по названию или статусу"
             aria-label="Поиск резюме"
           />
         </label>
@@ -249,14 +247,11 @@ onBeforeUnmount(stopPolling)
         >
           <div class="flex items-start justify-between gap-3">
             <div class="min-w-0">
-              <p class="text-xs font-medium uppercase tracking-wide text-slate-400">
-                {{ item.fileType.toUpperCase() }} · {{ formatBytes(item.sizeBytes) }}
-              </p>
               <RouterLink
                 :to="`/resumes/${item.resumeId}`"
-                class="mt-1 block text-lg font-semibold text-slate-900 transition group-hover:text-indigo-600"
+                class="block text-lg font-semibold text-slate-900 transition group-hover:text-indigo-600"
               >
-                {{ resumeTitle(item.createdAt, item.fileType) }}
+                {{ resumeDisplayTitle(item.title, item.createdAt) }}
               </RouterLink>
             </div>
             <span
@@ -267,10 +262,7 @@ onBeforeUnmount(stopPolling)
             </span>
           </div>
 
-          <p class="mt-3 text-xs text-slate-400">Номер {{ shortId(item.resumeId) }}</p>
-
-          <div class="mt-auto flex items-center justify-between gap-3 border-t border-slate-100 pt-4">
-            <span class="text-xs text-slate-400">Загружено {{ formatDate(item.createdAt) }}</span>
+          <div class="mt-auto flex items-center justify-end border-t border-slate-100 pt-4">
             <RouterLink
               :to="`/resumes/${item.resumeId}`"
               class="inline-flex items-center gap-1 text-sm font-medium text-indigo-600 hover:text-indigo-700"

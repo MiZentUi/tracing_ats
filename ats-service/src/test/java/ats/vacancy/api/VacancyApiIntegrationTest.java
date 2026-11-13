@@ -256,6 +256,43 @@ class VacancyApiIntegrationTest {
     }
 
     @Test
+    void updatesVacancySourceText() throws Exception {
+        JsonNode created = createVacancy();
+        String vacancyId = created.path("vacancy_id").asText();
+        String requirementId =
+                created.path("template").path("requirements").get(0).path("id").asText();
+
+        Map<String, Object> body =
+                Map.of(
+                        "base_version",
+                        1,
+                        "confirm",
+                        false,
+                        "source_text",
+                        "Обновлённый текст вакансии",
+                        "requirements",
+                        List.of(
+                                requirement(
+                                        requirementId,
+                                        "JS",
+                                        "MUST",
+                                        3,
+                                        "Опыт работы с JS от 3 лет",
+                                        null)));
+
+        MvcResult saved =
+                mockMvc.perform(
+                                put("/api/v1/vacancies/{id}/template", vacancyId)
+                                        .contentType(MediaType.APPLICATION_JSON)
+                                        .content(objectMapper.writeValueAsString(body)))
+                        .andExpect(status().isOk())
+                        .andReturn();
+
+        JsonNode savedJson = objectMapper.readTree(saved.getResponse().getContentAsString());
+        assertThat(savedJson.path("source_text").asText()).isEqualTo("Обновлённый текст вакансии");
+    }
+
+    @Test
     void rejectsDuplicateSkills() throws Exception {
         JsonNode created = createVacancy();
         String vacancyId = created.path("vacancy_id").asText();

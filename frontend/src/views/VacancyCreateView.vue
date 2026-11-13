@@ -253,7 +253,7 @@ async function submit() {
         Добавить вакансию
       </h1>
       <p class="mt-1 text-sm text-slate-500">
-        Опишите позицию — модель выделит требования, а вы назначите им приоритет.
+        Опишите позицию и назначьте приоритеты требованиям.
       </p>
     </div>
 
@@ -410,8 +410,7 @@ async function submit() {
               class="textarea min-h-64"
               placeholder="Вставьте описание вакансии: обязанности, требования, условия…"
             />
-            <div class="mt-2 flex justify-between text-xs text-slate-400">
-              <span>Текст уходит во внешнюю LLM, PII кандидатов сюда не попадает.</span>
+            <div class="mt-2 flex justify-end text-xs text-slate-400">
               <span>{{ text.length.toLocaleString('ru-RU') }} / 30 000</span>
             </div>
           </div>
@@ -450,8 +449,7 @@ async function submit() {
         <div class="border-b border-slate-100 px-5 py-4">
           <h2 class="text-sm font-semibold text-slate-900">Что будет дальше</h2>
           <p class="mt-0.5 text-xs text-slate-500">
-            Модель извлечёт требования, а проверить и сохранить вакансию можно на следующем
-            экране.
+            Требования можно проверить и сохранить на следующем экране.
           </p>
         </div>
         <dl class="space-y-3 px-5 py-4 text-sm">
@@ -489,9 +487,6 @@ async function submit() {
             <LoaderCircle :size="16" class="mt-0.5 shrink-0 animate-spin" />
             <span>Создание может занять до 5 минут. Не закрывайте страницу.</span>
           </div>
-          <p v-else class="mt-3 text-center text-xs text-slate-400">
-            Обычно занимает 10–60 секунд
-          </p>
         </div>
       </aside>
     </div>

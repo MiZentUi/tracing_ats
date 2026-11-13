@@ -167,7 +167,20 @@ describe('VacancyEditView', () => {
 
     expect(updateVacancyTemplate).toHaveBeenCalledTimes(1)
     expect(updateVacancyTemplate.mock.calls[0][0].updateTemplateRequest.confirm).toBe(false)
-    expect(wrapper.text()).toContain('Изменения сохранены, версия 2')
+    expect(wrapper.text()).toContain('Изменения сохранены')
+  })
+
+  it('отправляет изменённый текст вакансии', async () => {
+    updateVacancyTemplate.mockResolvedValue({ data: confirmedVacancy() })
+    const wrapper = await mountEditor()
+
+    await wrapper.get('[data-testid="vacancy-source-text"]').setValue('Новый текст вакансии')
+    await buttonWithText(wrapper, 'Сохранить')?.trigger('click')
+    await flushPromises()
+
+    expect(updateVacancyTemplate.mock.calls[0][0].updateTemplateRequest.source_text).toBe(
+      'Новый текст вакансии',
+    )
   })
 
   it('использует вакансию как шаблон после подтверждения', async () => {

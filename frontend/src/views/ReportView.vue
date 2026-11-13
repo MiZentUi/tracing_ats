@@ -1,27 +1,32 @@
 <script setup lang="ts">
 import { computed, onMounted, ref } from 'vue'
 import { useRoute } from 'vue-router'
-import { ArrowLeft, LockKeyholeOpen, ShieldCheck } from '@lucide/vue'
+import { ArrowLeft, LockKeyholeOpen } from '@lucide/vue'
 import type { ApplicationReport, RevealedCandidate } from '@/api/generated'
-import { apiErrorMessage, reportsApi } from '@/api'
+import { apiErrorMessage, reportsApi, resumesApi, vacanciesApi } from '@/api'
 import RevealPiiDialog from '@/components/RevealPiiDialog.vue'
+import TextComparison from '@/components/TextComparison.vue'
 import { useToast } from '@/composables/useToast'
-import { decisionLabel, kindLabel, phaseLabel } from '@/lib/labels'
+import { decisionLabel, kindLabel } from '@/lib/labels'
 
 const route = useRoute()
 const { success, error: toastError } = useToast()
 
 const report = ref<ApplicationReport | null>(null)
 const revealed = ref<RevealedCandidate | null>(null)
+const vacancyText = ref('')
+const resumeText = ref('')
 const loading = ref(true)
 const revealing = ref(false)
 const revealOpen = ref(false)
-const revealReason = ref('')
 const error = ref('')
 
 const applicationId = computed(() => route.params.id as string | undefined)
 const resumeId = computed(() => route.params.resumeId as string | undefined)
 const vacancyId = computed(() => route.params.vacancyId as string | undefined)
+const phase = computed(() =>
+  String(route.query.phase ?? '').toUpperCase() === 'PRELIMINARY' ? 'PRELIMINARY' : 'FINAL',
+)
 
 const analysisLink = computed(() => {
   const value = report.value
@@ -38,25 +43,6 @@ const analysisLink = computed(() => {
 })
 
 const analysisLabel = computed(() => (report.value?.applicationId ? 'К вакансии' : 'К резюме'))
-
-const compareLink = computed(() => {
-  const value = report.value
-  if (!value?.resumeId) {
-    return null
-  }
-  const params = new URLSearchParams({ resumeId: value.resumeId })
-  if (value.vacancyId) {
-    params.set('vacancyId', value.vacancyId)
-  }
-  if (value.applicationId) {
-    params.set('applicationId', value.applicationId)
-  }
-  if (value.phase) {
-    params.set('phase', value.phase)
-  }
-  params.set('from', route.fullPath)
-  return `/compare?${params.toString()}`
-})
 
 const statusLabel: Record<string, string> = {
   COVERED: 'Подтверждено',
@@ -81,7 +67,7 @@ async function load() {
     if (applicationId.value) {
       const response = await reportsApi.getApplicationReport({
         applicationId: applicationId.value,
-        phase: 'FINAL',
+        phase: phase.value,
       })
       report.value = response.data
     } else if (resumeId.value && vacancyId.value) {
@@ -91,11 +77,41 @@ async function load() {
       })
       report.value = response.data
     }
+    await loadTexts()
   } catch (e) {
     error.value = apiErrorMessage(e)
   } finally {
     loading.value = false
   }
+}
+
+async function loadTexts() {
+  const value = report.value
+  if (!value) {
+    return
+  }
+  const tasks: Array<Promise<void>> = []
+  if (value.resumeId) {
+    tasks.push(
+      resumesApi
+        .getResumeText({ resumeId: value.resumeId })
+        .then((response) => {
+          resumeText.value = response.data.maskedText
+        })
+        .catch(() => undefined),
+    )
+  }
+  if (value.vacancyId) {
+    tasks.push(
+      vacanciesApi
+        .getVacancy({ id: value.vacancyId })
+        .then((response) => {
+          vacancyText.value = response.data.source_text ?? ''
+        })
+        .catch(() => undefined),
+    )
+  }
+  await Promise.all(tasks)
 }
 
 async function reveal(reason: string) {
@@ -109,9 +125,8 @@ async function reveal(reason: string) {
       revealRequest: { reason },
     })
     revealed.value = response.data
-    revealReason.value = reason
     revealOpen.value = false
-    success('Персональные данные показаны', 'Действие записано в аудит')
+    success('Персональные данные показаны')
   } catch (e) {
     const message = apiErrorMessage(e)
     error.value = message
@@ -123,7 +138,6 @@ async function reveal(reason: string) {
 
 function hideRevealed() {
   revealed.value = null
-  revealReason.value = ''
 }
 
 onMounted(load)
@@ -133,28 +147,15 @@ onMounted(load)
   <section class="space-y-6">
     <header class="flex flex-wrap items-end justify-between gap-3">
       <div>
-        <p class="text-xs font-medium uppercase tracking-wide text-indigo-600">
-          Требование → доказательство → пробел
-        </p>
         <h1 class="text-2xl font-semibold tracking-tight text-slate-900">Отчёт о соответствии</h1>
         <p v-if="report" class="mt-1 text-sm text-slate-500">
-          {{ phaseLabel(report.phase) }} скор · {{ report.requirements?.length ?? 0 }} требований
+          {{ report.requirements?.length ?? 0 }} требований
         </p>
       </div>
       <div class="flex items-center gap-2">
         <RouterLink v-if="analysisLink" :to="analysisLink" class="btn-secondary">
           <ArrowLeft :size="16" />
           {{ analysisLabel }}
-        </RouterLink>
-        <span
-          v-if="report?.blind"
-          class="inline-flex items-center gap-1 rounded-full bg-slate-100 px-3 py-1 text-xs font-medium text-slate-600"
-        >
-          <ShieldCheck :size="14" />
-          Слепой режим
-        </span>
-        <RouterLink v-if="compareLink" :to="compareLink" class="btn-primary">
-          Сравнить тексты
         </RouterLink>
         <button
           v-if="applicationId && !revealed"
@@ -176,37 +177,24 @@ onMounted(load)
     <div v-if="loading" class="text-sm text-slate-500">Загрузка…</div>
 
     <template v-else-if="report">
-      <div class="grid gap-4 sm:grid-cols-3">
-        <div class="rounded-3xl border border-slate-200 bg-white p-5">
+      <div class="grid gap-4 sm:grid-cols-2">
+        <div class="rounded-xl border border-slate-200 bg-white p-5">
           <p class="text-xs uppercase tracking-wide text-slate-500">Скор</p>
           <p class="mt-2 text-3xl font-semibold text-slate-900">{{ report.score.toFixed(1) }}</p>
-          <p class="text-sm text-slate-500">
-            вилка {{ report.scoreLow.toFixed(1) }}–{{ report.scoreHigh.toFixed(1) }}
-          </p>
         </div>
-        <div class="rounded-3xl border border-slate-200 bg-white p-5">
-          <p class="text-xs uppercase tracking-wide text-slate-500">Релевантность</p>
-          <p class="mt-2 text-3xl font-semibold text-slate-900">
-            {{ report.relevance == null ? '—' : report.relevance.toFixed(2) }}
-          </p>
-          <p class="text-sm text-slate-500">R<sub>v</sub> по навыкам</p>
-        </div>
-        <div class="rounded-3xl border border-slate-200 bg-white p-5">
+        <div class="rounded-xl border border-slate-200 bg-white p-5">
           <p class="text-xs uppercase tracking-wide text-slate-500">Решение</p>
           <p class="mt-2 text-lg font-semibold text-slate-900">
             {{ report.decision ? decisionLabel(report.decision) : '—' }}
           </p>
-          <p class="text-sm text-slate-500">решение принимает человек</p>
         </div>
       </div>
 
       <div
         v-if="revealed"
-        class="rounded-3xl border border-emerald-200 bg-emerald-50/60 p-5 text-sm text-emerald-900"
+        class="rounded-xl border border-emerald-200 bg-emerald-50/60 p-5 text-sm text-emerald-900"
       >
-        <p class="font-semibold">Персональные данные показаны</p>
-        <p class="mt-0.5 text-xs">Причина: «{{ revealReason }}». Действие записано в аудит.</p>
-        <dl class="mt-2 grid gap-1 sm:grid-cols-2">
+        <dl class="grid gap-1 sm:grid-cols-2">
           <div v-if="revealed.fullName"><dt class="text-xs uppercase">Имя</dt><dd>{{ revealed.fullName }}</dd></div>
           <div v-if="revealed.email"><dt class="text-xs uppercase">Email</dt><dd>{{ revealed.email }}</dd></div>
           <div v-if="revealed.phone"><dt class="text-xs uppercase">Телефон</dt><dd>{{ revealed.phone }}</dd></div>
@@ -214,7 +202,7 @@ onMounted(load)
         </dl>
       </div>
 
-      <div class="overflow-hidden rounded-3xl border border-slate-200 bg-white shadow-sm">
+      <div class="overflow-hidden rounded-xl border border-slate-200 bg-white shadow-sm">
         <table class="w-full text-left text-sm">
           <thead class="bg-slate-50 text-xs uppercase tracking-wide text-slate-500">
             <tr>
@@ -231,7 +219,7 @@ onMounted(load)
               <td class="px-4 py-3 text-slate-500">{{ kindLabel(item.kind) }}</td>
               <td class="px-4 py-3">
                 <span
-                  class="rounded-full border px-2 py-1 text-xs font-medium"
+                  class="rounded-md border px-2 py-1 text-xs font-medium"
                   :class="statusClass[item.status] ?? 'border-slate-200 bg-slate-100 text-slate-600'"
                 >
                   {{ statusLabel[item.status] ?? item.status }}
@@ -247,9 +235,12 @@ onMounted(load)
         </table>
       </div>
 
-      <div v-if="report.flags?.length" class="text-sm text-slate-500">
-        Флаги: {{ report.flags.join(', ') }}
-      </div>
+      <TextComparison
+        v-if="report.resumeId && report.vacancyId"
+        :vacancy-text="vacancyText"
+        :resume-text="resumeText"
+        :requirements="report.requirements"
+      />
     </template>
 
     <RevealPiiDialog

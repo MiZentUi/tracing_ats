@@ -40,6 +40,9 @@ public class ResumeEntity {
     @Column(name = "file_type", nullable = false, length = 16)
     private String fileType;
 
+    @Column(length = 255)
+    private String title;
+
     @Column(nullable = false, length = 24)
     private String status;
 
