@@ -77,7 +77,7 @@ public class VacancyTemplateQuery {
                                     rs.getDouble("w_n"),
                                     rs.getDouble("w_f"),
                                     rs.getString("llm_prompt_version"),
-                                    "scoring-v2",
+                                    "scoring-v3",
                                     "v" + rs.getInt("weights_version"),
                                     requirements);
                         },

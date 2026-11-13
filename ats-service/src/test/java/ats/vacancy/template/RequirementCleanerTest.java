@@ -178,7 +178,8 @@ class RequirementCleanerTest {
     }
 
     @Test
-    void dropsQualificationWhenLabelIsNotInQuote() {
+    void keepsQualificationLabelsThatAreNotSubstringsOfQuote() {
+        String quote = "Имею водительские права категорий B и C.";
         CleanedTemplate result =
                 cleaner.clean(
                         new LlmTemplatePayload(
@@ -186,13 +187,17 @@ class RequirementCleanerTest {
                                 null,
                                 List.of(
                                         qualification(
-                                                "IV группа по электробезопасности",
-                                                "MUST",
-                                                "Допуск: III группа по электробезопасности."))),
-                        "Допуск: III группа по электробезопасности.");
+                                                "Водительские права категории B", "MUST", quote),
+                                        qualification(
+                                                "Водительские права категории C", "MUST", quote))),
+                        quote);
 
-        assertThat(result.requirements()).isEmpty();
-        assertThat(result.droppedRequirements()).isEqualTo(1);
+        assertThat(result.requirements()).hasSize(2);
+        assertThat(result.requirements())
+                .extracting(DraftRequirement::skill)
+                .containsExactly(
+                        "Водительские права категории B", "Водительские права категории C");
+        assertThat(result.requirements()).allMatch(DraftRequirement::qualification);
     }
 
     @Test

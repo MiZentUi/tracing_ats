@@ -26,7 +26,6 @@ public class RequirementCleaner {
         int droppedQuote = 0;
         int droppedNoSubject = 0;
         int droppedAmbiguous = 0;
-        int droppedLabel = 0;
         int droppedDuplicate = 0;
         int droppedLimit = 0;
         List<String> dropExamples = new ArrayList<>();
@@ -74,15 +73,6 @@ public class RequirementCleaner {
                         dropExamples, "no_subject", qualification != null ? "qualification" : null);
                 continue;
             }
-            if (qualification != null && !QuoteMatcher.isSubstring(qualification, quote)) {
-                // label — дословный фрагмент цитаты, иначе это уже не доказательство.
-                dropped++;
-                droppedLabel++;
-                log.debug("template_requirement_dropped reason=label_mismatch");
-                addExample(dropExamples, "label_mismatch", "qualification");
-                continue;
-            }
-
             BigDecimal years = normalizeYears(raw.yearsRequired());
             Kind kind = TemplateResponseParser.parseKind(raw.kind());
             ResolvedSkill resolved;
@@ -148,13 +138,12 @@ public class RequirementCleaner {
         if (result.isEmpty() && !payload.requirements().isEmpty()) {
             log.warn(
                     "template_requirements_all_dropped total={} quote_mismatch={}"
-                            + " no_subject={} ambiguous={} label_mismatch={}"
+                            + " no_subject={} ambiguous={}"
                             + " duplicates={} limit={} examples={}",
                     payload.requirements().size(),
                     droppedQuote,
                     droppedNoSubject,
                     droppedAmbiguous,
-                    droppedLabel,
                     droppedDuplicate,
                     droppedLimit,
                     dropExamples);

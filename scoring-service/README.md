@@ -80,7 +80,7 @@ Python 3.14, uv, gRPC, Pydantic. Онлайн-ML: разбор обезличе�
 ## LLM
 
 - Промпт и JSON-схема лежат в `src/api/prompts/resume_extraction.py`, версия
-  промпта — `resume-extraction.v3`.
+  промпта — `resume-extraction.v4`.
 - Клиент — `src/api/llm/client.py` на официальном SDK `openai`. `base_url`
   настраивается, поэтому подходит OpenRouter и локальные OpenAI-совместимые
   серверы. Повторы на 429/5xx и сетевые ошибки делает SDK (`max_retries`);

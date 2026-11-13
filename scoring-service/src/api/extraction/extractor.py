@@ -9,7 +9,7 @@ from pydantic import ValidationError
 
 from ..llm.client import LlmClient, LlmInvalidResponse
 from ..prompts import PROMPT_VERSION, resume_extraction
-from .quotes import QuoteIndex, collapse
+from .quotes import QuoteIndex
 from .schema import (
     ExtractedEducation,
     ExtractedExperience,
@@ -91,17 +91,12 @@ class ResumeExtractor:
 
         qualifications: list[ExtractedQualification] = []
         for qualification in parsed.qualifications:
-            located = index.locate(qualification.quote)
-            if located is None:
+            if index.locate(qualification.quote) is None:
                 dropped += 1
                 logger.debug("qualification dropped due to a bad quote")
                 continue
-            quote = index.slice(*located)
-            label, _ = collapse(qualification.label.strip())
-            if not label.strip() or label.strip() not in collapse(quote)[0]:
-                dropped += 1
-                logger.debug("qualification dropped because label is not a quote fragment")
-                continue
+            # label может быть нормализованным («категории B» из «категорий B и C»),
+            # поэтому проверяется только цитата.
             qualifications.append(qualification)
 
         education: list[ExtractedEducation] = []

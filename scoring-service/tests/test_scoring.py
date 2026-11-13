@@ -208,6 +208,26 @@ def _qualification_catalog() -> qualification_pb2.QualificationCatalog:
                 canonical_key="electrical_safety_group_iii",
                 canonical_label="III группа по электробезопасности",
             ),
+            qualification_pb2.QualificationAlias(
+                alias_normalized="права категории b",
+                canonical_key="driver_license_b",
+                canonical_label="Водительские права категории B",
+            ),
+            qualification_pb2.QualificationAlias(
+                alias_normalized="водительские права категории b",
+                canonical_key="driver_license_b",
+                canonical_label="Водительские права категории B",
+            ),
+            qualification_pb2.QualificationAlias(
+                alias_normalized="права категории c",
+                canonical_key="driver_license_c",
+                canonical_label="Водительские права категории C",
+            ),
+            qualification_pb2.QualificationAlias(
+                alias_normalized="водительские права категории c",
+                canonical_key="driver_license_c",
+                canonical_label="Водительские права категории C",
+            ),
         ],
     )
 
@@ -249,6 +269,46 @@ def test_evaluate_resume_match_qualification_is_binary_and_uses_catalog() -> Non
     assert match.coverage == 1.0
     assert match.relevance == 1.0
     assert response.general_score.score == 1.0
+
+
+def test_evaluate_resume_match_qualification_label_can_be_normalized() -> None:
+    text = "Имею водительские права категорий B и C."
+    resume = _parsed_resume()
+    for position, label in enumerate(
+        ["Водительские права категории B", "Водительские права категории C"]
+    ):
+        resume.qualifications[f"qualification:{position}"].CopyFrom(
+            qualification_pb2.QualificationPerResume(
+                label=label,
+                evidence=common_pb2.FeatureEvidence(text=text),
+            )
+        )
+    vacancy = messages_pb2.Vacancy(
+        requirements={
+            "license_b": features_pb2.FeatureRequirement(
+                criticality=common_pb2.FEATURE_CRITICALITY_REQUIRED,
+                qualification=qualification_pb2.QualificationRequirement(label="права категории B"),
+            ),
+            "license_c": features_pb2.FeatureRequirement(
+                criticality=common_pb2.FEATURE_CRITICALITY_REQUIRED,
+                qualification=qualification_pb2.QualificationRequirement(label="права категории C"),
+            ),
+        }
+    )
+    request = messages_pb2.EvaluateResumeMatchRequest(
+        resume=resume,
+        unprocessed_resume=messages_pb2.UnprocessedResume(text=text),
+        vacancy=vacancy,
+        reference_date=_reference_date(),
+        qualification_catalog=_qualification_catalog(),
+    )
+
+    with _running(ResumeExtractor(FakeLlm(PAYLOAD))) as stub:
+        response = stub.EvaluateResumeMatch(request, timeout=2)
+
+    for key in ("license_b", "license_c"):
+        assert response.matches[key].status == common_pb2.CORRESPONDENCE_FULL
+        assert response.matches[key].coverage == 1.0
 
 
 def test_evaluate_resume_match_missing_qualification_reduces_score() -> None:
@@ -501,7 +561,7 @@ def test_extract_resume_logs_only_metadata(caplog) -> None:
     ):
         stub.ExtractResume(_extract_request(), timeout=2)
 
-    assert "extract resume model=fake prompt=resume-extraction.v3 schema=3" in caplog.text
+    assert "extract resume model=fake prompt=resume-extraction.v4 schema=3" in caplog.text
     assert "skills=1 qualifications=1 education=1 experience=1 dropped=0" in caplog.text
     assert TEXT not in caplog.text
     assert "Python developer" not in caplog.text

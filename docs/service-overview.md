@@ -173,7 +173,7 @@ compose.yaml
 
 ### 6.2 Шаблон из LLM
 
-- Промпт `vacancy-template.v3` + строгая JSON-схема; текст вакансии передаётся как данные
+- Промпт `vacancy-template.v4` + строгая JSON-схема; текст вакансии передаётся как данные
   в `<vacancy_text>`.
 - `TemplateResponseParser`: `schema_version=3`, `kind` из `MUST/NICE/OPTIONAL`, `qualification` — открытый label квалификации.
 - `RequirementCleaner`: цитата — подстрока текста, дедупликация с приоритетом

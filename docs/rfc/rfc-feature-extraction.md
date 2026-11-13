@@ -6,7 +6,7 @@
 | **Контур** | Python, `scoring-service/` |
 | **Ветка** | `feature/scoring-service` |
 | **Модуль** | `scoring-service` |
-| **Учтено** | `feature/vacancy-skill-kinds` (не вмержена): `kind`, `skill_alias`, `vacancy-template.v3` |
+| **Учтено** | `feature/vacancy-skill-kinds` (не вмержена): `kind`, `skill_alias`, `vacancy-template.v4` |
 
 # RFC: извлечение признаков из резюме и сверка с требованиями
 
@@ -28,7 +28,7 @@
 `scoring-service/src/api/prompts/` не было. Первый инкремент реализован в ветке
 `feature/scoring-service-impl` (раздел 5.7). В ветке
 `feature/vacancy-skill-kinds` (пока не вмержена) появились
-`infra/mock-llm/`, промпт `vacancy-template.v3` со строгой схемой ответа и словарь
+`infra/mock-llm/`, промпт `vacancy-template.v4` со строгой схемой ответа и словарь
 синонимов навыков (`skill_alias`, точное совпадение нормализованного ключа из
 `SkillNormalizer`). Это задаёт соглашения, которые слой резюме должен повторить,
 а не изобретать заново. Контракт
@@ -191,7 +191,7 @@ class ExtractionPort(Protocol):
 }
 ```
 
-Схема намеренно повторяет соглашения промпта вакансии (`vacancy-template.v3`):
+Схема намеренно повторяет соглашения промпта вакансии (`vacancy-template.v4`):
 плоский JSON, enum-поля, цитата отдельным полем, версия схемы в ответе. Разница
 только в предмете: там требования вакансии, здесь оценки резюме.
 
@@ -212,8 +212,11 @@ class ExtractionPort(Protocol):
 группа по электробезопасности или категория водительских прав). Закрытого
 перечня в контракте нет.
 
-- LLM возвращает `qualifications: [{label, quote}]`; `label` — дословный
-  фрагмент `quote`, а не значение enum.
+- LLM возвращает `qualifications: [{label, quote}]`; `label` — открытая
+  нормализованная форма, выведенная из `quote`, а не значение enum. Он не
+  обязан быть дословной подстрокой: из «права категорий B и C» получаются два
+  label и одна общая цитата. Сама `quote` по-прежнему проверяется как
+  дословная подстрока текста.
 - Java хранит label в `vacancy_requirement.skill_text`, а признак
   `vacancy_requirement.qualification` отделяет квалификацию от навыка.
 - При сопоставлении Java передаёт в gRPC снимок `QualificationCatalog`:
@@ -327,7 +330,7 @@ OpenAI-совместимый эндпоинт включается `SCORING_SER
 Клиент — официальный SDK `openai` с настраиваемым `base_url`, поэтому подходит
 OpenRouter и локальные OpenAI-совместимые серверы. Промпт и JSON-схема —
 `scoring-service/src/api/prompts/resume_extraction.py`, версия
-`resume-extraction.v3`. Контракт gRPC дополнен методами `ExtractResume`,
+`resume-extraction.v4`. Контракт gRPC дополнен методами `ExtractResume`,
 `EvaluateResumeMatch` и `EvaluateResumeMatches`: первый возвращает `ParsedResume`
 без сверки с вакансией, второй оценивает уже разобранное резюме по одной
 вакансии, третий — пакетно по нескольким. `ScoreResume` остаётся одношаговым

@@ -123,22 +123,25 @@ def test_extract_drops_feature_with_unknown_quote() -> None:
     assert result.parsed.skills == []
 
 
-def test_extract_drops_qualification_when_label_is_not_in_quote() -> None:
+def test_extract_keeps_normalized_labels_and_splits_categories() -> None:
+    quote = "Имею водительские права категорий B и C."
+    text = f"{TEXT}\n{quote}"
     payload = {
         **VALID_PAYLOAD,
         "qualifications": [
-            {
-                "label": "IV группа по электробезопасности",
-                "quote": "III группа по электробезопасности",
-            }
+            {"label": "Водительские права категории B", "quote": quote},
+            {"label": "Водительские права категории C", "quote": quote},
         ],
     }
     extractor = ResumeExtractor(ScriptedLlm([json.dumps(payload)]))
 
-    result = extractor.extract(TEXT)
+    result = extractor.extract(text)
 
-    assert result.dropped == 1
-    assert result.parsed.qualifications == []
+    assert result.dropped == 0
+    assert [item.label for item in result.parsed.qualifications] == [
+        "Водительские права категории B",
+        "Водительские права категории C",
+    ]
 
 
 def test_extract_retries_once_on_invalid_json() -> None:
@@ -210,7 +213,7 @@ def test_schema_rejects_long_metric_quote() -> None:
 def test_prompt_contains_schema_and_marks_resume_as_data() -> None:
     prompt = system_prompt()
 
-    assert PROMPT_VERSION == "resume-extraction.v3"
+    assert PROMPT_VERSION == "resume-extraction.v4"
     assert '"skills"' in prompt
     assert '"qualifications"' in prompt
     assert '"education"' in prompt
@@ -218,6 +221,8 @@ def test_prompt_contains_schema_and_marks_resume_as_data() -> None:
     assert "не ставь баллов" in prompt
     assert "не весь абзац" in prompt
     assert "не более одного предложения" in prompt
+    assert "дословная подстрока не требуется" in prompt
+    assert "категорий B и C" in prompt
     assert str(SKILL_QUOTE_MAX_CHARS) in prompt
     assert user_prompt("Python developer") == "<resume_text>\nPython developer\n</resume_text>"
 

@@ -17,7 +17,7 @@ from scoring_service.v1.models.features import (
     skill_pb2,
 )
 
-from ..extraction.quotes import QuoteIndex, collapse
+from ..extraction.quotes import QuoteIndex
 from .dates import experience_years
 from .errors import InvalidRequirement
 from .model import RequirementScore
@@ -188,10 +188,6 @@ class RequirementMatcher:
         for key, qualification in sorted(resume.qualifications.items()):
             evidence = _verified_evidence(index, qualification.evidence)
             if evidence is None:
-                continue
-            resume_label = collapse(qualification.label.strip())[0].strip()
-            if not resume_label or resume_label not in collapse(evidence.text)[0]:
-                # label — часть доказательства; без этого цитата ничего не подтверждает.
                 continue
             if not qualifications.matches(label, qualification.label):
                 continue

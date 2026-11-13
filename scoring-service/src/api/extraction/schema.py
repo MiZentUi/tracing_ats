@@ -73,15 +73,15 @@ class ExtractedQualification(_StrictModel):
     label: str = Field(
         min_length=1,
         max_length=128,
-        description="Название квалификации дословно из цитаты.",
+        description=(
+            "Название квалификации, выведенное из цитаты. Может быть "
+            "нормализованной формой и не быть дословной подстрокой."
+        ),
     )
     quote: str = Field(
         min_length=1,
         max_length=SKILL_QUOTE_MAX_CHARS,
-        description=(
-            "Минимальная дословная цитата, где указана квалификация. "
-            "label должен быть её фрагментом."
-        ),
+        description="Минимальная дословная цитата, где указана квалификация.",
     )
 
 
