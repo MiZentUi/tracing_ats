@@ -56,7 +56,7 @@ class VacancyApiIntegrationTest {
 
     private static final String LLM_JSON =
             """
-            {"schema_version": 2, "title": "Backend-разработчик", "requirements": [
+            {"schema_version": 3, "title": "Backend-разработчик", "requirements": [
               {"skill": "JS", "kind": "NICE", "years_required": 3,
                "quote": "Опыт работы с JS от 3 лет", "clarity_warning": null},
               {"skill": "Kafka", "kind": "MUST", "years_required": null,
