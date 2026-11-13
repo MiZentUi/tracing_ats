@@ -107,3 +107,63 @@ SEED: tuple[SeedSkill, ...] = (
     SeedSkill("Коммуникация", "SOFT", ("коммуникабельность",)),
     SeedSkill("Работа в команде", "SOFT", ("teamwork",)),
 )
+
+
+@dataclass(frozen=True, slots=True)
+class SeedQualification:
+    canonical: str
+    qualification_type: str
+    aliases: tuple[str, ...] = ()
+
+
+@dataclass(frozen=True, slots=True)
+class SeedRelation:
+    left: str
+    right: str
+    kind: str
+
+
+SEED_QUALIFICATIONS: tuple[SeedQualification, ...] = (
+    SeedQualification(
+        "I группа по электробезопасности",
+        "PERMIT",
+        ("1 группа по электробезопасности", "1-я группа по электробезопасности"),
+    ),
+    SeedQualification(
+        "II группа по электробезопасности",
+        "PERMIT",
+        ("2 группа по электробезопасности", "2-я группа по электробезопасности"),
+    ),
+    SeedQualification(
+        "III группа по электробезопасности",
+        "PERMIT",
+        ("3 группа по электробезопасности", "3-я группа по электробезопасности"),
+    ),
+    SeedQualification(
+        "IV группа по электробезопасности",
+        "PERMIT",
+        ("4 группа по электробезопасности", "4-я группа по электробезопасности"),
+    ),
+    SeedQualification(
+        "Водительские права категории B",
+        "LICENSE",
+        ("права категории B", "водительские права категории B"),
+    ),
+    SeedQualification(
+        "Водительские права категории C",
+        "LICENSE",
+        ("права категории C", "водительские права категории C"),
+    ),
+    SeedQualification(
+        "Аттестат профессионального бухгалтера",
+        "ATTESTATION",
+        ("профессиональный бухгалтер",),
+    ),
+)
+
+
+SEED_RELATIONS: tuple[SeedRelation, ...] = (
+    SeedRelation("Kafka", "RabbitMQ", "RELATED"),
+    SeedRelation("PostgreSQL", "MySQL", "SAME_GROUP"),
+    SeedRelation("Docker", "Kubernetes", "SAME_GROUP"),
+)

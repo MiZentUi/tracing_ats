@@ -77,11 +77,14 @@ class Meta:
     config_hash: str
     pymorphy_version: str
     homoglyph_rules_version: str
+    qualification_version: int = 1
+    relation_version: int = 1
 
     @property
     def resolver_version(self) -> str:
         return (
-            f"d{self.dictionary_version}-e{self.embedding_model_id or 'none'}"
+            f"d{self.dictionary_version}-q{self.qualification_version}"
+            f"-r{self.relation_version}-e{self.embedding_model_id or 'none'}"
             f"-c{self.config_hash}-p{self.pymorphy_version}"
             f"-h{self.homoglyph_rules_version}"
         )
@@ -97,6 +100,40 @@ class Resolved:
     method: str
     confidence: float
     candidates: tuple[Candidate, ...] = field(default_factory=tuple)
+
+
+@dataclass(frozen=True, slots=True)
+class Qualification:
+    id: str
+    canonical_name: str
+    status: str = "ACTIVE"
+    qualification_type: str | None = None
+
+
+@dataclass(frozen=True, slots=True)
+class QualificationAliasRef:
+    alias_id: str
+    qualification_id: str
+    canonical_name: str
+    kind: str
+
+
+@dataclass(frozen=True, slots=True)
+class ResolvedQualification:
+    raw_label: str
+    normalized_key: str
+    folded_key: str
+    qualification_id: str | None
+    canonical_name: str
+    method: str
+    confidence: float
+
+
+@dataclass(frozen=True, slots=True)
+class SkillRelation:
+    left_skill_id: str
+    right_skill_id: str
+    kind: str
 
 
 class DictionaryError(Exception):

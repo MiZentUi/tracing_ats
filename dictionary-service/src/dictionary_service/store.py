@@ -17,10 +17,14 @@ from .domain import (
     CanonicalRequired,
     Meta,
     NotFound,
+    Qualification,
+    QualificationAliasRef,
     ReviewItem,
     Skill,
+    SkillRelation,
 )
 from .normalization import alias_keys, keys_for_raw, normalize_base
+from .seed import SeedQualification, SeedRelation
 
 _KIND_ORDER = ("RAW", "FOLDED", "LEMMA", "LEMMA_FOLDED")
 _NAMESPACE = uuid.UUID("7b3d5b2e-6f4a-5c1d-9e8f-0a1b2c3d4e5f")
@@ -74,6 +78,13 @@ class Store(Protocol):
     def deprecate_skill(self, skill_id: str, actor: str) -> Skill: ...
     def delete_skill(self, skill_id: str, actor: str) -> None: ...
 
+    def qualifications_empty(self) -> bool: ...
+    def relations_empty(self) -> bool: ...
+    def seed_qualifications(self, seed: tuple[SeedQualification, ...]) -> None: ...
+    def seed_relations(self, seed: tuple[SeedRelation, ...]) -> None: ...
+    def lookup_qualification(self, key: str) -> QualificationAliasRef | None: ...
+    def get_relations(self, pairs: list[tuple[str, str]]) -> tuple[SkillRelation, ...]: ...
+
     def enqueue_review(self, key: str, raw: str, source: str) -> ReviewItem: ...
     def list_review(self, status: str, limit: int, offset: int) -> tuple[list[ReviewItem], int]: ...
     def get_review(self, review_id: str) -> ReviewItem | None: ...
@@ -100,6 +111,10 @@ class InMemoryStore:
         self._review: dict[str, ReviewItem] = {}
         self._review_by_key: dict[str, str] = {}
         self._snapshots: dict[str, dict] = {}
+        self._qualifications: dict[str, Qualification] = {}
+        self._qualification_aliases: dict[str, tuple[str, str]] = {}
+        self._qualification_keys: dict[str, tuple[str, str]] = {}
+        self._relations: dict[tuple[str, str], str] = {}
 
     # --- метаданные и версия -------------------------------------------------
     def meta(self) -> Meta:
@@ -137,6 +152,81 @@ class InMemoryStore:
                 self.add_alias(skill.id, alias_raw, "mixed", "AUTO", "SEED", "seed")
             for alias_raw in item.raw_only:
                 self.add_alias(skill.id, alias_raw, "ru", "RAW_ONLY", "SEED", "seed")
+
+    def qualifications_empty(self) -> bool:
+        return not self._qualifications
+
+    def relations_empty(self) -> bool:
+        return not self._relations
+
+    def seed_qualifications(self, seed: tuple[SeedQualification, ...]) -> None:
+        if self._qualifications:
+            return
+        for item in seed:
+            qualification_id = stable_id(item.canonical)
+            self._qualifications[qualification_id] = Qualification(
+                qualification_id, item.canonical, "ACTIVE", item.qualification_type
+            )
+            for raw in (item.canonical, *item.aliases):
+                keys = alias_keys(raw)
+                if not keys:
+                    continue
+                alias_id = str(uuid.uuid4())
+                for kind, key in keys.items():
+                    self._qualification_keys[key] = (alias_id, kind)
+                self._qualification_aliases[alias_id] = (
+                    qualification_id,
+                    item.canonical if raw == item.canonical else raw,
+                )
+        self._meta = Meta(
+            self._meta.dictionary_version,
+            self._meta.embedding_model_id,
+            self._meta.config_hash,
+            self._meta.pymorphy_version,
+            self._meta.homoglyph_rules_version,
+            self._meta.qualification_version + 1,
+            self._meta.relation_version,
+        )
+
+    def seed_relations(self, seed: tuple[SeedRelation, ...]) -> None:
+        if self._relations:
+            return
+        for item in seed:
+            left = stable_id(item.left)
+            right = stable_id(item.right)
+            if left == right:
+                continue
+            key = (left, right) if left < right else (right, left)
+            self._relations[key] = item.kind
+        self._meta = Meta(
+            self._meta.dictionary_version,
+            self._meta.embedding_model_id,
+            self._meta.config_hash,
+            self._meta.pymorphy_version,
+            self._meta.homoglyph_rules_version,
+            self._meta.qualification_version,
+            self._meta.relation_version + 1,
+        )
+
+    def lookup_qualification(self, key: str) -> QualificationAliasRef | None:
+        found = self._qualification_keys.get(key)
+        if found is None:
+            return None
+        alias_id, kind = found
+        qualification_id, _alias_raw = self._qualification_aliases[alias_id]
+        qualification = self._qualifications[qualification_id]
+        if qualification.status != "ACTIVE":
+            return None
+        return QualificationAliasRef(alias_id, qualification_id, qualification.canonical_name, kind)
+
+    def get_relations(self, pairs: list[tuple[str, str]]) -> tuple[SkillRelation, ...]:
+        result: list[SkillRelation] = []
+        for left, right in pairs:
+            key = (left, right) if left < right else (right, left)
+            kind = self._relations.get(key)
+            if kind is not None:
+                result.append(SkillRelation(left, right, kind))
+        return tuple(result)
 
     # --- чтение -------------------------------------------------------------
     def lookup(self, key: str) -> AliasRef | None:
@@ -450,9 +540,27 @@ class InMemoryStore:
                 "config_hash": self._meta.config_hash,
                 "pymorphy_version": self._meta.pymorphy_version,
                 "homoglyph_rules_version": self._meta.homoglyph_rules_version,
+                "qualification_version": self._meta.qualification_version,
+                "relation_version": self._meta.relation_version,
             },
             "skills": [skill.to_dict() for skill in self._skills.values()],
             "alias_keys": {key: list(value) for key, value in self._alias_keys.items()},
+            "qualifications": [
+                {
+                    "id": item.id,
+                    "canonical_name": item.canonical_name,
+                    "status": item.status,
+                    "qualification_type": item.qualification_type,
+                }
+                for item in self._qualifications.values()
+            ],
+            "qualification_aliases": {
+                key: [value[0], value[1]] for key, value in self._qualification_aliases.items()
+            },
+            "qualification_keys": {
+                key: [value[0], value[1]] for key, value in self._qualification_keys.items()
+            },
+            "relations": [[left, right, kind] for (left, right), kind in self._relations.items()],
         }
 
     @classmethod
@@ -465,6 +573,8 @@ class InMemoryStore:
             meta["config_hash"],
             meta["pymorphy_version"],
             meta["homoglyph_rules_version"],
+            meta.get("qualification_version", 1),
+            meta.get("relation_version", 1),
         )
         for skill_data in payload["skills"]:
             aliases = tuple(
@@ -493,6 +603,19 @@ class InMemoryStore:
                 store._aliases[alias.id] = alias
         for key, value in payload["alias_keys"].items():
             store._alias_keys[key] = (value[0], value[1])
+        for item in payload.get("qualifications", []):
+            store._qualifications[item["id"]] = Qualification(
+                item["id"],
+                item["canonical_name"],
+                item.get("status", "ACTIVE"),
+                item.get("qualification_type"),
+            )
+        for key, value in payload.get("qualification_aliases", {}).items():
+            store._qualification_aliases[key] = (value[0], value[1])
+        for key, value in payload.get("qualification_keys", {}).items():
+            store._qualification_keys[key] = (value[0], value[1])
+        for left, right, kind in payload.get("relations", []):
+            store._relations[(left, right)] = kind
         return store
 
     def dump(self) -> str:

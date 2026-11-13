@@ -17,15 +17,19 @@ from .domain import (
     CanonicalRequired,
     Meta,
     NotFound,
+    QualificationAliasRef,
     ReviewItem,
     Skill,
+    SkillRelation,
 )
 from .normalization import alias_keys, normalize_base
+from .seed import SeedQualification, SeedRelation
+from .store import stable_id
 
 
 class PostgresStore:
     def __init__(self, database_url: str) -> None:
-        # Схему и seed накатывает Liquibase (миграции 017–018).
+        # Схему накатывает Liquibase (миграции 020–023).
         self._pool = ConnectionPool(
             database_url,
             min_size=1,
@@ -39,7 +43,8 @@ class PostgresStore:
         with self._pool.connection() as conn:
             row = conn.execute(
                 "SELECT dictionary_version, embedding_model_id, config_hash, "
-                "pymorphy_version, homoglyph_rules_version FROM dictionary_meta WHERE id = 1"
+                "pymorphy_version, homoglyph_rules_version, qualification_version, "
+                "relation_version FROM dictionary_meta WHERE id = 1"
             ).fetchone()
         return Meta(*row)
 
@@ -324,6 +329,111 @@ class PostgresStore:
         with self._pool.connection() as conn, conn.transaction():
             conn.execute("DELETE FROM skill WHERE id = %s", (skill_id,))
 
+    # --- квалификации и отношения ------------------------------------------
+    def qualifications_empty(self) -> bool:
+        with self._pool.connection() as conn:
+            return conn.execute("SELECT count(*) FROM qualification").fetchone()[0] == 0
+
+    def relations_empty(self) -> bool:
+        with self._pool.connection() as conn:
+            return conn.execute("SELECT count(*) FROM skill_relation").fetchone()[0] == 0
+
+    def seed_qualifications(self, seed: tuple[SeedQualification, ...]) -> None:
+        if not self.qualifications_empty():
+            return
+        with self._pool.connection() as conn, conn.transaction():
+            for item in seed:
+                qualification_id = stable_id(item.canonical)
+                conn.execute(
+                    "INSERT INTO qualification (id, canonical_name, qualification_type) "
+                    "VALUES (%s, %s, %s) ON CONFLICT (id) DO NOTHING",
+                    (qualification_id, item.canonical, item.qualification_type),
+                )
+                for index, raw in enumerate((item.canonical, *item.aliases)):
+                    keys = alias_keys(raw)
+                    if not keys:
+                        continue
+                    alias_id = str(uuid.uuid4())
+                    conn.execute(
+                        "INSERT INTO qualification_alias "
+                        "(id, qualification_id, alias_raw, is_canonical, lang, source, "
+                        "lemma_mode, created_by) VALUES (%s, %s, %s, %s, %s, %s, %s, %s)",
+                        (
+                            alias_id,
+                            qualification_id,
+                            raw,
+                            index == 0,
+                            "mixed",
+                            "SEED",
+                            "AUTO",
+                            "seed",
+                        ),
+                    )
+                    for kind, key in keys.items():
+                        conn.execute(
+                            "INSERT INTO qualification_alias_key (key, alias_id, kind) "
+                            "VALUES (%s, %s, %s) ON CONFLICT (key) DO NOTHING",
+                            (key, alias_id, kind),
+                        )
+            conn.execute(
+                "UPDATE dictionary_meta SET qualification_version = qualification_version + 1 "
+                "WHERE id = 1"
+            )
+
+    def seed_relations(self, seed: tuple[SeedRelation, ...]) -> None:
+        if not self.relations_empty():
+            return
+        with self._pool.connection() as conn, conn.transaction():
+            for item in seed:
+                left = stable_id(item.left)
+                right = stable_id(item.right)
+                if left == right:
+                    continue
+                if left > right:
+                    left, right = right, left
+                conn.execute(
+                    "INSERT INTO skill_relation (left_skill_id, right_skill_id, relation_kind) "
+                    "VALUES (%s, %s, %s) ON CONFLICT DO NOTHING",
+                    (left, right, item.kind),
+                )
+            conn.execute(
+                "UPDATE dictionary_meta SET relation_version = relation_version + 1 WHERE id = 1"
+            )
+
+    def lookup_qualification(self, key: str) -> QualificationAliasRef | None:
+        with self._pool.connection() as conn:
+            row = conn.execute(
+                """
+                SELECT a.id, a.qualification_id, q.canonical_name, q.status, k.kind
+                FROM qualification_alias_key k
+                JOIN qualification_alias a ON a.id = k.alias_id
+                JOIN qualification q ON q.id = a.qualification_id
+                WHERE k.key = %s
+                """,
+                (key,),
+            ).fetchone()
+        if row is None or row[3] != "ACTIVE":
+            return None
+        return QualificationAliasRef(str(row[0]), str(row[1]), row[2], row[4])
+
+    def get_relations(self, pairs: list[tuple[str, str]]) -> tuple[SkillRelation, ...]:
+        if not pairs:
+            return ()
+        clauses: list[str] = []
+        params: list[str] = []
+        for left, right in pairs:
+            if left > right:
+                left, right = right, left
+            clauses.append("(left_skill_id = %s AND right_skill_id = %s)")
+            params.extend([left, right])
+        with self._pool.connection() as conn:
+            rows = conn.execute(
+                "SELECT left_skill_id, right_skill_id, relation_kind FROM skill_relation WHERE "
+                + " OR ".join(clauses),
+                params,
+            ).fetchall()
+        return tuple(SkillRelation(str(row[0]), str(row[1]), row[2]) for row in rows)
+
     # --- очередь ревью ------------------------------------------------------
     def enqueue_review(self, key: str, raw: str, source: str) -> ReviewItem:
         with self._pool.connection() as conn, conn.transaction():
@@ -468,6 +578,18 @@ class PostgresStore:
             skills = conn.execute("SELECT id FROM skill").fetchall()
             items = [self._skill(conn, str(row[0])) for row in skills]
             keys = conn.execute("SELECT key, alias_id, kind FROM skill_alias_key").fetchall()
+            qualifications = conn.execute(
+                "SELECT id, canonical_name, status, qualification_type FROM qualification"
+            ).fetchall()
+            qualification_aliases = conn.execute(
+                "SELECT id, qualification_id, alias_raw FROM qualification_alias"
+            ).fetchall()
+            qualification_keys = conn.execute(
+                "SELECT key, alias_id, kind FROM qualification_alias_key"
+            ).fetchall()
+            relations = conn.execute(
+                "SELECT left_skill_id, right_skill_id, relation_kind FROM skill_relation"
+            ).fetchall()
         meta = self.meta()
         return {
             "meta": {
@@ -476,9 +598,25 @@ class PostgresStore:
                 "config_hash": meta.config_hash,
                 "pymorphy_version": meta.pymorphy_version,
                 "homoglyph_rules_version": meta.homoglyph_rules_version,
+                "qualification_version": meta.qualification_version,
+                "relation_version": meta.relation_version,
             },
             "skills": [item.to_dict() for item in items if item is not None],
             "alias_keys": {row[0]: [str(row[1]), row[2]] for row in keys},
+            "qualifications": [
+                {
+                    "id": str(row[0]),
+                    "canonical_name": row[1],
+                    "status": row[2],
+                    "qualification_type": row[3],
+                }
+                for row in qualifications
+            ],
+            "qualification_aliases": {
+                str(row[0]): [str(row[1]), row[2]] for row in qualification_aliases
+            },
+            "qualification_keys": {row[0]: [str(row[1]), row[2]] for row in qualification_keys},
+            "relations": [[str(row[0]), str(row[1]), row[2]] for row in relations],
         }
 
 

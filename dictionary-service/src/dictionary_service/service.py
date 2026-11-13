@@ -11,11 +11,13 @@ from .domain import (
     Meta,
     NotFound,
     Resolved,
+    ResolvedQualification,
     ReviewItem,
     Skill,
+    SkillRelation,
 )
 from .normalization import alias_keys, normalize_base, pymorphy_version
-from .seed import SEED
+from .seed import SEED, SEED_QUALIFICATIONS, SEED_RELATIONS
 from .store import InMemoryStore, Store, raw_keys
 
 _METHOD_BY_KIND = {
@@ -31,6 +33,13 @@ class ResolveInput:
     key: str
     raw_name: str
     lang_hint: str
+    source: str
+
+
+@dataclass(frozen=True, slots=True)
+class ResolveQualificationInput:
+    key: str
+    raw_label: str
     source: str
 
 
@@ -66,20 +75,17 @@ class DictionaryService:
 
     # --- инициализация ------------------------------------------------------
     def seed_if_empty(self) -> None:
-        if self._seed_on_start and self._store.list_skills("", "", "", 1, 0)[1] == 0:
-            self._store.seed(SEED)
+        if self._seed_on_start:
+            if self._store.list_skills("", "", "", 1, 0)[1] == 0:
+                self._store.seed(SEED)
+            if self._store.qualifications_empty():
+                self._store.seed_qualifications(SEED_QUALIFICATIONS)
+            if self._store.relations_empty():
+                self._store.seed_relations(SEED_RELATIONS)
         meta = self.version()
         if self._store.get_snapshot(meta.resolver_version) is not None:
             return
-        payload = self._store.export_state()
-        payload["meta"] = {
-            "dictionary_version": meta.dictionary_version,
-            "embedding_model_id": meta.embedding_model_id,
-            "config_hash": meta.config_hash,
-            "pymorphy_version": meta.pymorphy_version,
-            "homoglyph_rules_version": meta.homoglyph_rules_version,
-        }
-        self._store.save_snapshot(meta.resolver_version, payload)
+        self._save_snapshot(meta)
 
     # --- версия -------------------------------------------------------------
     def version(self) -> Meta:
@@ -90,11 +96,11 @@ class DictionaryService:
             self._config_hash,
             pymorphy_version(),
             self._homoglyph_rules_version,
+            meta.qualification_version,
+            meta.relation_version,
         )
 
-    def _commit(self) -> Meta:
-        self._store.bump_version()
-        meta = self.version()
+    def _save_snapshot(self, meta: Meta) -> None:
         payload = self._store.export_state()
         payload["meta"] = {
             "dictionary_version": meta.dictionary_version,
@@ -102,8 +108,15 @@ class DictionaryService:
             "config_hash": meta.config_hash,
             "pymorphy_version": meta.pymorphy_version,
             "homoglyph_rules_version": meta.homoglyph_rules_version,
+            "qualification_version": meta.qualification_version,
+            "relation_version": meta.relation_version,
         }
         self._store.save_snapshot(meta.resolver_version, payload)
+
+    def _commit(self) -> Meta:
+        self._store.bump_version()
+        meta = self.version()
+        self._save_snapshot(meta)
         return meta
 
     # --- Resolve ------------------------------------------------------------
@@ -113,15 +126,7 @@ class DictionaryService:
         meta = self.version()
         resolver_version = meta.resolver_version
         if not as_of and self._store.get_snapshot(resolver_version) is None:
-            payload = self._store.export_state()
-            payload["meta"] = {
-                "dictionary_version": meta.dictionary_version,
-                "embedding_model_id": meta.embedding_model_id,
-                "config_hash": meta.config_hash,
-                "pymorphy_version": meta.pymorphy_version,
-                "homoglyph_rules_version": meta.homoglyph_rules_version,
-            }
-            self._store.save_snapshot(resolver_version, payload)
+            self._save_snapshot(meta)
         store: Store = self._store
         read_only = False
         if as_of:
@@ -173,6 +178,76 @@ class DictionaryService:
                 )
             )
         return resolver_version, result
+
+    def resolve_qualifications(
+        self,
+        items: list[ResolveQualificationInput],
+        as_of: str = "",
+    ) -> tuple[str, list[ResolvedQualification]]:
+        meta = self.version()
+        resolver_version = meta.resolver_version
+        if not as_of and self._store.get_snapshot(resolver_version) is None:
+            self._save_snapshot(meta)
+        store: Store = self._store
+        if as_of:
+            snapshot = self._store.get_snapshot(as_of)
+            if snapshot is None:
+                raise NotFound(f"resolver version {as_of} not found")
+            store = InMemoryStore.from_state(snapshot)
+            resolver_version = as_of
+
+        result: list[ResolvedQualification] = []
+        for item in items:
+            normalized_key, folded_key = _base_keys(item.raw_label)
+            hit = None
+            hit_kind = ""
+            for kind, key in raw_keys(item.raw_label):
+                found = store.lookup_qualification(key)
+                if found is not None:
+                    hit = found
+                    hit_kind = kind
+                    break
+            if hit is None:
+                result.append(
+                    ResolvedQualification(
+                        raw_label=item.raw_label,
+                        normalized_key=normalized_key,
+                        folded_key=folded_key,
+                        qualification_id=None,
+                        canonical_name="",
+                        method="NEW",
+                        confidence=0.0,
+                    )
+                )
+                continue
+            result.append(
+                ResolvedQualification(
+                    raw_label=item.raw_label,
+                    normalized_key=normalized_key,
+                    folded_key=folded_key,
+                    qualification_id=hit.qualification_id,
+                    canonical_name=hit.canonical_name,
+                    method=_METHOD_BY_KIND.get(hit_kind, "ALIAS_EXACT"),
+                    confidence=1.0,
+                )
+            )
+        return resolver_version, result
+
+    def get_relations(
+        self,
+        pairs: list[tuple[str, str]],
+        as_of: str = "",
+    ) -> tuple[str, tuple[SkillRelation, ...]]:
+        meta = self.version()
+        resolver_version = meta.resolver_version
+        store: Store = self._store
+        if as_of:
+            snapshot = self._store.get_snapshot(as_of)
+            if snapshot is None:
+                raise NotFound(f"resolver version {as_of} not found")
+            store = InMemoryStore.from_state(snapshot)
+            resolver_version = as_of
+        return resolver_version, store.get_relations(pairs)
 
     # --- чтение -------------------------------------------------------------
     def get_skills(self, skill_ids: list[str]) -> dict[str, Skill]:
@@ -310,4 +385,10 @@ def candidates_for_new(store: Store, key: str) -> tuple[Candidate, ...]:
     return item.candidates
 
 
-__all__ = ["AliasConflict", "DictionaryService", "ResolveInput", "candidates_for_new"]
+__all__ = [
+    "AliasConflict",
+    "DictionaryService",
+    "ResolveInput",
+    "ResolveQualificationInput",
+    "candidates_for_new",
+]

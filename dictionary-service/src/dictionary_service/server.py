@@ -12,7 +12,13 @@ from dictionary_service.v1 import dictionary_pb2_grpc as pb_grpc
 
 from .config import Settings
 from .domain import AliasConflict, CanonicalRequired, NotFound, ReviewItem, Skill
-from .service import ApplyAliasInput, ApplySkillInput, DictionaryService, ResolveInput
+from .service import (
+    ApplyAliasInput,
+    ApplySkillInput,
+    DictionaryService,
+    ResolveInput,
+    ResolveQualificationInput,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -48,6 +54,12 @@ _ALIAS_SOURCE_TO_PROTO = {
     "EMBEDDING_CONFIRMED": pb.ALIAS_SOURCE_EMBEDDING_CONFIRMED,
 }
 _LEMMA_MODE_TO_PROTO = {"AUTO": pb.LEMMA_MODE_AUTO, "RAW_ONLY": pb.LEMMA_MODE_RAW_ONLY}
+_RELATION_TO_PROTO = {
+    "SAME_GROUP": pb.RELATION_KIND_SAME_GROUP,
+    "PARENT": pb.RELATION_KIND_PARENT,
+    "CHILD": pb.RELATION_KIND_CHILD,
+    "RELATED": pb.RELATION_KIND_RELATED,
+}
 _REVIEW_STATUS_TO_PROTO = {
     "PENDING": pb.REVIEW_STATUS_PENDING,
     "RESOLVED_ALIAS": pb.REVIEW_STATUS_RESOLVED_ALIAS,
@@ -116,6 +128,80 @@ class DictionaryServicer(pb_grpc.DictionaryServiceServicer):
                 )
         return response
 
+    def ResolveQualifications(
+        self,
+        request: pb.ResolveQualificationsRequest,
+        context: grpc.ServicerContext,
+    ):
+        if len(request.items) > self._settings.max_batch:
+            context.abort(
+                grpc.StatusCode.INVALID_ARGUMENT,
+                f"TOO_MANY_ITEMS|max={self._settings.max_batch}",
+            )
+        raw_items = []
+        for index, item in enumerate(request.items):
+            raw_label = item.raw_label.strip()
+            if not raw_label:
+                context.abort(grpc.StatusCode.INVALID_ARGUMENT, "EMPTY_NAME")
+            if len(raw_label) > 256:
+                context.abort(grpc.StatusCode.INVALID_ARGUMENT, "NAME_TOO_LONG")
+            raw_items.append(
+                ResolveQualificationInput(
+                    key=item.key or str(index),
+                    raw_label=raw_label,
+                    source=_SOURCE_FROM_PROTO.get(item.source, "ADMIN"),
+                )
+            )
+        try:
+            version, resolved_items = self._service.resolve_qualifications(
+                raw_items, request.as_of_resolver_version
+            )
+        except NotFound as error:
+            context.abort(grpc.StatusCode.NOT_FOUND, f"VERSION_NOT_FOUND|{error}")
+        response = pb.ResolveQualificationsResponse(resolver_version=version)
+        for item, resolved in zip(raw_items, resolved_items, strict=True):
+            message = response.items.add(
+                key=item.key,
+                raw_label=resolved.raw_label,
+                normalized_key=resolved.normalized_key,
+                folded_key=resolved.folded_key,
+                canonical_name=resolved.canonical_name,
+                method=_METHOD_TO_PROTO.get(resolved.method, pb.RESOLVE_METHOD_NEW),
+                confidence=resolved.confidence,
+            )
+            if resolved.qualification_id:
+                message.qualification_id = resolved.qualification_id
+        return response
+
+    def GetRelations(self, request: pb.GetRelationsRequest, context: grpc.ServicerContext):
+        if len(request.pairs) > self._settings.max_batch:
+            context.abort(
+                grpc.StatusCode.INVALID_ARGUMENT,
+                f"TOO_MANY_PAIRS|max={self._settings.max_batch}",
+            )
+        pairs = []
+        for pair in request.pairs:
+            left = pair.left_skill_id.strip()
+            right = pair.right_skill_id.strip()
+            if not left or not right or left == right:
+                continue
+            pairs.append((left, right))
+        try:
+            version, relations = self._service.get_relations(pairs, request.as_of_resolver_version)
+        except NotFound as error:
+            context.abort(grpc.StatusCode.NOT_FOUND, f"VERSION_NOT_FOUND|{error}")
+        return pb.GetRelationsResponse(
+            resolver_version=version,
+            relations=[
+                pb.SkillRelation(
+                    left_skill_id=item.left_skill_id,
+                    right_skill_id=item.right_skill_id,
+                    kind=_RELATION_TO_PROTO.get(item.kind, pb.RELATION_KIND_UNSPECIFIED),
+                )
+                for item in relations
+            ],
+        )
+
     # --- версия и справочники ----------------------------------------------
     def GetVersion(self, request: pb.GetVersionRequest, context: grpc.ServicerContext):
         meta = self._service.version()
@@ -126,6 +212,8 @@ class DictionaryServicer(pb_grpc.DictionaryServiceServicer):
             config_hash=meta.config_hash,
             pymorphy_version=meta.pymorphy_version,
             homoglyph_rules_version=meta.homoglyph_rules_version,
+            qualification_version=meta.qualification_version,
+            relation_version=meta.relation_version,
         )
 
     def GetSkills(self, request: pb.GetSkillsRequest, context: grpc.ServicerContext):

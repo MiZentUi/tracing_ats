@@ -9,6 +9,7 @@ from dictionary_service.service import (
     ApplySkillInput,
     DictionaryService,
     ResolveInput,
+    ResolveQualificationInput,
 )
 from dictionary_service.store import InMemoryStore
 
@@ -179,3 +180,51 @@ def test_apply_skills_conflict_leaves_no_version(service: DictionaryService) -> 
             "hr",
         )
     assert service.version().dictionary_version == before
+
+
+def resolve_qualification(service: DictionaryService, raw: str, as_of: str = ""):
+    _, items = service.resolve_qualifications(
+        [ResolveQualificationInput("q", raw, "RESUME")],
+        as_of=as_of,
+    )
+    return items[0]
+
+
+def test_qualification_group_aliases(service: DictionaryService) -> None:
+    third = resolve_qualification(service, "3 группа по электробезопасности")
+    roman = resolve_qualification(service, "III группа по электробезопасности")
+    assert third.qualification_id is not None
+    assert third.qualification_id == roman.qualification_id
+
+
+def test_driver_licence_categories_are_distinct(service: DictionaryService) -> None:
+    b = resolve_qualification(service, "права категории B")
+    c = resolve_qualification(service, "водительские права категории C")
+    assert b.qualification_id is not None
+    assert c.qualification_id is not None
+    assert b.qualification_id != c.qualification_id
+
+
+def test_unknown_qualification_is_new(service: DictionaryService) -> None:
+    item = resolve_qualification(service, "Свидетельство пилота")
+    assert item.qualification_id is None
+    assert item.method == "NEW"
+
+
+def test_skill_relations_are_symmetric(service: DictionaryService) -> None:
+    kafka = resolve(service, "Kafka").skill_id
+    rabbit = resolve(service, "RabbitMQ").skill_id
+    assert kafka and rabbit
+    _, relations = service.get_relations([(kafka, rabbit)])
+    assert len(relations) == 1
+    assert relations[0].kind == "RELATED"
+    _, reverse = service.get_relations([(rabbit, kafka)])
+    assert reverse[0].kind == "RELATED"
+
+
+def test_relation_version_is_part_of_resolver_version(service: DictionaryService) -> None:
+    version = service.version()
+    assert version.qualification_version >= 2
+    assert version.relation_version >= 2
+    assert f"-q{version.qualification_version}" in version.resolver_version
+    assert f"-r{version.relation_version}" in version.resolver_version
