@@ -9,6 +9,8 @@ const createSpecialization = vi.fn()
 vi.mock('@/api', () => ({
   vacanciesApi: {
     createVacancy: (...args: unknown[]) => createVacancy(...args),
+    listVacancies: () => Promise.resolve({ data: { total: 0, items: [] } }),
+    getVacancy: vi.fn(),
   },
   referenceApi: {
     listSpecializations: () =>
@@ -58,7 +60,7 @@ describe('VacancyCreateView', () => {
 
     const button = wrapper.get('button[type="submit"]')
     expect(button.attributes('disabled')).toBeDefined()
-    expect(wrapper.text()).toContain('Извлечение может занять до 5 минут')
+    expect(wrapper.text()).toContain('Создание может занять до 5 минут')
 
     resolveRequest({ data: { vacancy_id: 'vacancy-1' } })
     await flushPromises()

@@ -941,6 +941,13 @@ components:
         title:
           type: string
           nullable: true
+        confirm:
+          type: boolean
+          nullable: true
+          description: >-
+            Зафиксировать версию как шаблон. Если не передан, сохраняется
+            прежнее поведение — версия подтверждается. Явный false оставляет
+            вакансию черновиком: версия не считается шаблоном.
         requirements:
           type: array
           items:

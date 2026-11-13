@@ -1,5 +1,13 @@
 @import "tailwindcss";
 
+/* Чуть более острые углы, чем в стандартной шкале Tailwind. */
+@theme {
+  --radius-lg: 0.375rem;
+  --radius-xl: 0.5rem;
+  --radius-2xl: 0.625rem;
+  --radius-3xl: 0.75rem;
+}
+
 :root {
   font-family: Inter, "Segoe UI", system-ui, -apple-system, sans-serif;
   color: #0f172a;
