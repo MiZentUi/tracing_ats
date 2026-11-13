@@ -103,11 +103,25 @@ class Resolved:
 
 
 @dataclass(frozen=True, slots=True)
+class QualificationAlias:
+    id: str
+    qualification_id: str
+    raw: str
+    is_canonical: bool
+    lang: str
+    source: str
+    lemma_mode: str
+    created_by: str
+    created_at: str
+
+
+@dataclass(frozen=True, slots=True)
 class Qualification:
     id: str
     canonical_name: str
     status: str = "ACTIVE"
     qualification_type: str | None = None
+    aliases: tuple[QualificationAlias, ...] = ()
 
 
 @dataclass(frozen=True, slots=True)

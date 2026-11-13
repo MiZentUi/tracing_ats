@@ -10,6 +10,8 @@ from .domain import (
     Candidate,
     Meta,
     NotFound,
+    Qualification,
+    QualificationAlias,
     Resolved,
     ResolvedQualification,
     ReviewItem,
@@ -270,6 +272,75 @@ class DictionaryService:
         offset: int,
     ) -> tuple[list[ReviewItem], int]:
         return self._store.list_review(status, limit, offset)
+
+    def list_qualifications(
+        self,
+        query: str,
+        status: str,
+        limit: int,
+        offset: int,
+    ) -> tuple[list[Qualification], int]:
+        return self._store.list_qualifications(query, status, limit, offset)
+
+    def create_qualification(
+        self, canonical_name: str, qualification_type: str, actor: str
+    ) -> Qualification:
+        qualification = self._store.create_qualification(
+            canonical_name, qualification_type, actor, "HR"
+        )
+        self._commit_qualification()
+        return qualification
+
+    def add_qualification_alias(
+        self,
+        qualification_id: str,
+        raw: str,
+        lang: str,
+        lemma_mode: str,
+        actor: str,
+    ) -> QualificationAlias:
+        alias = self._store.add_qualification_alias(
+            qualification_id, raw, lang, lemma_mode, "HR", actor
+        )
+        self._commit_qualification()
+        return alias
+
+    def set_canonical_qualification_alias(
+        self, qualification_id: str, alias_id: str, actor: str
+    ) -> Qualification:
+        qualification = self._store.set_canonical_qualification_alias(
+            qualification_id, alias_id, actor
+        )
+        self._commit_qualification()
+        return qualification
+
+    def delete_qualification_alias(self, alias_id: str, actor: str) -> None:
+        self._store.delete_qualification_alias(alias_id, actor)
+        self._commit_qualification()
+
+    def list_relations(self, limit: int, offset: int) -> tuple[list[SkillRelation], int]:
+        return self._store.list_relations(limit, offset)
+
+    def create_relation(self, left: str, right: str, kind: str, actor: str) -> SkillRelation:
+        relation = self._store.create_relation(left, right, kind, actor)
+        self._commit_relation()
+        return relation
+
+    def delete_relation(self, left: str, right: str, actor: str) -> None:
+        self._store.delete_relation(left, right, actor)
+        self._commit_relation()
+
+    def _commit_qualification(self) -> Meta:
+        self._store.bump_qualification_version()
+        meta = self.version()
+        self._save_snapshot(meta)
+        return meta
+
+    def _commit_relation(self) -> Meta:
+        self._store.bump_relation_version()
+        meta = self.version()
+        self._save_snapshot(meta)
+        return meta
 
     # --- применение черновиков ---------------------------------------------
     def apply_skills(self, inputs: list[ApplySkillInput], actor: str) -> tuple[list[Skill], str]:

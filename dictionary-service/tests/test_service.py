@@ -228,3 +228,33 @@ def test_relation_version_is_part_of_resolver_version(service: DictionaryService
     assert version.relation_version >= 2
     assert f"-q{version.qualification_version}" in version.resolver_version
     assert f"-r{version.relation_version}" in version.resolver_version
+
+
+def test_qualification_admin_operations(service: DictionaryService) -> None:
+    qualification = service.create_qualification("Тестовая квалификация", "OTHER", "hr")
+    assert qualification.canonical_name == "Тестовая квалификация"
+    alias = service.add_qualification_alias(qualification.id, "тестовый допуск", "ru", "AUTO", "hr")
+    assert alias.qualification_id == qualification.id
+    updated = service.set_canonical_qualification_alias(qualification.id, alias.id, "hr")
+    assert updated.canonical_name == "тестовый допуск"
+    assert any(item.is_canonical and item.id == alias.id for item in updated.aliases)
+    resolved = resolve_qualification(service, "тестовый допуск")
+    assert resolved.qualification_id == qualification.id
+
+
+def test_relation_admin_operations(service: DictionaryService) -> None:
+    kafka = resolve(service, "Kafka").skill_id
+    docker = resolve(service, "Docker").skill_id
+    assert kafka and docker
+    created = service.create_relation(kafka, docker, "RELATED", "hr")
+    assert created.kind == "RELATED"
+    items, total = service.list_relations(500, 0)
+    assert total >= 4
+    assert any(
+        item.left_skill_id == created.left_skill_id
+        and item.right_skill_id == created.right_skill_id
+        for item in items
+    )
+    service.delete_relation(kafka, docker, "hr")
+    _, remaining = service.get_relations([(kafka, docker)])
+    assert remaining == ()

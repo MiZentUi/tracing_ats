@@ -5,7 +5,7 @@ from __future__ import annotations
 import difflib
 import json
 import uuid
-from dataclasses import replace
+from dataclasses import asdict, replace
 from datetime import UTC, datetime
 from typing import Protocol
 
@@ -18,6 +18,7 @@ from .domain import (
     Meta,
     NotFound,
     Qualification,
+    QualificationAlias,
     QualificationAliasRef,
     ReviewItem,
     Skill,
@@ -41,6 +42,8 @@ def stable_id(name: str) -> str:
 class Store(Protocol):
     def meta(self) -> Meta: ...
     def bump_version(self) -> Meta: ...
+    def bump_qualification_version(self) -> Meta: ...
+    def bump_relation_version(self) -> Meta: ...
     def save_snapshot(self, resolver_version: str, payload: dict) -> None: ...
     def get_snapshot(self, resolver_version: str) -> dict | None: ...
 
@@ -84,6 +87,36 @@ class Store(Protocol):
     def seed_relations(self, seed: tuple[SeedRelation, ...]) -> None: ...
     def lookup_qualification(self, key: str) -> QualificationAliasRef | None: ...
     def get_relations(self, pairs: list[tuple[str, str]]) -> tuple[SkillRelation, ...]: ...
+    def list_qualifications(
+        self,
+        query: str,
+        status: str,
+        limit: int,
+        offset: int,
+    ) -> tuple[list[Qualification], int]: ...
+    def create_qualification(
+        self,
+        canonical_name: str,
+        qualification_type: str,
+        actor: str,
+        source: str,
+    ) -> Qualification: ...
+    def add_qualification_alias(
+        self,
+        qualification_id: str,
+        raw: str,
+        lang: str,
+        lemma_mode: str,
+        source: str,
+        actor: str,
+    ) -> QualificationAlias: ...
+    def set_canonical_qualification_alias(
+        self, qualification_id: str, alias_id: str, actor: str
+    ) -> Qualification: ...
+    def delete_qualification_alias(self, alias_id: str, actor: str) -> None: ...
+    def list_relations(self, limit: int, offset: int) -> tuple[list[SkillRelation], int]: ...
+    def create_relation(self, left: str, right: str, kind: str, actor: str) -> SkillRelation: ...
+    def delete_relation(self, left: str, right: str, actor: str) -> None: ...
 
     def enqueue_review(self, key: str, raw: str, source: str) -> ReviewItem: ...
     def list_review(self, status: str, limit: int, offset: int) -> tuple[list[ReviewItem], int]: ...
@@ -112,7 +145,7 @@ class InMemoryStore:
         self._review_by_key: dict[str, str] = {}
         self._snapshots: dict[str, dict] = {}
         self._qualifications: dict[str, Qualification] = {}
-        self._qualification_aliases: dict[str, tuple[str, str]] = {}
+        self._qualification_aliases: dict[str, QualificationAlias] = {}
         self._qualification_keys: dict[str, tuple[str, str]] = {}
         self._relations: dict[tuple[str, str], str] = {}
 
@@ -127,6 +160,30 @@ class InMemoryStore:
             self._meta.config_hash,
             self._meta.pymorphy_version,
             self._meta.homoglyph_rules_version,
+        )
+        return self._meta
+
+    def bump_qualification_version(self) -> Meta:
+        self._meta = Meta(
+            self._meta.dictionary_version,
+            self._meta.embedding_model_id,
+            self._meta.config_hash,
+            self._meta.pymorphy_version,
+            self._meta.homoglyph_rules_version,
+            self._meta.qualification_version + 1,
+            self._meta.relation_version,
+        )
+        return self._meta
+
+    def bump_relation_version(self) -> Meta:
+        self._meta = Meta(
+            self._meta.dictionary_version,
+            self._meta.embedding_model_id,
+            self._meta.config_hash,
+            self._meta.pymorphy_version,
+            self._meta.homoglyph_rules_version,
+            self._meta.qualification_version,
+            self._meta.relation_version + 1,
         )
         return self._meta
 
@@ -164,20 +221,30 @@ class InMemoryStore:
             return
         for item in seed:
             qualification_id = stable_id(item.canonical)
-            self._qualifications[qualification_id] = Qualification(
-                qualification_id, item.canonical, "ACTIVE", item.qualification_type
-            )
-            for raw in (item.canonical, *item.aliases):
+            aliases: list[QualificationAlias] = []
+            for index, raw in enumerate((item.canonical, *item.aliases)):
                 keys = alias_keys(raw)
                 if not keys:
                     continue
                 alias_id = str(uuid.uuid4())
+                alias = QualificationAlias(
+                    alias_id,
+                    qualification_id,
+                    raw,
+                    index == 0,
+                    "mixed",
+                    "SEED",
+                    "AUTO",
+                    "seed",
+                    now_iso(),
+                )
+                aliases.append(alias)
+                self._qualification_aliases[alias_id] = alias
                 for kind, key in keys.items():
                     self._qualification_keys[key] = (alias_id, kind)
-                self._qualification_aliases[alias_id] = (
-                    qualification_id,
-                    item.canonical if raw == item.canonical else raw,
-                )
+            self._qualifications[qualification_id] = Qualification(
+                qualification_id, item.canonical, "ACTIVE", item.qualification_type, tuple(aliases)
+            )
         self._meta = Meta(
             self._meta.dictionary_version,
             self._meta.embedding_model_id,
@@ -213,11 +280,11 @@ class InMemoryStore:
         if found is None:
             return None
         alias_id, kind = found
-        qualification_id, _alias_raw = self._qualification_aliases[alias_id]
-        qualification = self._qualifications[qualification_id]
+        alias = self._qualification_aliases[alias_id]
+        qualification = self._qualifications[alias.qualification_id]
         if qualification.status != "ACTIVE":
             return None
-        return QualificationAliasRef(alias_id, qualification_id, qualification.canonical_name, kind)
+        return QualificationAliasRef(alias_id, qualification.id, qualification.canonical_name, kind)
 
     def get_relations(self, pairs: list[tuple[str, str]]) -> tuple[SkillRelation, ...]:
         result: list[SkillRelation] = []
@@ -227,6 +294,168 @@ class InMemoryStore:
             if kind is not None:
                 result.append(SkillRelation(left, right, kind))
         return tuple(result)
+
+    def _require_qualification(self, qualification_id: str) -> Qualification:
+        qualification = self._qualifications.get(qualification_id)
+        if qualification is None:
+            raise NotFound(f"qualification {qualification_id} not found")
+        return qualification
+
+    def _qualification_aliases_for(self, qualification_id: str) -> tuple[QualificationAlias, ...]:
+        return tuple(
+            alias
+            for alias in self._qualification_aliases.values()
+            if alias.qualification_id == qualification_id
+        )
+
+    def _check_qualification_keys(self, qualification_id: str, keys: dict[str, str]) -> None:
+        for key in keys.values():
+            found = self._qualification_keys.get(key)
+            if found is None:
+                continue
+            alias = self._qualification_aliases[found[0]]
+            if alias.qualification_id == qualification_id:
+                continue
+            owner = self._qualifications[alias.qualification_id]
+            raise AliasConflict(key, owner.id, owner.canonical_name)
+
+    def list_qualifications(
+        self, query: str, status: str, limit: int, offset: int
+    ) -> tuple[list[Qualification], int]:
+        items = list(self._qualifications.values())
+        if status and status != "QUALIFICATION_STATUS_UNSPECIFIED":
+            items = [item for item in items if item.status == status]
+        if query:
+            lowered = query.strip().lower()
+            items = [
+                item
+                for item in items
+                if lowered in item.canonical_name.lower()
+                or any(lowered in alias.raw.lower() for alias in item.aliases)
+            ]
+        items.sort(key=lambda item: item.canonical_name.lower())
+        return items[offset : offset + limit], len(items)
+
+    def create_qualification(
+        self, canonical_name: str, qualification_type: str, actor: str, source: str
+    ) -> Qualification:
+        key = normalize_base(canonical_name)
+        if not key:
+            raise NotFound("canonical name is empty")
+        existing = self._qualification_keys.get(key)
+        if existing is not None:
+            return self._qualifications[self._qualification_aliases[existing[0]].qualification_id]
+        qualification = Qualification(
+            str(uuid.uuid4()), canonical_name.strip(), "ACTIVE", qualification_type
+        )
+        self._qualifications[qualification.id] = qualification
+        self.add_qualification_alias(
+            qualification.id, canonical_name, "mixed", "AUTO", source, actor
+        )
+        return self._qualifications[qualification.id]
+
+    def add_qualification_alias(
+        self,
+        qualification_id: str,
+        raw: str,
+        lang: str,
+        lemma_mode: str,
+        source: str,
+        actor: str,
+    ) -> QualificationAlias:
+        self._require_qualification(qualification_id)
+        keys = alias_keys(raw, lemma_mode)
+        if not keys:
+            raise NotFound("alias is empty")
+        self._check_qualification_keys(qualification_id, keys)
+        existing = next(
+            (
+                alias
+                for alias in self._qualification_aliases_for(qualification_id)
+                if normalize_base(alias.raw) == normalize_base(raw)
+            ),
+            None,
+        )
+        if existing is not None:
+            return existing
+        alias = QualificationAlias(
+            str(uuid.uuid4()),
+            qualification_id,
+            raw.strip(),
+            False,
+            lang,
+            source,
+            lemma_mode,
+            actor,
+            now_iso(),
+        )
+        self._qualification_aliases[alias.id] = alias
+        for kind, key in keys.items():
+            self._qualification_keys[key] = (alias.id, kind)
+        qualification = self._qualifications[qualification_id]
+        self._qualifications[qualification_id] = replace(
+            qualification, aliases=(*qualification.aliases, alias)
+        )
+        return alias
+
+    def set_canonical_qualification_alias(
+        self, qualification_id: str, alias_id: str, actor: str
+    ) -> Qualification:
+        qualification = self._require_qualification(qualification_id)
+        updated_aliases: list[QualificationAlias] = []
+        selected: QualificationAlias | None = None
+        for alias in self._qualification_aliases_for(qualification_id):
+            if alias.id == alias_id:
+                selected = replace(alias, is_canonical=True)
+                updated_aliases.append(selected)
+            else:
+                updated_aliases.append(replace(alias, is_canonical=False))
+            self._qualification_aliases[updated_aliases[-1].id] = updated_aliases[-1]
+        if selected is None:
+            raise NotFound(f"qualification alias {alias_id} not found")
+        self._qualifications[qualification_id] = replace(
+            qualification,
+            canonical_name=selected.raw.strip() or qualification.canonical_name,
+            aliases=tuple(updated_aliases),
+        )
+        return self._qualifications[qualification_id]
+
+    def delete_qualification_alias(self, alias_id: str, actor: str) -> None:
+        alias = self._qualification_aliases.get(alias_id)
+        if alias is None:
+            raise NotFound(f"qualification alias {alias_id} not found")
+        if alias.is_canonical:
+            raise CanonicalRequired("cannot delete canonical qualification alias")
+        for key in alias_keys(alias.raw, alias.lemma_mode).values():
+            self._qualification_keys.pop(key, None)
+        self._qualification_aliases.pop(alias_id, None)
+        qualification = self._qualifications[alias.qualification_id]
+        self._qualifications[qualification.id] = replace(
+            qualification,
+            aliases=tuple(item for item in qualification.aliases if item.id != alias_id),
+        )
+
+    def list_relations(self, limit: int, offset: int) -> tuple[list[SkillRelation], int]:
+        items = [
+            SkillRelation(left, right, kind) for (left, right), kind in self._relations.items()
+        ]
+        items.sort(key=lambda item: (item.left_skill_id, item.right_skill_id))
+        return items[offset : offset + limit], len(items)
+
+    def create_relation(self, left: str, right: str, kind: str, actor: str) -> SkillRelation:
+        if left == right:
+            raise NotFound("relation endpoints must differ")
+        if self._skills.get(left) is None or self._skills.get(right) is None:
+            raise NotFound("relation skill not found")
+        key = (left, right) if left < right else (right, left)
+        self._relations[key] = kind
+        return SkillRelation(left, right, kind)
+
+    def delete_relation(self, left: str, right: str, actor: str) -> None:
+        key = (left, right) if left < right else (right, left)
+        if key not in self._relations:
+            raise NotFound("relation not found")
+        self._relations.pop(key, None)
 
     # --- чтение -------------------------------------------------------------
     def lookup(self, key: str) -> AliasRef | None:
@@ -551,12 +780,10 @@ class InMemoryStore:
                     "canonical_name": item.canonical_name,
                     "status": item.status,
                     "qualification_type": item.qualification_type,
+                    "aliases": [asdict(alias) for alias in item.aliases],
                 }
                 for item in self._qualifications.values()
             ],
-            "qualification_aliases": {
-                key: [value[0], value[1]] for key, value in self._qualification_aliases.items()
-            },
             "qualification_keys": {
                 key: [value[0], value[1]] for key, value in self._qualification_keys.items()
             },
@@ -604,14 +831,29 @@ class InMemoryStore:
         for key, value in payload["alias_keys"].items():
             store._alias_keys[key] = (value[0], value[1])
         for item in payload.get("qualifications", []):
+            aliases = tuple(
+                QualificationAlias(
+                    alias["id"],
+                    alias["qualification_id"],
+                    alias["raw"],
+                    alias["is_canonical"],
+                    alias["lang"],
+                    alias["source"],
+                    alias["lemma_mode"],
+                    alias["created_by"],
+                    alias["created_at"],
+                )
+                for alias in item.get("aliases", [])
+            )
             store._qualifications[item["id"]] = Qualification(
                 item["id"],
                 item["canonical_name"],
                 item.get("status", "ACTIVE"),
                 item.get("qualification_type"),
+                aliases,
             )
-        for key, value in payload.get("qualification_aliases", {}).items():
-            store._qualification_aliases[key] = (value[0], value[1])
+            for alias in aliases:
+                store._qualification_aliases[alias.id] = alias
         for key, value in payload.get("qualification_keys", {}).items():
             store._qualification_keys[key] = (value[0], value[1])
         for left, right, kind in payload.get("relations", []):

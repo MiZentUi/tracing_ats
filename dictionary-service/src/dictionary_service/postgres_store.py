@@ -17,6 +17,8 @@ from .domain import (
     CanonicalRequired,
     Meta,
     NotFound,
+    Qualification,
+    QualificationAlias,
     QualificationAliasRef,
     ReviewItem,
     Skill,
@@ -53,6 +55,23 @@ class PostgresStore:
             conn.execute(
                 "UPDATE dictionary_meta SET dictionary_version = dictionary_version + 1 "
                 "WHERE id = 1"
+            )
+            conn.commit()
+        return self.meta()
+
+    def bump_qualification_version(self) -> Meta:
+        with self._pool.connection() as conn:
+            conn.execute(
+                "UPDATE dictionary_meta SET qualification_version = qualification_version + 1 "
+                "WHERE id = 1"
+            )
+            conn.commit()
+        return self.meta()
+
+    def bump_relation_version(self) -> Meta:
+        with self._pool.connection() as conn:
+            conn.execute(
+                "UPDATE dictionary_meta SET relation_version = relation_version + 1 WHERE id = 1"
             )
             conn.commit()
         return self.meta()
@@ -434,6 +453,240 @@ class PostgresStore:
             ).fetchall()
         return tuple(SkillRelation(str(row[0]), str(row[1]), row[2]) for row in rows)
 
+    def _qualification(self, conn, qualification_id: str) -> Qualification | None:
+        row = conn.execute(
+            "SELECT id, canonical_name, status, qualification_type "
+            "FROM qualification WHERE id = %s",
+            (qualification_id,),
+        ).fetchone()
+        if row is None:
+            return None
+        rows = conn.execute(
+            "SELECT id, qualification_id, alias_raw, is_canonical, lang, source, lemma_mode, "
+            "created_by, created_at FROM qualification_alias WHERE qualification_id = %s "
+            "ORDER BY created_at",
+            (qualification_id,),
+        ).fetchall()
+        aliases = tuple(_qualification_alias(item) for item in rows)
+        return Qualification(str(row[0]), row[1], row[2], row[3], aliases)
+
+    def list_qualifications(
+        self, query: str, status: str, limit: int, offset: int
+    ) -> tuple[list[Qualification], int]:
+        clauses = []
+        params: list = []
+        if status and status != "QUALIFICATION_STATUS_UNSPECIFIED":
+            clauses.append("q.status = %s")
+            params.append(status)
+        if query:
+            clauses.append(
+                "(q.canonical_name ILIKE %s OR q.id IN ("
+                "SELECT qualification_id FROM qualification_alias WHERE alias_raw ILIKE %s))"
+            )
+            params.extend([f"%{query}%", f"%{query}%"])
+        where = (" WHERE " + " AND ".join(clauses)) if clauses else ""
+        with self._pool.connection() as conn:
+            total = conn.execute(f"SELECT count(*) FROM qualification q{where}", params).fetchone()[
+                0
+            ]
+            rows = conn.execute(
+                f"SELECT q.id FROM qualification q{where} ORDER BY q.canonical_name "
+                "LIMIT %s OFFSET %s",
+                [*params, limit, offset],
+            ).fetchall()
+            items = [self._qualification(conn, str(row[0])) for row in rows]
+        return [item for item in items if item is not None], total
+
+    def create_qualification(
+        self, canonical_name: str, qualification_type: str, actor: str, source: str
+    ) -> Qualification:
+        key = normalize_base(canonical_name)
+        if not key:
+            raise NotFound("canonical name is empty")
+        with self._pool.connection() as conn, conn.transaction():
+            row = conn.execute(
+                "SELECT a.qualification_id FROM qualification_alias_key k "
+                "JOIN qualification_alias a ON a.id = k.alias_id WHERE k.key = %s",
+                (key,),
+            ).fetchone()
+            if row is not None:
+                existing = self._qualification(conn, str(row[0]))
+                if existing is not None:
+                    return existing
+            qualification_id = str(uuid.uuid4())
+            conn.execute(
+                "INSERT INTO qualification (id, canonical_name, qualification_type) "
+                "VALUES (%s, %s, %s)",
+                (qualification_id, canonical_name.strip(), qualification_type),
+            )
+            self._insert_qualification_alias(
+                conn,
+                qualification_id,
+                canonical_name,
+                "mixed",
+                "AUTO",
+                source,
+                actor,
+                canonical=True,
+            )
+            qualification = self._qualification(conn, qualification_id)
+        if qualification is None:
+            raise NotFound("qualification was not created")
+        return qualification
+
+    def add_qualification_alias(
+        self,
+        qualification_id: str,
+        raw: str,
+        lang: str,
+        lemma_mode: str,
+        source: str,
+        actor: str,
+    ) -> QualificationAlias:
+        with self._pool.connection() as conn, conn.transaction():
+            if self._qualification(conn, qualification_id) is None:
+                raise NotFound(f"qualification {qualification_id} not found")
+            keys = alias_keys(raw, lemma_mode)
+            if not keys:
+                raise NotFound("alias is empty")
+            for key in keys.values():
+                row = conn.execute(
+                    "SELECT a.qualification_id, a.id FROM qualification_alias_key k "
+                    "JOIN qualification_alias a ON a.id = k.alias_id WHERE k.key = %s",
+                    (key,),
+                ).fetchone()
+                if row is None:
+                    continue
+                if str(row[0]) != qualification_id:
+                    owner = self._qualification(conn, str(row[0]))
+                    raise AliasConflict(
+                        key,
+                        str(row[0]),
+                        owner.canonical_name if owner else str(row[0]),
+                    )
+                return _qualification_alias_by_id(conn, str(row[1]))
+            return self._insert_qualification_alias(
+                conn, qualification_id, raw, lang, lemma_mode, source, actor, canonical=False
+            )
+
+    def _insert_qualification_alias(
+        self,
+        conn,
+        qualification_id: str,
+        raw: str,
+        lang: str,
+        lemma_mode: str,
+        source: str,
+        actor: str,
+        *,
+        canonical: bool,
+    ) -> QualificationAlias:
+        alias_id = str(uuid.uuid4())
+        row = conn.execute(
+            "INSERT INTO qualification_alias "
+            "(id, qualification_id, alias_raw, is_canonical, lang, source, lemma_mode, created_by) "
+            "VALUES (%s, %s, %s, %s, %s, %s, %s, %s) RETURNING created_at",
+            (alias_id, qualification_id, raw.strip(), canonical, lang, source, lemma_mode, actor),
+        ).fetchone()
+        for kind, key in alias_keys(raw, lemma_mode).items():
+            conn.execute(
+                "INSERT INTO qualification_alias_key (key, alias_id, kind) VALUES (%s, %s, %s)",
+                (key, alias_id, kind),
+            )
+        return QualificationAlias(
+            alias_id,
+            qualification_id,
+            raw.strip(),
+            canonical,
+            lang,
+            source,
+            lemma_mode,
+            actor,
+            row[0].isoformat(),
+        )
+
+    def set_canonical_qualification_alias(
+        self, qualification_id: str, alias_id: str, actor: str
+    ) -> Qualification:
+        with self._pool.connection() as conn, conn.transaction():
+            row = conn.execute(
+                "SELECT id, alias_raw FROM qualification_alias "
+                "WHERE id = %s AND qualification_id = %s",
+                (alias_id, qualification_id),
+            ).fetchone()
+            if row is None:
+                raise NotFound(f"qualification alias {alias_id} not found")
+            conn.execute(
+                "UPDATE qualification_alias SET is_canonical = false WHERE qualification_id = %s",
+                (qualification_id,),
+            )
+            conn.execute(
+                "UPDATE qualification_alias SET is_canonical = true WHERE id = %s",
+                (alias_id,),
+            )
+            conn.execute(
+                "UPDATE qualification SET canonical_name = %s, updated_at = now() WHERE id = %s",
+                (row[1], qualification_id),
+            )
+            qualification = self._qualification(conn, qualification_id)
+        if qualification is None:
+            raise NotFound("qualification not found")
+        return qualification
+
+    def delete_qualification_alias(self, alias_id: str, actor: str) -> None:
+        with self._pool.connection() as conn, conn.transaction():
+            row = conn.execute(
+                "SELECT is_canonical FROM qualification_alias WHERE id = %s", (alias_id,)
+            ).fetchone()
+            if row is None:
+                raise NotFound(f"qualification alias {alias_id} not found")
+            if row[0]:
+                raise CanonicalRequired("cannot delete canonical qualification alias")
+            conn.execute("DELETE FROM qualification_alias WHERE id = %s", (alias_id,))
+
+    def list_relations(self, limit: int, offset: int) -> tuple[list[SkillRelation], int]:
+        with self._pool.connection() as conn:
+            total = conn.execute("SELECT count(*) FROM skill_relation").fetchone()[0]
+            rows = conn.execute(
+                "SELECT left_skill_id, right_skill_id, relation_kind FROM skill_relation "
+                "ORDER BY left_skill_id, right_skill_id LIMIT %s OFFSET %s",
+                (limit, offset),
+            ).fetchall()
+        return (
+            [SkillRelation(str(row[0]), str(row[1]), row[2]) for row in rows],
+            total,
+        )
+
+    def create_relation(self, left: str, right: str, kind: str, actor: str) -> SkillRelation:
+        if left == right:
+            raise NotFound("relation endpoints must differ")
+        if left > right:
+            left, right = right, left
+        with self._pool.connection() as conn, conn.transaction():
+            exists = conn.execute(
+                "SELECT count(*) FROM skill WHERE id = ANY(%s::uuid[])", ([left, right],)
+            ).fetchone()[0]
+            if exists != 2:
+                raise NotFound("relation skill not found")
+            conn.execute(
+                "INSERT INTO skill_relation (left_skill_id, right_skill_id, relation_kind) "
+                "VALUES (%s, %s, %s) ON CONFLICT (left_skill_id, right_skill_id) "
+                "DO UPDATE SET relation_kind = EXCLUDED.relation_kind",
+                (left, right, kind),
+            )
+        return SkillRelation(left, right, kind)
+
+    def delete_relation(self, left: str, right: str, actor: str) -> None:
+        if left > right:
+            left, right = right, left
+        with self._pool.connection() as conn, conn.transaction():
+            result = conn.execute(
+                "DELETE FROM skill_relation WHERE left_skill_id = %s AND right_skill_id = %s",
+                (left, right),
+            )
+            if result.rowcount == 0:
+                raise NotFound("relation not found")
+
     # --- очередь ревью ------------------------------------------------------
     def enqueue_review(self, key: str, raw: str, source: str) -> ReviewItem:
         with self._pool.connection() as conn, conn.transaction():
@@ -582,7 +835,8 @@ class PostgresStore:
                 "SELECT id, canonical_name, status, qualification_type FROM qualification"
             ).fetchall()
             qualification_aliases = conn.execute(
-                "SELECT id, qualification_id, alias_raw FROM qualification_alias"
+                "SELECT id, qualification_id, alias_raw, is_canonical, lang, source, "
+                "lemma_mode, created_by, created_at FROM qualification_alias"
             ).fetchall()
             qualification_keys = conn.execute(
                 "SELECT key, alias_id, kind FROM qualification_alias_key"
@@ -591,6 +845,10 @@ class PostgresStore:
                 "SELECT left_skill_id, right_skill_id, relation_kind FROM skill_relation"
             ).fetchall()
         meta = self.meta()
+        aliases_by_qualification: dict[str, list[QualificationAlias]] = {}
+        for row in qualification_aliases:
+            alias = _qualification_alias(row)
+            aliases_by_qualification.setdefault(alias.qualification_id, []).append(alias)
         return {
             "meta": {
                 "dictionary_version": meta.dictionary_version,
@@ -609,12 +867,12 @@ class PostgresStore:
                     "canonical_name": row[1],
                     "status": row[2],
                     "qualification_type": row[3],
+                    "aliases": [
+                        asdict(alias) for alias in aliases_by_qualification.get(str(row[0]), [])
+                    ],
                 }
                 for row in qualifications
             ],
-            "qualification_aliases": {
-                str(row[0]): [str(row[1]), row[2]] for row in qualification_aliases
-            },
             "qualification_keys": {row[0]: [str(row[1]), row[2]] for row in qualification_keys},
             "relations": [[str(row[0]), str(row[1]), row[2]] for row in relations],
         }
@@ -632,6 +890,29 @@ def _alias(row) -> Alias:
         row[7],
         row[8].isoformat() if row[8] else "",
     )
+
+
+def _qualification_alias(row) -> QualificationAlias:
+    return QualificationAlias(
+        str(row[0]),
+        str(row[1]),
+        row[2],
+        row[3],
+        row[4],
+        row[5],
+        row[6],
+        row[7],
+        row[8].isoformat() if row[8] else "",
+    )
+
+
+def _qualification_alias_by_id(conn, alias_id: str) -> QualificationAlias:
+    row = conn.execute(
+        "SELECT id, qualification_id, alias_raw, is_canonical, lang, source, lemma_mode, "
+        "created_by, created_at FROM qualification_alias WHERE id = %s",
+        (alias_id,),
+    ).fetchone()
+    return _qualification_alias(row)
 
 
 def _alias_by_id(conn, alias_id: str) -> Alias:
