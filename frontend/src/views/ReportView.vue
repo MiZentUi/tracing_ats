@@ -13,7 +13,7 @@ import RevealPiiDialog from '@/components/RevealPiiDialog.vue'
 import TextComparison from '@/components/TextComparison.vue'
 import { useToast } from '@/composables/useToast'
 import { requirementsCount } from '@/lib/format'
-import { decisionLabel, kindLabel } from '@/lib/labels'
+import { kindLabel } from '@/lib/labels'
 
 const route = useRoute()
 const { success, error: toastError } = useToast()
@@ -60,10 +60,19 @@ const analysisLabel = computed(() => (report.value?.applicationId ? 'К вака
 const comparisonResumeText = computed(() => revealedResumeText.value || resumeText.value)
 
 const decisionOptions: Array<{ value: ReportDecisionRequestDecisionEnum; label: string }> = [
-  { value: 'SHORTLISTED', label: decisionLabel('SHORTLISTED') },
-  { value: 'BORDERLINE', label: decisionLabel('BORDERLINE') },
-  { value: 'NOT_SHORTLISTED', label: decisionLabel('NOT_SHORTLISTED') },
+  { value: 'SHORTLISTED', label: 'Собеседование' },
+  { value: 'NOT_SHORTLISTED', label: 'Отказ' },
 ]
+
+const hrDecisionLabels: Record<string, string> = {
+  SHORTLISTED: 'Собеседование',
+  NOT_SHORTLISTED: 'Отказ',
+  BORDERLINE: 'На границе',
+}
+
+function hrDecisionLabel(value: string): string {
+  return hrDecisionLabels[value] ?? value
+}
 
 const statusLabel: Record<string, string> = {
   COVERED: 'Подтверждено',
@@ -191,7 +200,8 @@ function hideResumeReveal() {
 }
 
 function openDecision() {
-  decisionValue.value = report.value?.hrDecision ?? 'SHORTLISTED'
+  decisionValue.value =
+    report.value?.hrDecision === 'NOT_SHORTLISTED' ? 'NOT_SHORTLISTED' : 'SHORTLISTED'
   decisionComment.value = report.value?.hrComment ?? ''
   decisionError.value = ''
   decisionOpen.value = true
@@ -273,7 +283,7 @@ onMounted(load)
         <div class="rounded-xl border border-slate-200 bg-white p-5">
           <p class="text-xs uppercase tracking-wide text-slate-500">Решение</p>
           <p class="mt-2 text-lg font-semibold text-slate-900">
-            {{ report.hrDecision ? decisionLabel(report.hrDecision) : 'Не выбрано' }}
+            {{ report.hrDecision ? hrDecisionLabel(report.hrDecision) : 'Не выбрано' }}
           </p>
           <p v-if="report.hrComment" class="mt-1 text-sm text-slate-500">
             {{ report.hrComment }}
