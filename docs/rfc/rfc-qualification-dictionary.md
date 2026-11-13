@@ -5,10 +5,10 @@
 | **Дата** | 2026-11-13 |
 | **Контур** | `dictionary-service`, `ats-service`, `scoring-service` |
 | **Ветка** | после мержа `feature/skill-dictionary-service` |
-| **Модуль** | справочник квалификаций |
+| **Модуль** | справочник квалификаций и отношений навыков |
 | **Связанные документы** | `rfc-skill-dictionary.md`, `rfc-feature-extraction.md`, `rfc-scoring-model.md` |
 
-# RFC: справочник квалификаций в dictionary-service
+# RFC: квалификации и отношения похожести в dictionary-service
 
 ## 1. Контекст
 
@@ -28,7 +28,9 @@
 - Java передаёт снимок алиасов в gRPC-запросе;
 - Python не может обновить словарь без нового запроса;
 - у квалификаций нет общего владельца, админки и версии;
-- новый словарь навыков (`dictionary-service`) пока не знает о квалификациях.
+- новый словарь навыков (`dictionary-service`) пока не знает о квалификациях;
+- у словаря нет отношений похожести (`Kafka`/`RabbitMQ`), поэтому `S^{ij}`
+  для близких, но не равных навыков остаётся `0`.
 
 Первоначальная идея команды — хранить и навыки, и квалификации в одной
 графовой БД (Neo4j или RDF-хранилище), которой владеет отдельный сервис.
@@ -45,11 +47,17 @@
 dictionary.skill              dictionary.qualification
 dictionary.skill_alias        dictionary.qualification_alias
 dictionary.skill_alias_key    dictionary.qualification_alias_key
+dictionary.skill_relation
 ```
 
 Квалификации не складываются в `dictionary.skill` и не получают
 `skill_type = OTHER`. Это разные сущности с разной семантикой, разными
 очередями ревью и разными правилами матчинга.
+
+Отношения похожести навыков входят в схему v1: `skill_relation` хранит
+типизированные связи `SAME_GROUP`, `PARENT`, `CHILD`, `RELATED`. Словарь
+возвращает класс связи, а не число `S^{ij}`; числа фиксируются в
+`rfc-scoring-model.md`.
 
 `dictionary-service` остаётся единственным владельцем справочника. Java
 и `scoring-service` обращаются к нему по gRPC; никто не читает таблицы
@@ -65,15 +73,17 @@ dictionary.skill_alias_key    dictionary.qualification_alias_key
 - алиасы и нормализация тех же форм, что у навыков;
 - `ResolveQualifications` и версия словаря квалификаций;
 - бинарное сравнение квалификаций в скоринге;
+- таблица `skill_relation` и RPC `GetRelations`;
+- классы отношений `SAME_GROUP`, `PARENT`, `CHILD`, `RELATED`;
+- использование отношений в матчинге навыков через `scoring-service`;
 - fallback на текущий `QualificationCatalog` при недоступности словаря;
 - версия словаря в запуске скоринга;
-- seed для демонстрационных квалификаций.
+- seed для демонстрационных квалификаций и отношений.
 
 ### Не входит в v1
 
 - графовая БД, Neo4j, RDF, SPARQL;
 - иерархия и похожесть квалификаций;
-- отношения похожести навыков (`Kafka`/`RabbitMQ`) — отдельный следующий этап;
 - парсинг сроков действия документов и статусы `EXPIRED`;
 - автоматические решения по кандидату;
 - изменение формулы `Score`;
@@ -103,6 +113,10 @@ PostgreSQL --PARENT--> SQL
 - при необходимости иерархии — рекурсивные CTE;
 - при необходимости графа — экспорт стабильных UUID и типизированных рёбер
   в Neo4j/RDF без изменения контрактов потребителей.
+
+Отношения навыков в v1 хранятся в обычной таблице `skill_relation`.
+Это уже даёт `Kafka`/`RabbitMQ` без графовой БД; переход на Neo4j/RDF
+понадобится только для сложных обходов и запросов, а не для самих связей.
 
 Поэтому сейчас важнее не выбрать хранилище, а зафиксировать **граф-совместимую
 модель**: стабильные ID, отдельные типы сущностей, типизированные связи
@@ -216,24 +230,55 @@ CREATE TABLE dictionary.qualification_review_item (
 `sample_masked` содержит только обезличенные фрагменты, без резюме,
 цитат и PII.
 
-### 5.5. Версия
+### 5.5. `dictionary.skill_relation`
 
-В `dictionary.dictionary_meta` добавляется отдельный счётчик:
+Отношения похожести входят в схему v1 вместе с квалификациями.
+
+```sql
+CREATE TABLE dictionary.skill_relation (
+    left_skill_id   uuid NOT NULL REFERENCES dictionary.skill (id),
+    right_skill_id  uuid NOT NULL REFERENCES dictionary.skill (id),
+    relation_kind   text NOT NULL,
+    source          text NOT NULL DEFAULT 'HR',
+    reviewed        boolean NOT NULL DEFAULT false,
+    created_at      timestamptz NOT NULL DEFAULT now(),
+    PRIMARY KEY (left_skill_id, right_skill_id),
+    CHECK (left_skill_id <> right_skill_id)
+);
+```
+
+Правила:
+
+- для симметричных связей пара хранится в каноническом порядке
+  (`left_skill_id < right_skill_id`);
+- `PARENT`/`CHILD` хранятся явно и проверяются при записи;
+- `relation_kind` принимает значения `SAME_GROUP`, `PARENT`, `CHILD`,
+  `RELATED`;
+- связь не заменяет алиас: `Kafka` и `RabbitMQ` остаются разными навыками.
+
+Группы (`skill_group`, `skill_group_member`) можно добавить позже, если
+понадобится хранить группы явно. Для v1 достаточно `SAME_GROUP`-пар.
+
+### 5.6. Версия
+
+В `dictionary.dictionary_meta` добавляются отдельные счётчики:
 
 ```sql
 ALTER TABLE dictionary.dictionary_meta
-    ADD COLUMN qualification_version bigint NOT NULL DEFAULT 1;
+    ADD COLUMN qualification_version bigint NOT NULL DEFAULT 1,
+    ADD COLUMN relation_version bigint NOT NULL DEFAULT 1;
 ```
 
 Композитный `resolver_version` расширяется:
 
 ```text
-d<skills_version>-q<qualification_version>-...-h<homoglyph_rules_version>
+d<skills_version>-q<qualification_version>-r<relation_version>-...-h<homoglyph_rules_version>
 ```
 
-Любое изменение `qualification` или `qualification_alias` увеличивает
-`qualification_version`. Это позволяет не инвалидировать навыки при изменении
-только квалификаций.
+Любое изменение `qualification`/`qualification_alias` увеличивает
+`qualification_version`, изменение `skill_relation` — `relation_version`.
+Это позволяет не инвалидировать навыки при изменении только квалификаций
+или только связей.
 
 ## 6. gRPC-контракт
 
@@ -297,28 +342,14 @@ message ResolveQualificationsResponse {
 `method` использует те же значения, что у навыков:
 `ALIAS_EXACT`, `ALIAS_FOLDED`, `ALIAS_LEMMA`, `ALIAS_LEMMA_FOLDED`, `NEW`.
 
-Ответ `GetVersion` расширяется полями `qualification_version` и
-`qualification_resolver_version`.
+Ответ `GetVersion` расширяется полями `qualification_version`,
+`relation_version`, `qualification_resolver_version` и
+`relation_resolver_version`.
 
-### 6.1. Отношения навыков — следующий этап
+### 6.1. Отношения навыков (v1)
 
-Похожесть `Kafka`/`RabbitMQ` не входит в v1 квалификаций, но её нужно
-заложить в ту же модель, чтобы не менять контракт `Resolve`.
-
-Данные:
-
-```sql
-CREATE TABLE dictionary.skill_relation (
-    left_skill_id   uuid NOT NULL REFERENCES dictionary.skill (id),
-    right_skill_id  uuid NOT NULL REFERENCES dictionary.skill (id),
-    relation_kind   text NOT NULL,
-    source          text NOT NULL DEFAULT 'HR',
-    reviewed        boolean NOT NULL DEFAULT false,
-    created_at      timestamptz NOT NULL DEFAULT now(),
-    PRIMARY KEY (left_skill_id, right_skill_id),
-    CHECK (left_skill_id <> right_skill_id)
-);
-```
+Отношения `Kafka`/`RabbitMQ` входят в v1. Таблица описана в разделе 5.5.
+Словарь возвращает типизированную связь, а не число похожести.
 
 Для симметричных связей приложение хранит пару в каноническом порядке
 (`left_skill_id < right_skill_id`). Асимметричные `PARENT`/`CHILD` хранятся
@@ -365,8 +396,12 @@ message GetRelationsResponse {
    только по кандидатам.
 4. `RELATED`/`SAME_GROUP`/`PARENT`/`CHILD` → класс, затем `S` по версии
    `rfc-scoring-model.md`.
-5. Пока значения `S` для классов не зафиксированы, словарь возвращает класс,
-   но `S` остаётся `0`, а класс сохраняется только в трассе/объяснении.
+5. Если словарь недоступен, отношения не применяются: `EXACT_FALLBACK`,
+   сравниваются только точные ключи.
+
+Значения `S` для классов — часть v1: они фиксируются в
+`rfc-scoring-model.md` до включения отношений в расчёт. Словарь не возвращает
+числа и не знает про формулу.
 
 Такой подход сохраняет главное: **граф связей принадлежит словарю,
 а числа формулы — `scoring-service` и RFC**.
@@ -375,17 +410,19 @@ message GetRelationsResponse {
 
 ### 7.1. Навыки
 
-Словарь навыков теперь является источником канонических ключей и будущих
-отношений похожести. Для v1:
+Словарь навыков — источник канонических ключей и отношений похожести.
+Для v1:
 
 - `Resolve` вызывается один раз на запуск;
 - сравнение — по `skill_id` или точному ключу;
-- при недоступности словаря — `EXACT_FALLBACK`;
-- похожесть `Kafka`/`RabbitMQ` подключается отдельным этапом через
-  `GetRelations` и классы отношений, а не через число из словаря.
+- для несовпавших пар вызывается `GetRelations` (один batch на запуск);
+- классы `SAME_GROUP`/`PARENT`/`CHILD`/`RELATED` маппятся в `S^{ij}`
+  в `scoring-service` по значениям из `rfc-scoring-model.md`;
+- при недоступности словаря — `EXACT_FALLBACK`, отношения не применяются;
+- `Kafka`/`RabbitMQ` не становятся одним навыком: они остаются разными
+  `skill_id` со связью `RELATED`/`SAME_GROUP`.
 
-Классы отношений должны маппиться в `S^{ij}` только в `scoring-service`
-и только после фиксации значений в `rfc-scoring-model.md`.
+Числа `S` для классов не хранятся в словаре и не приходят из него.
 
 ### 7.2. Квалификации
 
@@ -448,8 +485,10 @@ ALTER TABLE vacancy_requirement
 
 Нумерация должна учитывать текущий YAML-changelog:
 
-- `020-qualification-dictionary-schema.sql`;
-- `021-qualification-dictionary-seed.sql`.
+- `020-dictionary-v1-schema.sql` — `qualification`,
+  `qualification_alias`, `qualification_alias_key`,
+  `qualification_review_item`, `skill_relation`, счётчики версий;
+- `021-dictionary-v1-seed.sql` — демонстрационные квалификации и связи.
 
 Include добавляются в `migrations/db.changelog-master.yaml` после
 `019-qualification-open-vocabulary.sql`.
@@ -460,17 +499,20 @@ Seed v1 — только демонстрационный набор:
 - водительские права B/C (и алиасы `права категории B`,
   `водительские права категории B`);
 - аттестат профессионального бухгалтера;
-- несколько аттестатов/допусков для демо.
+- несколько аттестатов/допусков для демо;
+- связи `Kafka ↔ RabbitMQ` (`RELATED`), `Docker ↔ Podman` (`SAME_GROUP`),
+  `PostgreSQL ↔ MySQL` (`SAME_GROUP`).
 
-Seed не является закрытым перечнем. Новые квалификации добавляются через
-админку или импорт.
+Seed не является закрытым перечнем. Новые квалификации и связи добавляются
+через админку или импорт.
 
 ## 10. Версионирование и деградация
 
 - `score_run` хранит `resolver_version` и `dictionary_mode`;
+- `resolver_version` включает версии навыков, отношений и квалификаций;
 - повторный расчёт без LLM передаёт сохранённый `as_of_resolver_version`;
 - при недоступности словаря скоринг не падает:
-  - навыки — `EXACT_FALLBACK`;
+  - навыки — `EXACT_FALLBACK`, отношения не применяются;
   - квалификации — `QualificationCatalog` или точное совпадение label;
 - результат явно помечается `dictionary_mode=EXACT_FALLBACK`;
 - старые запуски не пересчитываются.
@@ -479,7 +521,7 @@ Seed не является закрытым перечнем. Новые ква�
 
 | Вариант | Решение |
 |---|---|
-| Графовая БД (Neo4j/RDF) сейчас | Отложено. Нет текущих запросов, которые требуют обхода графа; Postgres проще в эксплуатации. Модель оставляем граф-совместимой. |
+| Графовая БД (Neo4j/RDF) сейчас | Отложено. Отношения v1 хранятся в Postgres (`skill_relation`); сложные обходы графа пока не нужны. Модель оставляем граф-совместимой. |
 | Отдельный `qualification-dictionary-service` | Отложено. Дублирует инфраструктуру, админку и транспорт. Отдельные таблицы в существующем сервисе дают почти ту же изоляцию. |
 | Хранить квалификации в `dictionary.skill` с `skill_type=OTHER` | Отклонено. Смешивает семантику, очередь ревью и статистику. |
 | Оставить только `QualificationCatalog` в Java | Допустимо как временный fallback, но не как целевое владение: нет общей версии, админки и доступа из Python. |
@@ -492,6 +534,8 @@ Seed не является закрытым перечнем. Новые ква�
   они не совпадут. Нужна очередь ревью.
 - **Ложное объединение.** Нельзя автоматически сводить `B` и `C`, `I` и `II`
   или разные виды допусков. Это разные бинарные факты.
+- **Курирование связей.** `Kafka`/`RabbitMQ` — не синонимы; связь `RELATED`
+  должна быть проверена, иначе она начнёт завышать `S^{ij}`.
 - **Лемматизация.** Для некоторых формулировок лемма меняет смысл; нужен
   `RAW_ONLY` и вычитка.
 - **Версии.** Изменение только квалификаций не должно менять версию навыков;
@@ -511,10 +555,13 @@ Seed не является закрытым перечнем. Новые ква�
    отложить до появления админки?
 3. Использовать ли лемматизацию для квалификаций по умолчанию или только
    `RAW`-ключи с алиасами?
-4. Включать ли `qualification_version` в тот же `resolver_version`, что и
-   навыки, или выдавать отдельный `qualification_resolver_version`?
-5. Когда переходить на графовую БД: после появления иерархии/похожести
-   квалификаций или только для навыков?
+4. Включать ли `qualification_version` и `relation_version` в тот же
+   `resolver_version`, что и навыки, или выдавать отдельные версии?
+5. Какие значения `S^{ij}` соответствуют `SAME_GROUP`, `PARENT`, `CHILD`,
+   `RELATED`? Значения фиксируются в `rfc-scoring-model.md` до включения
+   отношений в расчёт.
+6. Когда переходить на графовую БД: после появления сложных обходов
+   иерархии или только для навыков?
 
 ## 14. Критерии готовности
 
@@ -526,8 +573,13 @@ Seed не является закрытым перечнем. Новые ква�
   квалификации; B и C не совпадают.
 - Квалификация в резюме и вакансии сравнивается бинарно; отсутствие даёт
   `NOT_STATED`, а не `ABSENT`.
+- `GetRelations` возвращает `RELATED` для `Kafka`/`RabbitMQ` и
+  `SAME_GROUP` для `Docker`/`Podman`; `scoring-service` применяет класс
+  через значения `S`, зафиксированные в `rfc-scoring-model.md`.
+- `GetRelations` не вызывается для точных совпадений и не раздувает
+  `n × m`: пары батчатся и ограничиваются.
 - При недоступном словаре скоринг продолжает работать через
-  `QualificationCatalog` или точный ключ.
+  `QualificationCatalog` или точный ключ; отношения не применяются.
 - `score_run` хранит версию словаря и режим деградации.
 - Цитата остаётся дословной подстрокой текста; label может быть нормализован.
 - В логах нет PII, текстов резюме, цитат и номеров документов.
