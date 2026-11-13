@@ -35,6 +35,7 @@ ext {
 // Копируем только нужные каталоги, иначе protoc увидит две копии google.type.Date.
 def scoringProtoRoot = layout.buildDirectory.dir('scoring-proto').get().asFile
 def internalProtoRoot = layout.buildDirectory.dir('internal-proto').get().asFile
+def dictionaryProtoRoot = layout.buildDirectory.dir('dictionary-proto').get().asFile
 
 tasks.register('prepareScoringProtos', Copy) {
 	from('../contracts/proto/scoring_service') {
@@ -48,11 +49,19 @@ tasks.register('prepareInternalProtos', Copy) {
 	into internalProtoRoot
 }
 
+tasks.register('prepareDictionaryProtos', Copy) {
+	from('../contracts/proto/dictionary_service') {
+		include '**/*.proto'
+	}
+	into new File(dictionaryProtoRoot, 'dictionary_service')
+}
+
 sourceSets {
 	main {
 		proto {
 			srcDir internalProtoRoot
 			srcDir scoringProtoRoot
+			srcDir dictionaryProtoRoot
 		}
 	}
 }
@@ -60,7 +69,7 @@ sourceSets {
 tasks.matching {
 	it.name.toLowerCase().contains('proto') && !it.name.startsWith('prepare')
 }.configureEach {
-	dependsOn 'prepareScoringProtos', 'prepareInternalProtos'
+	dependsOn 'prepareScoringProtos', 'prepareInternalProtos', 'prepareDictionaryProtos'
 }
 
 protobuf {

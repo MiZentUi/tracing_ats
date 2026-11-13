@@ -95,6 +95,10 @@ message ScoreResumeResponse {
   // Ключи соответствуют ключам таблицы `requirements`
   // в запросе.
   map<string, FeatureAssessment> features = 2;
+  // Версия разрешения навыков, зафиксированная на запуск.
+  string resolver_version = 3;
+  // DICTIONARY | EXACT_FALLBACK | EMPTY
+  string dictionary_mode = 4;
 }
 
 message EvaluateResumeMatchRequest {
@@ -149,6 +153,10 @@ message EvaluateResumeMatchResponse {
   repeated string questions = 6;
   // Короткий текст для рекрутера
   string recruiter_note = 7;
+  // Версия разрешения навыков, зафиксированная на запуск.
+  string resolver_version = 8;
+  // DICTIONARY | EXACT_FALLBACK | EMPTY
+  string dictionary_mode = 9;
 }
 
 // Запрос на пакетную оценку одного резюме по нескольким вакансиям.
@@ -183,4 +191,8 @@ message BatchItemError {
 message EvaluateResumeMatchesResponse {
   // Результаты по вакансиям. Ключи совпадают с `vacancies`.
   map<string, EvaluateResumeMatchResult> results = 1;
+  // Версия разрешения навыков, общая для всего батча.
+  string resolver_version = 2;
+  // DICTIONARY | EXACT_FALLBACK | EMPTY
+  string dictionary_mode = 3;
 }

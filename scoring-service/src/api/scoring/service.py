@@ -102,6 +102,8 @@ class ScoringService(scoring_pb2_grpc.ScoringServiceServicer):
         results: dict[str, messages_pb2.EvaluateResumeMatchResult] = {}
         succeeded = 0
         failed = 0
+        resolver_version = ""
+        dictionary_mode = ""
 
         for key, vacancy in request.vacancies.items():
             item = messages_pb2.EvaluateResumeMatchResult()
@@ -113,6 +115,9 @@ class ScoringService(scoring_pb2_grpc.ScoringServiceServicer):
                     reference_date,
                 )
                 item.match.CopyFrom(to_evaluate_response(evaluation))
+                if not resolver_version:
+                    resolver_version = evaluation.resolver_version
+                    dictionary_mode = evaluation.dictionary_mode
                 succeeded += 1
             except ScoringError as exc:
                 item.error.CopyFrom(messages_pb2.BatchItemError(code=exc.code, message=exc.message))
@@ -144,7 +149,11 @@ class ScoringService(scoring_pb2_grpc.ScoringServiceServicer):
             succeeded,
             failed,
         )
-        return messages_pb2.EvaluateResumeMatchesResponse(results=results)
+        return messages_pb2.EvaluateResumeMatchesResponse(
+            results=results,
+            resolver_version=resolver_version,
+            dictionary_mode=dictionary_mode,
+        )
 
     def ExtractResume(
         self,

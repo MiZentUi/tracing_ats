@@ -1,6 +1,6 @@
 | | |
 |---|---|
-| **Статус** | Draft (часть реализована: алиасы и точная нормализация) |
+| **Статус** | Реализовано в `feature/skill-dictionary-service`: отдельный `dictionary-service`, алиасы, лемматизация, `resolver_version`, fallback на точный ключ |
 | **Автор** | DeepSeek | 
 | **Дата** | 2026-11-10 |
 | **Контур** | общий: `scoring-service/`, `vacancy-service/` |

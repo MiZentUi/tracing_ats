@@ -245,7 +245,12 @@ public class VacancyStore {
             }
 
             ResolvedSkill resolved = skillCatalog.resolve(rawSkill, aliases);
-            if (resolved.status() == ats.vacancy.template.NormalizationStatus.NEW
+            if (resolved.skillId() != null) {
+                resolved = newSkillWriter.ensureMirror(resolved);
+                aliases.put(
+                        resolved.normalizedKey(),
+                        new SkillRef(resolved.skillId(), resolved.name()));
+            } else if (resolved.status() == ats.vacancy.template.NormalizationStatus.NEW
                     && resolved.name() != null
                     && resolved.normalizedKey() != null
                     && !resolved.normalizedKey().isBlank()) {
@@ -408,12 +413,26 @@ public class VacancyStore {
             TemplateVersionEntity version, List<DraftRequirement> requirements) {
         for (int index = 0; index < requirements.size(); index++) {
             DraftRequirement draft = requirements.get(index);
+            UUID skillId = draft.skillId();
+            String skillText = draft.skill();
+            if (skillId != null) {
+                ResolvedSkill mirrored =
+                        newSkillWriter.ensureMirror(
+                                new ResolvedSkill(
+                                        draft.normalizedKey(),
+                                        ats.vacancy.template.NormalizationStatus.MATCHED,
+                                        skillId,
+                                        draft.skill(),
+                                        draft.quote()));
+                skillId = mirrored.skillId();
+                skillText = mirrored.name();
+            }
             RequirementEntity entity =
                     RequirementEntity.builder()
                             .templateVersionId(version.getId())
                             .position((short) (index + 1))
-                            .skillId(draft.skillId())
-                            .skillText(draft.skill())
+                            .skillId(skillId)
+                            .skillText(skillText)
                             .rawText(draft.quote())
                             .kind(draft.kind().name())
                             .kindSource(draft.kindSource().name())

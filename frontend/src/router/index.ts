@@ -7,6 +7,7 @@ import ResumeListView from '@/views/ResumeListView.vue'
 import ResumeCreateView from '@/views/ResumeCreateView.vue'
 import ResumeDetailView from '@/views/ResumeDetailView.vue'
 import ReportView from '@/views/ReportView.vue'
+import DictionaryView from '@/views/DictionaryView.vue'
 
 const router = createRouter({
   history: createWebHistory(),
@@ -24,6 +25,11 @@ const router = createRouter({
     { path: '/resumes', name: 'resumes', component: ResumeListView },
     { path: '/resumes/new', name: 'resume-create', component: ResumeCreateView },
     { path: '/resumes/:id', name: 'resume-view', component: ResumeDetailView, props: true },
+    {
+      path: '/dictionary',
+      name: 'dictionary',
+      component: DictionaryView,
+    },
     {
       path: '/applications/:id/report',
       name: 'application-report',

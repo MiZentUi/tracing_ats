@@ -41,8 +41,9 @@ class ResumeEvaluator:
             raise ValueError("resume text is empty")
 
         index = QuoteIndex(text)
+        resolution = self._matcher.prepare(vacancy, resume)
         matches = {
-            key: self._matcher.match(key, requirement, resume, index, reference_date)
+            key: self._matcher.match(key, requirement, resume, index, reference_date, resolution)
             for key, requirement in sorted(vacancy.requirements.items())
         }
 
@@ -75,6 +76,8 @@ class ResumeEvaluator:
                 gaps,
                 risks,
             ),
+            resolver_version=resolution.resolver_version,
+            dictionary_mode=resolution.mode,
         )
 
 

@@ -21,6 +21,7 @@ from .dates import experience_years
 from .errors import InvalidRequirement
 from .model import RequirementScore
 from .policies import ClaimConfidence, TemporalPolicyProtocol
+from .resolver import BatchResolution, SkillResolver
 from .similarity import SimilarityScorer
 from .text import TextMatcher
 
@@ -36,11 +37,28 @@ class RequirementMatcher:
         temporal: TemporalPolicyProtocol,
         confidence: ClaimConfidence,
         text_matcher: TextMatcher,
+        resolver: SkillResolver,
     ) -> None:
         self._similarity = similarity
         self._temporal = temporal
         self._confidence = confidence
         self._text = text_matcher
+        self._resolver = resolver
+
+    def prepare(
+        self,
+        vacancy: messages_pb2.Vacancy,
+        resume: messages_pb2.ParsedResume,
+    ) -> BatchResolution:
+        """Один batch-Resolve: требования вакансии и навыки резюме."""
+        names: list[tuple[str, str]] = []
+        for requirement in vacancy.requirements.values():
+            if requirement.WhichOneof("feature") == "skill":
+                spec = requirement.skill
+                names.append((spec.normalized_name or spec.name, "VACANCY"))
+        for skill in resume.skills.values():
+            names.append((skill.normalized_name or skill.name, "RESUME"))
+        return self._resolver.resolve(names)
 
     def match(
         self,
@@ -49,12 +67,13 @@ class RequirementMatcher:
         resume: messages_pb2.ParsedResume,
         index: QuoteIndex,
         reference_date: date,
+        resolution: BatchResolution,
     ) -> RequirementScore:
         kind = requirement.WhichOneof("feature")
         if kind is None:
             raise InvalidRequirement(requirement_id)
         if kind == "skill":
-            return self._match_skill(requirement_id, requirement, resume, index)
+            return self._match_skill(requirement_id, requirement, resume, index, resolution)
         if kind == "education":
             return self._match_education(requirement_id, requirement, resume, index)
         if kind == "experience":
@@ -75,16 +94,21 @@ class RequirementMatcher:
         requirement: features_pb2.FeatureRequirement,
         resume: messages_pb2.ParsedResume,
         index: QuoteIndex,
+        resolution: BatchResolution,
     ) -> RequirementScore:
         spec = requirement.skill
         target = spec.normalized_name or spec.name
+        target_identity = resolution.identity(target)
         best: tuple[float, str, skill_pb2.SkillPerResume, common_pb2.FeatureEvidence] | None = None
 
         for key, skill in resume.skills.items():
             evidence = _verified_evidence(index, skill.evidence)
             if evidence is None:
                 continue
-            score = self._similarity.score(target, skill.normalized_name or skill.name)
+            score = self._resolver.score(
+                target_identity,
+                resolution.identity(skill.normalized_name or skill.name),
+            )
             if best is None or (score, key) > (best[0], best[1]):
                 best = (score, key, skill, evidence)
 

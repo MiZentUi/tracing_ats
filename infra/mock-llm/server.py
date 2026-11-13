@@ -42,6 +42,8 @@ SKILLS = [
     "Go",
     "Git",
     "Linux",
+    "JS",
+    "Tauri",
 ]
 SKILLS_SORTED = sorted(SKILLS, key=len, reverse=True)
 

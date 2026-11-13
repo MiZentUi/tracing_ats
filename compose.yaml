@@ -69,6 +69,25 @@ services:
         condition: service_healthy
     restart: "no"
 
+  # Словарь навыков: нормализация, алиасы, очередь NEW. Своя схема в том же Postgres.
+  dictionary-service:
+    build:
+      context: .
+      dockerfile: dictionary-service/Dockerfile
+    environment:
+      DICTIONARY_GRPC_HOST: 0.0.0.0
+      DICTIONARY_GRPC_PORT: 8084
+      DICTIONARY_DATABASE_URL: postgresql://${POSTGRES_USER:-ats}:${POSTGRES_PASSWORD:-ats}@postgres:5432/${POSTGRES_DB:-ats}
+      DICTIONARY_LOG_LEVEL: ${DICTIONARY_LOG_LEVEL:-INFO}
+      DICTIONARY_STORE: postgres
+      DICTIONARY_SERVICE_TOKEN: ${DICTIONARY_SERVICE_TOKEN:-}
+    ports:
+      - "${DICTIONARY_SERVICE_PORT:-8084}:8084"
+    depends_on:
+      postgres:
+        condition: service_healthy
+    restart: unless-stopped
+
   # Stateless онлайн-ML: без БД, файлов и внешних источников.
   scoring-service:
     build:
@@ -88,8 +107,14 @@ services:
       SCORING_SERVICE_LLM_MAX_OUTPUT_TOKENS: ${SCORING_SERVICE_LLM_MAX_OUTPUT_TOKENS:-4096}
       SCORING_SERVICE_LLM_TIMEOUT_SECONDS: ${SCORING_SERVICE_LLM_TIMEOUT_SECONDS:-30}
       SCORING_SERVICE_LLM_MAX_RETRIES: ${SCORING_SERVICE_LLM_MAX_RETRIES:-1}
+      SCORING_SERVICE_DICTIONARY_ENABLED: ${SCORING_SERVICE_DICTIONARY_ENABLED:-true}
+      SCORING_SERVICE_DICTIONARY_TARGET: ${SCORING_SERVICE_DICTIONARY_TARGET:-dictionary-service:8084}
+      SCORING_SERVICE_DICTIONARY_DEADLINE_SECONDS: ${SCORING_SERVICE_DICTIONARY_DEADLINE_SECONDS:-2}
     ports:
       - "${SCORING_SERVICE_PORT:-8082}:8082"
+    depends_on:
+      dictionary-service:
+        condition: service_started
     restart: unless-stopped
 
   # Детерминированная заглушка scoring-service для профиля mock-scoring.
@@ -137,6 +162,9 @@ services:
       ATS_PII_NER_MODEL_PATH: ${ATS_PII_NER_MODEL_PATH:-/models/ner/model.onnx}
       ATS_PII_NER_TOKENIZER_PATH: ${ATS_PII_NER_TOKENIZER_PATH:-/models/ner/tokenizer.json}
       ATS_PII_NER_CONFIG_PATH: ${ATS_PII_NER_CONFIG_PATH:-/models/ner/config.json}
+      # Словарь навыков. При недоступности ats падает на локальные таблицы.
+      ATS_DICTIONARY_ENABLED: ${ATS_DICTIONARY_ENABLED:-true}
+      DICTIONARY_GRPC_TARGET: ${DICTIONARY_GRPC_TARGET:-dictionary-service:8084}
       # Внутренние gRPC-вызовы идут в тот же процесс.
       ATS_VACANCY_GRPC_TARGET: localhost:9090
       SCORING_GRPC_TARGET: ${SCORING_GRPC_TARGET:-scoring-service:8082}
