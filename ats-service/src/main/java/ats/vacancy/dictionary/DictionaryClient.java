@@ -11,6 +11,7 @@ import ats.dictionary.proto.CreateRelationRequest;
 import ats.dictionary.proto.CreateSkillRequest;
 import ats.dictionary.proto.DeleteAliasRequest;
 import ats.dictionary.proto.DeleteQualificationAliasRequest;
+import ats.dictionary.proto.DeleteQualificationRequest;
 import ats.dictionary.proto.DeleteRelationRequest;
 import ats.dictionary.proto.DeleteSkillRequest;
 import ats.dictionary.proto.DeprecateSkillRequest;
@@ -421,6 +422,18 @@ public class DictionaryClient {
                                 .deleteQualificationAlias(
                                         DeleteQualificationAliasRequest.newBuilder()
                                                 .setAliasId(aliasId.toString())
+                                                .setActor("hr")
+                                                .build()));
+    }
+
+    public void deleteQualification(UUID qualificationId) {
+        call(
+                () ->
+                        stub.withDeadlineAfter(
+                                        properties.getDeadline().toMillis(), TimeUnit.MILLISECONDS)
+                                .deleteQualification(
+                                        DeleteQualificationRequest.newBuilder()
+                                                .setQualificationId(qualificationId.toString())
                                                 .setActor("hr")
                                                 .build()));
     }

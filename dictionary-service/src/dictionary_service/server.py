@@ -413,6 +413,15 @@ class DictionaryServicer(pb_grpc.DictionaryServiceServicer):
             context.abort(grpc.StatusCode.NOT_FOUND, _error(error))
         return empty_pb2.Empty()
 
+    def DeleteQualification(
+        self, request: pb.DeleteQualificationRequest, context: grpc.ServicerContext
+    ):
+        try:
+            self._service.delete_qualification(request.qualification_id, request.actor or "hr")
+        except NotFound as error:
+            context.abort(grpc.StatusCode.NOT_FOUND, _error(error))
+        return empty_pb2.Empty()
+
     def ListRelations(self, request: pb.ListRelationsRequest, context: grpc.ServicerContext):
         items, total = self._service.list_relations(request.limit or 500, request.offset)
         return pb.ListRelationsResponse(

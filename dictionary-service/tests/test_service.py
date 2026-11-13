@@ -258,3 +258,10 @@ def test_relation_admin_operations(service: DictionaryService) -> None:
     service.delete_relation(kafka, docker, "hr")
     _, remaining = service.get_relations([(kafka, docker)])
     assert remaining == ()
+
+
+def test_delete_qualification_removes_aliases(service: DictionaryService) -> None:
+    qualification = service.create_qualification("Удаляемая квалификация", "OTHER", "hr")
+    service.add_qualification_alias(qualification.id, "удаляемый допуск", "ru", "AUTO", "hr")
+    service.delete_qualification(qualification.id, "hr")
+    assert resolve_qualification(service, "удаляемый допуск").qualification_id is None

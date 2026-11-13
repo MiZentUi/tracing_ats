@@ -117,6 +117,11 @@ public class DictionaryAdminController {
         dictionaryClient.deleteQualificationAlias(id);
     }
 
+    @DeleteMapping("/qualifications/{id}")
+    public void deleteQualification(@PathVariable UUID id) {
+        dictionaryClient.deleteQualification(id);
+    }
+
     @GetMapping("/relations")
     public List<DictionaryModels.Relation> relations(
             @RequestParam(defaultValue = "500") int limit,

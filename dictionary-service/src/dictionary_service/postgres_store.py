@@ -644,6 +644,12 @@ class PostgresStore:
                 raise CanonicalRequired("cannot delete canonical qualification alias")
             conn.execute("DELETE FROM qualification_alias WHERE id = %s", (alias_id,))
 
+    def delete_qualification(self, qualification_id: str, actor: str) -> None:
+        with self._pool.connection() as conn, conn.transaction():
+            result = conn.execute("DELETE FROM qualification WHERE id = %s", (qualification_id,))
+            if result.rowcount == 0:
+                raise NotFound(f"qualification {qualification_id} not found")
+
     def list_relations(self, limit: int, offset: int) -> tuple[list[SkillRelation], int]:
         with self._pool.connection() as conn:
             total = conn.execute("SELECT count(*) FROM skill_relation").fetchone()[0]

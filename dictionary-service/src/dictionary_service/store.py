@@ -114,6 +114,7 @@ class Store(Protocol):
         self, qualification_id: str, alias_id: str, actor: str
     ) -> Qualification: ...
     def delete_qualification_alias(self, alias_id: str, actor: str) -> None: ...
+    def delete_qualification(self, qualification_id: str, actor: str) -> None: ...
     def list_relations(self, limit: int, offset: int) -> tuple[list[SkillRelation], int]: ...
     def create_relation(self, left: str, right: str, kind: str, actor: str) -> SkillRelation: ...
     def delete_relation(self, left: str, right: str, actor: str) -> None: ...
@@ -434,6 +435,14 @@ class InMemoryStore:
             qualification,
             aliases=tuple(item for item in qualification.aliases if item.id != alias_id),
         )
+
+    def delete_qualification(self, qualification_id: str, actor: str) -> None:
+        qualification = self._require_qualification(qualification_id)
+        for alias in self._qualification_aliases_for(qualification_id):
+            for key in alias_keys(alias.raw, alias.lemma_mode).values():
+                self._qualification_keys.pop(key, None)
+            self._qualification_aliases.pop(alias.id, None)
+        self._qualifications.pop(qualification.id, None)
 
     def list_relations(self, limit: int, offset: int) -> tuple[list[SkillRelation], int]:
         items = [

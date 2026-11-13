@@ -318,6 +318,10 @@ class DictionaryService:
         self._store.delete_qualification_alias(alias_id, actor)
         self._commit_qualification()
 
+    def delete_qualification(self, qualification_id: str, actor: str) -> None:
+        self._store.delete_qualification(qualification_id, actor)
+        self._commit_qualification()
+
     def list_relations(self, limit: int, offset: int) -> tuple[list[SkillRelation], int]:
         return self._store.list_relations(limit, offset)
 

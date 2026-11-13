@@ -35,6 +35,7 @@ service DictionaryService {
       returns (Qualification);
   rpc DeleteQualificationAlias(DeleteQualificationAliasRequest)
       returns (google.protobuf.Empty);
+  rpc DeleteQualification(DeleteQualificationRequest) returns (google.protobuf.Empty);
   rpc ListRelations(ListRelationsRequest) returns (ListRelationsResponse);
   rpc CreateRelation(CreateRelationRequest) returns (SkillRelation);
   rpc DeleteRelation(DeleteRelationRequest) returns (google.protobuf.Empty);
@@ -299,6 +300,11 @@ message SetCanonicalQualificationAliasRequest {
 
 message DeleteQualificationAliasRequest {
   string alias_id = 1;
+  string actor = 2;
+}
+
+message DeleteQualificationRequest {
+  string qualification_id = 1;
   string actor = 2;
 }
 
