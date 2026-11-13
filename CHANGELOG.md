@@ -12,7 +12,7 @@
 #### Added
 
 - **dictionary-service.** Отдельный Python-сервис и схема `dictionary` в Postgres:
-  схема и seed накатываются Liquibase (`017`, `018`), runtime DDL в сервисе нет;
+  схема и seed накатываются Liquibase (`020`, `021`), runtime DDL в сервисе нет;
   нормализация (`NFKC`, `ё→е`, гомоглифы, лемматизация pymorphy3), алиасы,
   очередь NEW, подсказки кандидатов и `resolver_version`.
 - **gRPC-контракт** `contracts/proto/dictionary_service/v1/dictionary.proto`:

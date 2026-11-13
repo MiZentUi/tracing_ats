@@ -95,7 +95,7 @@ LLM пишет только в staging. Боевые `dictionary.skill` и `dict
 
 ### 3.1. Staging в `ats-service`, схема `public`
 
-Liquibase `019-skill-generation.sql`:
+Liquibase `022-skill-generation.sql`:
 
 ```text
 skill_generation_job(
@@ -258,7 +258,7 @@ POST /api/v1/admin/dictionary/generation-jobs/{id}/reject
 
 Новые:
 
-- `migrations/changes/019-skill-generation.sql`;
+- `migrations/changes/022-skill-generation.sql`;
 - `ats-service/src/main/java/ats/vacancy/dictionary/generation/` — controller, service, store, prompt, parser, payload, models;
 - `ats-service/src/main/resources/prompts/skill-generation.v1.txt` и `.schema.json`;
 - `ats-service/src/test/java/ats/vacancy/dictionary/generation/SkillGenerationParserTest.java`.

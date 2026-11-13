@@ -1,6 +1,6 @@
 --liquibase formatted sql
 
---changeset tracing-ats:019-skill-generation
+--changeset tracing-ats:022-skill-generation
 -- Черновики генерации навыков по специальности. Живут в public: это админский
 -- staging ats-service, боевой словарь по-прежнему принадлежит dictionary-service.
 CREATE TABLE IF NOT EXISTS skill_generation_job (
