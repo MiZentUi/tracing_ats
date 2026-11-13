@@ -12,7 +12,7 @@ from dictionary_service.v1 import dictionary_pb2_grpc as pb_grpc
 
 from .config import Settings
 from .domain import AliasConflict, CanonicalRequired, NotFound, ReviewItem, Skill
-from .service import DictionaryService, ResolveInput
+from .service import ApplyAliasInput, ApplySkillInput, DictionaryService, ResolveInput
 
 logger = logging.getLogger(__name__)
 
@@ -91,7 +91,7 @@ class DictionaryServicer(pb_grpc.DictionaryServiceServicer):
             )
         try:
             version, resolved_items = self._service.resolve(
-                raw_items, request.as_of_resolver_version
+                raw_items, request.as_of_resolver_version, request.skip_review
             )
         except NotFound as error:
             context.abort(grpc.StatusCode.NOT_FOUND, f"VERSION_NOT_FOUND|{error}")
@@ -251,6 +251,33 @@ class DictionaryServicer(pb_grpc.DictionaryServiceServicer):
         except NotFound as error:
             context.abort(grpc.StatusCode.NOT_FOUND, _error(error))
         return empty_pb2.Empty()
+
+    def ApplySkills(self, request: pb.ApplySkillsRequest, context: grpc.ServicerContext):
+        inputs = []
+        for item in request.skills:
+            aliases = tuple(
+                ApplyAliasInput(text=alias.text, lang=alias.lang or "mixed")
+                for alias in item.aliases
+                if alias.text.strip()
+            )
+            inputs.append(
+                ApplySkillInput(
+                    canonical=item.canonical,
+                    skill_type=_SKILL_TYPE_FROM_PROTO.get(item.skill_type, "OTHER"),
+                    target_skill_id=item.target_skill_id or None,
+                    aliases=aliases,
+                )
+            )
+        try:
+            skills, version = self._service.apply_skills(inputs, request.actor or "hr")
+        except AliasConflict as error:
+            context.abort(grpc.StatusCode.FAILED_PRECONDITION, _error(error))
+        except NotFound as error:
+            context.abort(grpc.StatusCode.NOT_FOUND, _error(error))
+        return pb.ApplySkillsResponse(
+            skills=[_skill(skill) for skill in skills],
+            resolver_version=version,
+        )
 
 
 def _error(error: Exception) -> str:

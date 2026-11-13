@@ -68,3 +68,85 @@ export async function addAlias(skillId: string, raw: string): Promise<void> {
 export async function createSkill(canonicalName: string): Promise<void> {
   await axios.post(`${base}/skills`, { canonicalName, skillType: 'OTHER' })
 }
+
+export async function setCanonical(skillId: string, aliasId: string): Promise<void> {
+  await axios.post(`${base}/skills/${skillId}/canonical`, { aliasId })
+}
+
+export interface GenerationAliasDraft {
+  id: string
+  text: string
+  lang: string
+  category: string | null
+  conflictSkillId: string | null
+  conflictSkillName: string | null
+  status: string
+}
+
+export interface GenerationSkillDraft {
+  id: string
+  canonical: string
+  skillType: string
+  targetSkillId: string | null
+  targetSkillName: string | null
+  conflictSkillId: string | null
+  conflictSkillName: string | null
+  status: string
+  aliases: GenerationAliasDraft[]
+}
+
+export interface GenerationJob {
+  id: string
+  specialization: string
+  note: string | null
+  status: string
+  model: string | null
+  promptVersion: string | null
+  maxSkills: number
+  error: string | null
+  createdAt: string
+  finishedAt: string | null
+  skills: GenerationSkillDraft[]
+}
+
+export interface ApprovedSkill {
+  draftId: string
+  canonical: string
+  skillType: string
+  targetSkillId: string | null
+  aliases: string[]
+}
+
+export async function createGenerationJob(input: {
+  specialization: string
+  note?: string
+  maxSkills?: number
+}): Promise<GenerationJob> {
+  const { data } = await axios.post<GenerationJob>(`${base}/generation-jobs`, input)
+  return data
+}
+
+export async function getGenerationJob(id: string): Promise<GenerationJob> {
+  const { data } = await axios.get<GenerationJob>(`${base}/generation-jobs/${id}`)
+  return data
+}
+
+export async function listGenerationJobs(): Promise<GenerationJob[]> {
+  const { data } = await axios.get<GenerationJob[]>(`${base}/generation-jobs`)
+  return data
+}
+
+export async function approveGeneration(
+  id: string,
+  skills: ApprovedSkill[],
+): Promise<GenerationJob> {
+  const { data } = await axios.post<GenerationJob>(`${base}/generation-jobs/${id}/approve`, {
+    skills,
+  })
+  return data
+}
+
+export async function rejectGeneration(id: string): Promise<GenerationJob> {
+  const { data } = await axios.post<GenerationJob>(`${base}/generation-jobs/${id}/reject`)
+  return data
+}

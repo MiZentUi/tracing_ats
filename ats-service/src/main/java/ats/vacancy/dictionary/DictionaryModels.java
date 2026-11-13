@@ -48,4 +48,11 @@ public final class DictionaryModels {
             String resolvedAt) {}
 
     public record ReviewResult(Review review, Skill skill) {}
+
+    public record ApplyAlias(String text, String lang) {}
+
+    public record ApplySkill(
+            String canonical, String skillType, String targetSkillId, List<ApplyAlias> aliases) {}
+
+    public record Applied(List<Skill> skills, String resolverVersion) {}
 }

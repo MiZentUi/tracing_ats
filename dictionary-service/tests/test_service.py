@@ -4,7 +4,12 @@ import pytest
 
 from dictionary_service.domain import AliasConflict, CanonicalRequired
 from dictionary_service.seed import SEED
-from dictionary_service.service import DictionaryService, ResolveInput
+from dictionary_service.service import (
+    ApplyAliasInput,
+    ApplySkillInput,
+    DictionaryService,
+    ResolveInput,
+)
 from dictionary_service.store import InMemoryStore
 
 
@@ -110,3 +115,67 @@ def test_review_alias_resolution(service: DictionaryService) -> None:
     assert resolved.status == "RESOLVED_ALIAS"
     assert skill is not None
     assert resolve(service, "постгрессс").skill_id == pg
+
+
+def test_skip_review_does_not_enqueue() -> None:
+    store = InMemoryStore()
+    store.seed(SEED)
+    service = DictionaryService(store, config_hash="test")
+    service.resolve([ResolveInput("k", "НеизвестныйНавык", "ru", "ADMIN")], skip_review=True)
+    _, total = service.list_review("PENDING", 10, 0)
+    assert total == 0
+
+
+def test_apply_skills_creates_one_version_and_aliases(service: DictionaryService) -> None:
+    before = service.version().resolver_version
+    applied, version = service.apply_skills(
+        [
+            ApplySkillInput(
+                canonical="Электромонтаж",
+                skill_type="DOMAIN",
+                aliases=(
+                    ApplyAliasInput("электромонтажные работы", "ru"),
+                    ApplyAliasInput("монтаж электрики", "ru"),
+                ),
+            )
+        ],
+        "hr",
+    )
+    assert version != before
+    assert applied[0].canonical_name == "Электромонтаж"
+    assert resolve(service, "электромонтажные работы").canonical_name == "Электромонтаж"
+    assert service.version().dictionary_version >= 2
+
+
+def test_apply_skills_targets_existing_skill(service: DictionaryService) -> None:
+    target = resolve(service, "postgresql").skill_id
+    applied = service.apply_skills(
+        [
+            ApplySkillInput(
+                canonical="PostgreSQL",
+                skill_type="TECH",
+                target_skill_id=target,
+                aliases=(ApplyAliasInput("постгрес 15", "ru"),),
+            )
+        ],
+        "hr",
+    )[0][0]
+    assert resolve(service, "постгрес 15").skill_id == applied.id
+
+
+def test_apply_skills_conflict_leaves_no_version(service: DictionaryService) -> None:
+    before = service.version().dictionary_version
+    target = resolve(service, "javascript").skill_id
+    with pytest.raises(AliasConflict):
+        service.apply_skills(
+            [
+                ApplySkillInput(
+                    canonical="JavaScript",
+                    skill_type="TECH",
+                    target_skill_id=target,
+                    aliases=(ApplyAliasInput("питон", "ru"),),
+                )
+            ],
+            "hr",
+        )
+    assert service.version().dictionary_version == before

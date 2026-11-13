@@ -137,6 +137,53 @@ def extract_vacancy_text(body: dict[str, Any]) -> str:
     return ""
 
 
+def extract_tag(text: str, tag: str) -> str:
+    match = re.search(rf"<{tag}>(.*?)</{tag}>", text, re.DOTALL | re.IGNORECASE)
+    return match.group(1).strip() if match else ""
+
+
+def skill_generation_payload(specialization: str) -> dict[str, Any]:
+    if "электр" in specialization.lower():
+        skills = [
+            {
+                "canonical": "Электромонтаж",
+                "skill_type": "DOMAIN",
+                "aliases": [
+                    {"text": "электромонтажные работы", "lang": "ru", "category": "SYNONYM"},
+                    {"text": "монтаж электрики", "lang": "ru", "category": "HH"},
+                ],
+            },
+            {
+                "canonical": "Чтение электрических схем",
+                "skill_type": "DOMAIN",
+                "aliases": [{"text": "чтение схем", "lang": "ru", "category": "SYNONYM"}],
+            },
+            {
+                "canonical": "ПУЭ",
+                "skill_type": "DOMAIN",
+                "aliases": [{"text": "правила устройства электроустановок", "lang": "ru", "category": "ABBREVIATION"}],
+            },
+            {
+                "canonical": "Электроинструмент",
+                "skill_type": "TOOL",
+                "aliases": [{"text": "электрический инструмент", "lang": "ru", "category": "SYNONYM"}],
+            },
+        ]
+    else:
+        skills = [
+            {
+                "canonical": "Документооборот",
+                "skill_type": "DOMAIN",
+                "aliases": [{"text": "работа с документами", "lang": "ru", "category": "SYNONYM"}],
+            }
+        ]
+    return {
+        "schema_version": 1,
+        "specialization": specialization,
+        "skills": skills,
+    }
+
+
 def completion(content: str, finish_reason: str = "stop") -> dict[str, Any]:
     return {
         "id": "chatcmpl-mock",
@@ -210,6 +257,12 @@ class Handler(BaseHTTPRequestHandler):
             return
         if scenario == "invalid-json" and attempt == 1:
             self.json_response(200, completion('{"schema_version": 2, "requirements": ['))
+            return
+
+        specialization = extract_tag(text, "specialization")
+        if specialization:
+            payload = skill_generation_payload(specialization)
+            self.json_response(200, completion("\n\n" + json.dumps(payload, ensure_ascii=False)))
             return
 
         payload = payload_for(text)

@@ -1,6 +1,10 @@
 package ats.vacancy.dictionary;
 
 import ats.dictionary.proto.Alias;
+import ats.dictionary.proto.AliasInput;
+import ats.dictionary.proto.ApplySkillInput;
+import ats.dictionary.proto.ApplySkillsRequest;
+import ats.dictionary.proto.ApplySkillsResponse;
 import ats.dictionary.proto.CreateSkillRequest;
 import ats.dictionary.proto.DeleteAliasRequest;
 import ats.dictionary.proto.DeleteSkillRequest;
@@ -42,6 +46,10 @@ public class DictionaryClient {
     }
 
     public DictionaryModels.Resolved resolve(String raw, String source) {
+        return resolve(raw, source, false);
+    }
+
+    public DictionaryModels.Resolved resolve(String raw, String source, boolean skipReview) {
         ResolveBatchResponse response =
                 call(
                         () ->
@@ -58,6 +66,7 @@ public class DictionaryClient {
                                                                                         ? ""
                                                                                         : raw)
                                                                         .setSource(source(source)))
+                                                        .setSkipReview(skipReview)
                                                         .build()));
         if (response.getItemsCount() == 0) {
             throw new DictionaryUnavailableException("dictionary returned no items");
@@ -104,6 +113,40 @@ public class DictionaryClient {
                                                         .build()));
         log.info("dictionary_skill_created skill_id={}", skill.getId());
         return toSkill(skill);
+    }
+
+    public DictionaryModels.Applied applySkills(List<DictionaryModels.ApplySkill> skills) {
+        ApplySkillsRequest.Builder request = ApplySkillsRequest.newBuilder().setActor("hr");
+        for (DictionaryModels.ApplySkill skill : skills) {
+            ApplySkillInput.Builder input =
+                    ApplySkillInput.newBuilder()
+                            .setCanonical(skill.canonical())
+                            .setSkillType(skillType(skill.skillType()));
+            if (skill.targetSkillId() != null && !skill.targetSkillId().isBlank()) {
+                input.setTargetSkillId(skill.targetSkillId());
+            }
+            for (DictionaryModels.ApplyAlias alias : skill.aliases()) {
+                input.addAliases(
+                        AliasInput.newBuilder()
+                                .setText(alias.text())
+                                .setLang(alias.lang() == null ? "mixed" : alias.lang()));
+            }
+            request.addSkills(input);
+        }
+        ApplySkillsResponse response =
+                call(
+                        () ->
+                                stub.withDeadlineAfter(
+                                                properties.getDeadline().toMillis(),
+                                                TimeUnit.MILLISECONDS)
+                                        .applySkills(request.build()));
+        log.info(
+                "dictionary_skills_applied skills={} resolver_version={}",
+                response.getSkillsCount(),
+                response.getResolverVersion());
+        return new DictionaryModels.Applied(
+                response.getSkillsList().stream().map(DictionaryClient::toSkill).toList(),
+                response.getResolverVersion());
     }
 
     public DictionaryModels.Alias addAlias(

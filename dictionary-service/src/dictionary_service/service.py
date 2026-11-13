@@ -14,7 +14,7 @@ from .domain import (
     ReviewItem,
     Skill,
 )
-from .normalization import normalize_base, pymorphy_version
+from .normalization import alias_keys, normalize_base, pymorphy_version
 from .seed import SEED
 from .store import InMemoryStore, Store, raw_keys
 
@@ -32,6 +32,20 @@ class ResolveInput:
     raw_name: str
     lang_hint: str
     source: str
+
+
+@dataclass(frozen=True, slots=True)
+class ApplyAliasInput:
+    text: str
+    lang: str = "mixed"
+
+
+@dataclass(frozen=True, slots=True)
+class ApplySkillInput:
+    canonical: str
+    skill_type: str = "OTHER"
+    target_skill_id: str | None = None
+    aliases: tuple[ApplyAliasInput, ...] = ()
 
 
 class DictionaryService:
@@ -93,7 +107,9 @@ class DictionaryService:
         return meta
 
     # --- Resolve ------------------------------------------------------------
-    def resolve(self, items: list[ResolveInput], as_of: str = "") -> tuple[str, list[Resolved]]:
+    def resolve(
+        self, items: list[ResolveInput], as_of: str = "", skip_review: bool = False
+    ) -> tuple[str, list[Resolved]]:
         meta = self.version()
         resolver_version = meta.resolver_version
         if not as_of and self._store.get_snapshot(resolver_version) is None:
@@ -142,7 +158,7 @@ class DictionaryService:
                 continue
 
             review: ReviewItem | None = None
-            if not read_only and normalized_key:
+            if not read_only and not skip_review and normalized_key:
                 review = self._store.enqueue_review(normalized_key, item.raw_name, item.source)
             result.append(
                 Resolved(
@@ -179,6 +195,43 @@ class DictionaryService:
         offset: int,
     ) -> tuple[list[ReviewItem], int]:
         return self._store.list_review(status, limit, offset)
+
+    # --- применение черновиков ---------------------------------------------
+    def apply_skills(self, inputs: list[ApplySkillInput], actor: str) -> tuple[list[Skill], str]:
+        targets: list[Skill | None] = []
+        for item in inputs:
+            target = self._store.get_skill(item.target_skill_id) if item.target_skill_id else None
+            if target is None:
+                for key in alias_keys(item.canonical).values():
+                    hit = self._store.lookup(key)
+                    if hit is not None:
+                        target = self._store.get_skill(hit.skill_id)
+                        break
+            targets.append(target)
+
+        # Сначала проверяем все конфликты, чтобы не записать половину пачки.
+        for item, target in zip(inputs, targets, strict=True):
+            for alias in item.aliases:
+                for key in alias_keys(alias.text).values():
+                    hit = self._store.lookup(key)
+                    if hit is not None and (target is None or hit.skill_id != target.id):
+                        raise AliasConflict(key, hit.skill_id, hit.canonical_name)
+
+        applied: list[Skill] = []
+        for item, target in zip(inputs, targets, strict=True):
+            if target is None:
+                target = self._store.create_skill(
+                    item.canonical, item.skill_type or "OTHER", actor, "LLM"
+                )
+            result = target
+            for alias in item.aliases:
+                self._store.add_alias(
+                    target.id, alias.text, alias.lang or "mixed", "AUTO", "LLM", actor
+                )
+                result = self._store.get_skill(target.id) or result
+            applied.append(result)
+        meta = self._commit()
+        return applied, meta.resolver_version
 
     # --- админские операции -------------------------------------------------
     def create_skill(self, canonical_name: str, skill_type: str, actor: str) -> Skill:

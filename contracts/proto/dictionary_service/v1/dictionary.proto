@@ -26,6 +26,8 @@ service DictionaryService {
   rpc DeleteAlias(DeleteAliasRequest) returns (google.protobuf.Empty);
   rpc DeprecateSkill(DeprecateSkillRequest) returns (Skill);
   rpc DeleteSkill(DeleteSkillRequest) returns (google.protobuf.Empty);
+  // Пакетное применение подтверждённых HR черновиков: один dictionary_version++.
+  rpc ApplySkills(ApplySkillsRequest) returns (ApplySkillsResponse);
 }
 
 enum ResolveSource {
@@ -121,6 +123,8 @@ message ResolveBatchRequest {
   repeated RawSkill items = 1;
   // Пусто — текущая версия. Для запуска скоринга версия фиксируется.
   string as_of_resolver_version = 2;
+  // true — не создавать review_item для NEW (например, проверка черновиков HR).
+  bool skip_review = 3;
 }
 
 message ResolveBatchResponse {
@@ -255,4 +259,28 @@ message DeprecateSkillRequest {
 message DeleteSkillRequest {
   string skill_id = 1;
   string actor = 2;
+}
+
+message AliasInput {
+  string text = 1;
+  string lang = 2;
+  string category = 3;
+}
+
+message ApplySkillInput {
+  string canonical = 1;
+  SkillType skill_type = 2;
+  // Пусто — создать новый навык. Иначе алиасы добавляются к существующему.
+  string target_skill_id = 3;
+  repeated AliasInput aliases = 4;
+}
+
+message ApplySkillsRequest {
+  repeated ApplySkillInput skills = 1;
+  string actor = 2;
+}
+
+message ApplySkillsResponse {
+  repeated Skill skills = 1;
+  string resolver_version = 2;
 }

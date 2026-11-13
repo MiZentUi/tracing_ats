@@ -1,0 +1,40 @@
+{
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["schema_version", "specialization", "skills"],
+  "properties": {
+    "schema_version": { "type": "integer" },
+    "specialization": { "type": "string" },
+    "skills": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["canonical", "skill_type", "aliases"],
+        "properties": {
+          "canonical": { "type": "string" },
+          "skill_type": {
+            "type": "string",
+            "enum": ["TECH", "TOOL", "DOMAIN", "SOFT", "OTHER"]
+          },
+          "aliases": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "additionalProperties": false,
+              "required": ["text", "lang", "category"],
+              "properties": {
+                "text": { "type": "string" },
+                "lang": { "type": "string", "enum": ["ru", "en", "mixed"] },
+                "category": {
+                  "type": "string",
+                  "enum": ["SYNONYM", "ABBREVIATION", "TRANSLIT", "TYPO", "HH"]
+                }
+              }
+            }
+          }
+        }
+      }
+    }
+  }
+}
