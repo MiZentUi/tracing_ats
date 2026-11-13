@@ -183,7 +183,9 @@ jobs:
             put ATS_S3_ACCESS_KEY "$ATS_S3_ACCESS_KEY"
             put ATS_S3_SECRET_KEY "$ATS_S3_SECRET_KEY"
             put DICTIONARY_SERVICE_TOKEN "$DICTIONARY_SERVICE_TOKEN"
-            put FRONTEND_PORT "${FRONTEND_PORT:-80}"
+            FRONTEND_PORT="${FRONTEND_PORT:-80}"
+            export FRONTEND_PORT
+            put FRONTEND_PORT "$FRONTEND_PORT"
             chmod 600 .env.production
 
             if [ -n "${GHCR_TOKEN:-}" ]; then
@@ -199,12 +201,24 @@ jobs:
               postgres minio minio-init migrations \
               dictionary-service scoring-service ats-service frontend
 
-            docker compose \
+            if ! docker compose \
               --env-file .env.example \
               --env-file .env.production \
               -f compose.yaml -f compose.prod.yaml up -d --no-build --remove-orphans \
               migrations postgres minio minio-init \
-              dictionary-service scoring-service ats-service frontend
+              dictionary-service scoring-service ats-service frontend; then
+              echo "Deployment failed; collecting service logs" >&2
+              docker compose \
+                --env-file .env.example \
+                --env-file .env.production \
+                -f compose.yaml -f compose.prod.yaml ps -a || true
+              docker compose \
+                --env-file .env.example \
+                --env-file .env.production \
+                -f compose.yaml -f compose.prod.yaml logs \
+                --no-color --tail=200 || true
+              exit 1
+            fi
 
             docker compose \
               --env-file .env.example \
@@ -215,7 +229,8 @@ jobs:
             if [ -z "$FRONTEND_PORT" ]; then
               FRONTEND_PORT="$(sed -n 's/^FRONTEND_PORT=//p' .env.example 2>/dev/null | tail -n1)"
             fi
+            export FRONTEND_PORT="${FRONTEND_PORT:-80}"
             curl -fsS --retry 12 --retry-delay 5 --retry-connrefused \
-              "http://127.0.0.1:${FRONTEND_PORT:-80}/" >/dev/null
+              "http://127.0.0.1:${FRONTEND_PORT}/" >/dev/null
 
             docker image prune -f

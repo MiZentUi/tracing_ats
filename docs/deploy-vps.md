@@ -147,6 +147,11 @@ docker compose \
   -f compose.yaml -f compose.prod.yaml up -d --no-build
 ```
 
+Если при ручном запуске видны предупреждения
+`The "IMAGE_PREFIX" variable is not set` и `The "IMAGE_TAG" variable is not set`,
+значит не экспортированы переменные образов. В GitHub Actions они выставляются
+автоматически; для ручного запуска экспортируй их, как показано выше.
+
 ## 6. TLS и домен
 
 Workflow не настраивает TLS. Для production поставь перед frontend reverse proxy
@@ -163,3 +168,61 @@ Workflow не настраивает TLS. Для production поставь пе�
 - Если `GHCR_TOKEN` не задан и пакеты приватные, `docker compose pull` упадёт.
 - `.env.example` не хранит реальные секреты: только локальные значения по
   умолчанию и пустые placeholders.
+
+## 8. Если `migrations` завершился с ошибкой
+
+Deploy теперь сам печатает `docker compose ps` и последние строки логов
+`migrations`/`postgres`. Посмотреть вручную:
+
+```bash
+cd /opt/tracing-ats
+docker compose \
+  --env-file .env.example \
+  --env-file .env.production \
+  -f compose.yaml -f compose.prod.yaml logs --tail=100 migrations postgres
+```
+
+Самые частые причины:
+
+- **`password authentication failed for user "ats"`** — том Postgres уже был
+  создан с другим паролем. `POSTGRES_PASSWORD` не меняет пароль существующей
+  базы. Укажи в GitHub Secret старый пароль или, если данные не нужны, удали
+  только том Postgres и запусти деплой снова:
+
+  ```bash
+  cd /opt/tracing-ats
+  docker compose \
+    --env-file .env.example \
+    --env-file .env.production \
+    -f compose.yaml -f compose.prod.yaml down
+
+  docker volume ls | grep ats-pgdata
+  # проверь имя тома, затем:
+  docker volume rm tracing-ats_ats-pgdata
+  ```
+
+  После удаления тома БД создастся заново с паролем из GitHub Secret. Все данные
+  Postgres будут потеряны.
+
+- **`Connection refused`** — Postgres не успел подняться или упал. Проверь
+  `docker compose ps` и логи `postgres`.
+
+- **Пароль с `$`, `#`, кавычками или переводом строки** может неверно разобраться
+  в `.env`. Для `POSTGRES_PASSWORD` безопаснее hex-пароль:
+
+  ```bash
+  openssl rand -hex 24
+  ```
+
+## 9. Если frontend поднялся на 3000 вместо 80
+
+В `docker compose ps` видно `0.0.0.0:3000->80/tcp`. Workflow по умолчанию ставит
+`FRONTEND_PORT=80`, но GitHub Environment variable может переопределить его.
+
+Проверь `Settings → Environments → production → Environment variables`:
+- `FRONTEND_PORT` должен быть `80` или отсутствовать;
+- если там `3000`, исправь на `80` и перезапусти `Deploy`.
+
+На VPS также не должно быть старого `.env`, который задаёт `FRONTEND_PORT=3000`:
+deploy использует `.env.example` + `.env.production`, но старый `.env` лучше
+убрать, чтобы не путаться.
