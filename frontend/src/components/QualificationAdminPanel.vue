@@ -1,9 +1,10 @@
 <script setup lang="ts">
 import { onMounted, ref } from 'vue'
-import { Loader2, Plus, Search, ShieldCheck } from '@lucide/vue'
+import { Loader2, Plus, Search, ShieldCheck, Trash2 } from '@lucide/vue'
 import {
   addQualificationAlias,
   createQualification,
+  deleteQualification,
   deleteQualificationAlias,
   listQualifications,
   setCanonicalQualificationAlias,
@@ -11,6 +12,7 @@ import {
 } from '@/api/dictionary'
 import { apiErrorMessage } from '@/api'
 import AppModal from '@/components/AppModal.vue'
+import ConfirmDialog from '@/components/ConfirmDialog.vue'
 import { useToast } from '@/composables/useToast'
 import { pluralizeRu } from '@/lib/format'
 
@@ -29,6 +31,8 @@ const newName = ref('')
 const newType = ref('OTHER')
 const createError = ref('')
 const creating = ref(false)
+const deleteTarget = ref<Qualification | null>(null)
+const deleting = ref(false)
 
 const typeLabels: Record<string, string> = {
   PERMIT: 'Допуск',
@@ -129,6 +133,23 @@ async function removeAlias(aliasId: string) {
   }
 }
 
+async function confirmDelete() {
+  if (!deleteTarget.value || deleting.value) {
+    return
+  }
+  deleting.value = true
+  try {
+    await deleteQualification(deleteTarget.value.id)
+    success('Квалификация удалена')
+    deleteTarget.value = null
+    await load()
+  } catch (exception) {
+    toastError('Не удалось удалить квалификацию', apiErrorMessage(exception))
+  } finally {
+    deleting.value = false
+  }
+}
+
 onMounted(load)
 </script>
 
@@ -205,7 +226,17 @@ onMounted(load)
               </span>
             </div>
           </div>
-          <span class="badge-neutral shrink-0">{{ aliasCount(item.aliases.length) }}</span>
+          <div class="flex shrink-0 items-center gap-1.5">
+            <span class="badge-neutral">{{ aliasCount(item.aliases.length) }}</span>
+            <button
+              type="button"
+              class="icon-btn text-slate-400 hover:text-rose-600"
+              title="Удалить квалификацию"
+              @click="deleteTarget = item"
+            >
+              <Trash2 :size="15" />
+            </button>
+          </div>
         </div>
 
         <div class="mt-4 flex flex-wrap gap-1.5">
@@ -265,6 +296,16 @@ onMounted(load)
         </form>
       </article>
     </div>
+
+    <ConfirmDialog
+      :open="deleteTarget !== null"
+      title="Удалить квалификацию?"
+      :message="`Квалификация «${deleteTarget?.canonicalName ?? ''}» и все её алиасы будут удалены.`"
+      confirm-label="Удалить"
+      danger
+      @confirm="confirmDelete"
+      @cancel="deleteTarget = null"
+    />
 
     <AppModal :open="createOpen" title="Новая квалификация" @close="createOpen = false">
       <form class="space-y-4" @submit.prevent="submitCreate">

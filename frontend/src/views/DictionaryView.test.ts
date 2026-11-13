@@ -15,6 +15,7 @@ vi.mock('@/api/dictionary', () => ({
   createGenerationJob: vi.fn(),
   createQualification: vi.fn(),
   createRelation: vi.fn(),
+  deleteQualification: vi.fn(),
   deleteQualificationAlias: vi.fn(),
   deleteRelation: vi.fn(),
   createSkill: vi.fn(),

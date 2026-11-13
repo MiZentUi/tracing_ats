@@ -138,6 +138,10 @@ export async function deleteQualificationAlias(aliasId: string): Promise<void> {
   await axios.delete(`${base}/qualification-aliases/${aliasId}`)
 }
 
+export async function deleteQualification(id: string): Promise<void> {
+  await axios.delete(`${base}/qualifications/${id}`)
+}
+
 export async function listRelations(limit = 500): Promise<Relation[]> {
   const { data } = await axios.get<Relation[]>(`${base}/relations`, { params: { limit } })
   return data
