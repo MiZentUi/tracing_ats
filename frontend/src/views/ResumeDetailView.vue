@@ -9,6 +9,7 @@ import {
   RefreshCcw,
 } from '@lucide/vue'
 import type {
+  ResumeExtraction,
   ResumeFullText,
   ResumeSummary,
   ResumeText,
@@ -17,7 +18,7 @@ import type {
 import { apiErrorMessage, resumeRankingApi, resumesApi } from '@/api'
 import RevealPiiDialog from '@/components/RevealPiiDialog.vue'
 import { useToast } from '@/composables/useToast'
-import { resumeDisplayTitle } from '@/lib/format'
+import { pluralizeRu, resumeDisplayTitle } from '@/lib/format'
 import { resumeStatusClass, resumeStatusLabel } from '@/lib/labels'
 
 const props = defineProps<{ id: string }>()
@@ -25,6 +26,7 @@ const { success, error: toastError } = useToast()
 
 const resume = ref<ResumeSummary | null>(null)
 const resumeText = ref<ResumeText | null>(null)
+const extraction = ref<ResumeExtraction | null>(null)
 const revealed = ref<ResumeFullText | null>(null)
 const ranking = ref<ResumeVacancyRankingResponse | null>(null)
 const loading = ref(true)
@@ -79,7 +81,7 @@ async function load() {
     ])
     resume.value = resumeResponse.data
     ranking.value = rankingResponse.data
-    await loadText()
+    await Promise.all([loadText(), loadExtraction()])
     if (inProgress.value) {
       poll()
     } else {
@@ -98,6 +100,15 @@ async function loadText() {
     resumeText.value = response.data
   } catch {
     resumeText.value = null
+  }
+}
+
+async function loadExtraction() {
+  try {
+    const response = await resumesApi.getResumeExtraction({ resumeId: props.id })
+    extraction.value = response.data
+  } catch {
+    extraction.value = null
   }
 }
 
@@ -128,7 +139,7 @@ function poll() {
           resumeId: props.id,
         })
         ranking.value = rankingResponse.data
-        await loadText()
+        await Promise.all([loadText(), loadExtraction()])
       }
     } catch {
       stopPolling()
@@ -305,6 +316,31 @@ onBeforeUnmount(stopPolling)
                 Редактировать
               </button>
             </div>
+          </article>
+
+          <article v-if="extraction" class="card p-5">
+            <div class="flex items-center justify-between gap-3">
+              <h2 class="text-base font-semibold text-slate-900">Извлечённые навыки</h2>
+              <span class="badge-neutral">
+                {{ extraction.skills.length }}
+                {{ pluralizeRu(extraction.skills.length, 'навык', 'навыка', 'навыков') }}
+              </span>
+            </div>
+            <div v-if="extraction.skills.length" class="mt-4 flex flex-wrap gap-2">
+              <span
+                v-for="skill in extraction.skills"
+                :key="skill.normalizedName"
+                class="inline-flex items-center gap-2 rounded-lg border border-slate-200 bg-slate-50 px-3 py-1.5 text-sm text-slate-700"
+              >
+                {{ skill.name }}
+                <span v-if="skill.tenure !== null && skill.tenure !== undefined" class="text-xs text-slate-400">
+                  {{ skill.tenure }} {{ pluralizeRu(skill.tenure, 'год', 'года', 'лет') }}
+                </span>
+              </span>
+            </div>
+            <p v-else class="mt-3 text-sm text-slate-500">
+              Навыки пока не извлечены.
+            </p>
           </article>
 
           <article class="card overflow-hidden">
