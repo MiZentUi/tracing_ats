@@ -10,7 +10,13 @@
 
 ## Запуск
 
-Схему `dictionary` и seed накатывает Liquibase (`migrations/changes/020`–`023`) в составе джобы `migrations`. Демонстрационные квалификации и связи догружаются сервисом при старте, если соответствующие таблицы пусты.
+Схему `dictionary` и seed накатывает Liquibase (`migrations/changes/020`–`025`) в составе джобы `migrations`. Демонстрационные квалификации и связи догружаются сервисом при старте, если соответствующие таблицы пусты.
+
+Кроме `BASE_SEED` и `data/open_seed.json`, сервис загружает
+`data/provided_seed.json` — пополнение по документам из `provided/txt`:
+frontend/Vue, образование, учёт ОС, документы, автоматизация, аналитика и
+soft skills. В нём 85 навыков и 40 связей; для существующей БД те же данные
+накатывает миграция `025-dictionary-expansion.sql`.
 
 ```bash
 DICTIONARY_STORE=memory python -m dictionary_service   # без Postgres, для отладки

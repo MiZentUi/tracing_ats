@@ -23,7 +23,7 @@ class SeedSkill:
 BASE_SEED: tuple[SeedSkill, ...] = (
     # Языки и платформы
     SeedSkill("Java", "TECH", ("джава",)),
-    SeedSkill("JavaScript", "TECH", ("js", "джаваскрипт")),
+    SeedSkill("JavaScript", "TECH", ("js", "джаваскрипт", "es6", "es6+", "ecmascript")),
     SeedSkill("TypeScript", "TECH", ("ts",)),
     SeedSkill("Python", "TECH", ("питон", "пайтон")),
     SeedSkill("Go", "TECH", ("golang",)),
@@ -95,9 +95,26 @@ BASE_SEED: tuple[SeedSkill, ...] = (
     SeedSkill("КонсультантПлюс", "TOOL", ("консультант плюс",)),
     SeedSkill("Парус", "TOOL"),
     # Не-IT домены
-    SeedSkill("Учёт ОС и ТМЦ", "DOMAIN", ("учет основных средств", "ос и тмц")),
-    SeedSkill("Складской учёт", "DOMAIN", ("складской учет",)),
-    SeedSkill("Делопроизводство", "DOMAIN"),
+    SeedSkill(
+        "Учёт ОС и ТМЦ",
+        "DOMAIN",
+        (
+            "учет основных средств",
+            "ос и тмц",
+            "основные средства",
+            "учет ос",
+            "движение ос",
+            "списание ос",
+            "инвентарные номера",
+            "тмц",
+        ),
+    ),
+    SeedSkill("Складской учёт", "DOMAIN", ("складской учет", "склад")),
+    SeedSkill(
+        "Делопроизводство",
+        "DOMAIN",
+        ("документооборот", "документоведение", "документовед", "делопроизводитель"),
+    ),
     SeedSkill("Кадровое делопроизводство", "DOMAIN"),
     SeedSkill("Библиотечное дело", "DOMAIN"),
     SeedSkill("Каталогизация", "DOMAIN"),
@@ -106,8 +123,12 @@ BASE_SEED: tuple[SeedSkill, ...] = (
     SeedSkill("Охрана труда", "DOMAIN"),
     SeedSkill("402-ФЗ", "DOMAIN", ("402 фз",)),
     # Soft
-    SeedSkill("Коммуникация", "SOFT", ("коммуникабельность",)),
-    SeedSkill("Работа в команде", "SOFT", ("teamwork",)),
+    SeedSkill(
+        "Коммуникация",
+        "SOFT",
+        ("коммуникабельность", "коммуникативные навыки", "деловая коммуникация"),
+    ),
+    SeedSkill("Работа в команде", "SOFT", ("teamwork", "командная работа")),
 )
 
 
@@ -164,7 +185,7 @@ BASE_SEED_QUALIFICATIONS: tuple[SeedQualification, ...] = (
 )
 
 
-SEED_RELATIONS: tuple[SeedRelation, ...] = (
+BASE_SEED_RELATIONS: tuple[SeedRelation, ...] = (
     SeedRelation("Kafka", "RabbitMQ", "RELATED"),
     SeedRelation("PostgreSQL", "MySQL", "SAME_GROUP"),
     SeedRelation("Docker", "Kubernetes", "SAME_GROUP"),
@@ -194,6 +215,43 @@ def _load_open_seed() -> tuple[tuple[SeedSkill, ...], tuple[SeedQualification, .
     return skills, qualifications
 
 
+def _load_provided_seed() -> tuple[
+    tuple[SeedSkill, ...],
+    tuple[SeedQualification, ...],
+    tuple[SeedRelation, ...],
+]:
+    resource = files("dictionary_service").joinpath("data/provided_seed.json")
+    if not resource.is_file():
+        return (), (), ()
+    payload = json.loads(resource.read_text(encoding="utf-8"))
+    skills = tuple(
+        SeedSkill(
+            canonical=item["canonical"],
+            skill_type=item.get("type", "OTHER"),
+            aliases=tuple(item.get("aliases", ())),
+            raw_only=tuple(item.get("raw_only", ())),
+        )
+        for item in payload.get("skills", ())
+    )
+    qualifications = tuple(
+        SeedQualification(
+            canonical=item["canonical"],
+            qualification_type=item.get("type"),
+            aliases=tuple(item.get("aliases", ())),
+        )
+        for item in payload.get("qualifications", ())
+    )
+    relations = tuple(
+        SeedRelation(
+            left=item["left"],
+            right=item["right"],
+            kind=item["kind"],
+        )
+        for item in payload.get("relations", ())
+    )
+    return skills, qualifications, relations
+
+
 def _merge_by_canonical(
     base: tuple,
     extra: tuple,
@@ -208,6 +266,29 @@ def _merge_by_canonical(
     return tuple(merged)
 
 
+def _merge_relations(
+    base: tuple[SeedRelation, ...],
+    extra: tuple[SeedRelation, ...],
+) -> tuple[SeedRelation, ...]:
+    seen = {
+        (item.left, item.right) if item.left <= item.right else (item.right, item.left)
+        for item in base
+    }
+    merged = list(base)
+    for item in extra:
+        key = (item.left, item.right) if item.left <= item.right else (item.right, item.left)
+        if key in seen:
+            continue
+        merged.append(item)
+        seen.add(key)
+    return tuple(merged)
+
+
 OPEN_SEED, OPEN_SEED_QUALIFICATIONS = _load_open_seed()
-SEED = _merge_by_canonical(BASE_SEED, OPEN_SEED)
-SEED_QUALIFICATIONS = _merge_by_canonical(BASE_SEED_QUALIFICATIONS, OPEN_SEED_QUALIFICATIONS)
+PROVIDED_SEED, PROVIDED_SEED_QUALIFICATIONS, PROVIDED_SEED_RELATIONS = _load_provided_seed()
+SEED = _merge_by_canonical(_merge_by_canonical(BASE_SEED, OPEN_SEED), PROVIDED_SEED)
+SEED_QUALIFICATIONS = _merge_by_canonical(
+    _merge_by_canonical(BASE_SEED_QUALIFICATIONS, OPEN_SEED_QUALIFICATIONS),
+    PROVIDED_SEED_QUALIFICATIONS,
+)
+SEED_RELATIONS = _merge_relations(BASE_SEED_RELATIONS, PROVIDED_SEED_RELATIONS)
