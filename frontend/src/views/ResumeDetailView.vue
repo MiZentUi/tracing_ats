@@ -345,6 +345,44 @@ onBeforeUnmount(stopPolling)
 
           <article v-if="extraction" class="card p-5">
             <div class="flex items-center justify-between gap-3">
+              <h2 class="text-base font-semibold text-slate-900">Квалификации</h2>
+              <span class="badge-neutral">
+                {{ extraction.qualifications.length }}
+                {{
+                  pluralizeRu(
+                    extraction.qualifications.length,
+                    'квалификация',
+                    'квалификации',
+                    'квалификаций',
+                  )
+                }}
+              </span>
+            </div>
+            <div
+              v-if="extraction.qualifications.length"
+              class="mt-4 grid gap-2 sm:grid-cols-2"
+            >
+              <div
+                v-for="(item, index) in extraction.qualifications"
+                :key="`${item.label}-${index}`"
+                class="rounded-lg border border-slate-200 bg-slate-50/60 p-3"
+              >
+                <p class="font-medium text-slate-900">{{ item.label }}</p>
+                <blockquote
+                  v-if="item.evidenceQuote"
+                  class="mt-2 rounded-md bg-white px-3 py-2 text-sm leading-6 text-slate-600"
+                >
+                  {{ item.evidenceQuote }}
+                </blockquote>
+              </div>
+            </div>
+            <p v-else class="mt-3 text-sm text-slate-500">
+              Квалификации не извлечены.
+            </p>
+          </article>
+
+          <article v-if="extraction" class="card p-5">
+            <div class="flex items-center justify-between gap-3">
               <h2 class="text-base font-semibold text-slate-900">Образование</h2>
               <span class="badge-neutral">
                 {{ extraction.education.length }}

@@ -45,6 +45,9 @@
   возвращает извлечённые записи об образовании; на странице резюме появилась
   отдельная карточка с уровнем, специальностью, учебным заведением, годом
   выпуска и цитатой.
+- **Квалификации кандидата.** Тот же endpoint возвращает извлечённые
+  квалификации; на странице резюме они показываются отдельными карточками с
+  цитатой-основанием.
 - **Требования к образованию в вакансии.** В редакторе вакансии появилась
   отдельная секция на доске и в списке: уровень образования, специальность и
   тип требования. Требование сохраняется в `vacancy_requirement.education_level`
@@ -52,9 +55,10 @@
 
 #### Changed
 
-- **OpenAPI.** Добавлены `ResumeExtractedEducation`, `ResumeExtraction.education`,
-  `Requirement.education_level`, `Requirement.education_specialty` и те же поля
-  в `UpdateRequirement`.
+- **OpenAPI.** Добавлены `ResumeExtractedQualification`,
+  `ResumeExtractedEducation`, `ResumeExtraction.qualifications`,
+  `ResumeExtraction.education`, `Requirement.education_level`,
+  `Requirement.education_specialty` и те же поля в `UpdateRequirement`.
 
 ### Ветка `feature/frontend-dictionary-dark-theme` — словарь и тёмная тема
 
