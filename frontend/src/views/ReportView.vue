@@ -294,6 +294,67 @@ onMounted(load)
         </div>
       </div>
 
+      <section
+        v-if="
+          report.recruiterNote ||
+          report.strengths?.length ||
+          report.questions?.length ||
+          report.risks?.length ||
+          report.gaps?.length
+        "
+        class="space-y-4"
+      >
+        <div v-if="report.recruiterNote" class="card p-5">
+          <p class="text-xs uppercase tracking-wide text-slate-500">Обратная связь по вакансии</p>
+          <p class="mt-2 text-sm leading-6 text-slate-700">{{ report.recruiterNote }}</p>
+        </div>
+
+        <div class="grid gap-4 md:grid-cols-2">
+          <div v-if="report.strengths?.length" class="card p-5">
+            <p class="text-xs uppercase tracking-wide text-slate-500">Подтверждения из резюме</p>
+            <ul class="mt-3 space-y-2 text-sm text-slate-700">
+              <li v-for="item in report.strengths" :key="item" class="flex gap-2">
+                <span class="mt-2 h-1.5 w-1.5 shrink-0 rounded-full bg-emerald-500" />
+                <span>{{ item }}</span>
+              </li>
+            </ul>
+          </div>
+
+          <div v-if="report.questions?.length" class="card p-5">
+            <p class="text-xs uppercase tracking-wide text-slate-500">Рекомендации и вопросы</p>
+            <ul class="mt-3 space-y-2 text-sm text-slate-700">
+              <li v-for="item in report.questions" :key="item" class="flex gap-2">
+                <span class="mt-2 h-1.5 w-1.5 shrink-0 rounded-full bg-indigo-500" />
+                <span>{{ item }}</span>
+              </li>
+            </ul>
+          </div>
+
+          <div v-if="report.risks?.length" class="card p-5">
+            <p class="text-xs uppercase tracking-wide text-slate-500">Риски</p>
+            <ul class="mt-3 space-y-2 text-sm text-slate-700">
+              <li v-for="item in report.risks" :key="item" class="flex gap-2">
+                <span class="mt-2 h-1.5 w-1.5 shrink-0 rounded-full bg-amber-500" />
+                <span>{{ item }}</span>
+              </li>
+            </ul>
+          </div>
+
+          <div v-if="report.gaps?.length" class="card p-5">
+            <p class="text-xs uppercase tracking-wide text-slate-500">Пробелы</p>
+            <ul class="mt-3 space-y-2 text-sm text-slate-700">
+              <li v-for="item in report.gaps" :key="item.requirementId" class="flex gap-2">
+                <span class="mt-2 h-1.5 w-1.5 shrink-0 rounded-full bg-rose-500" />
+                <span>
+                  {{ item.text ?? item.requirementId }}
+                  <span v-if="item.reason" class="text-slate-400">— {{ item.reason }}</span>
+                </span>
+              </li>
+            </ul>
+          </div>
+        </div>
+      </section>
+
       <div
         v-if="revealed"
         class="rounded-xl border border-emerald-200 bg-emerald-50/60 p-5 text-sm text-emerald-900"
