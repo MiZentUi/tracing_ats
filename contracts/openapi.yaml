@@ -1408,6 +1408,16 @@ components:
         qualification:
           type: boolean
           description: true — требование является квалификацией, а не навыком.
+        education_level:
+          type: string
+          nullable: true
+          description: >-
+            Уровень образования: SECONDARY, SECONDARY_SPECIALIZED, BACHELOR,
+            MASTER, DOCTOR или COURSES. null — требование не об образовании.
+        education_specialty:
+          type: string
+          nullable: true
+          description: Специальность или направление подготовки для требования к образованию.
 
     TemplateMeta:
       type: object
@@ -1541,6 +1551,16 @@ components:
         clarity_warning:
           type: string
           nullable: true
+        education_level:
+          type: string
+          nullable: true
+          description: >-
+            Уровень образования: SECONDARY, SECONDARY_SPECIALIZED, BACHELOR,
+            MASTER, DOCTOR или COURSES. null — требование не об образовании.
+        education_specialty:
+          type: string
+          nullable: true
+          description: Специальность или направление подготовки для требования к образованию.
 
     UpdateTemplateRequest:
       type: object
@@ -1682,6 +1702,7 @@ components:
       required:
         - resumeId
         - skills
+        - education
       properties:
         resumeId:
           type: string
@@ -1690,6 +1711,37 @@ components:
           type: array
           items:
             $ref: "#/components/schemas/ResumeExtractedSkill"
+        education:
+          type: array
+          items:
+            $ref: "#/components/schemas/ResumeExtractedEducation"
+
+    ResumeExtractedEducation:
+      type: object
+      required:
+        - level
+      properties:
+        institution:
+          type: string
+          nullable: true
+          description: Учебное заведение после маскировки PII.
+        specialty:
+          type: string
+          nullable: true
+          description: Специальность или направление подготовки.
+        level:
+          type: string
+          nullable: true
+          description: >-
+            Уровень образования: SECONDARY, SECONDARY_SPECIALIZED, BACHELOR,
+            MASTER, DOCTOR или COURSES. null — уровень не определён.
+        graduationYear:
+          type: integer
+          format: int32
+          nullable: true
+        evidenceQuote:
+          type: string
+          nullable: true
 
     ResumeExtractedSkill:
       type: object

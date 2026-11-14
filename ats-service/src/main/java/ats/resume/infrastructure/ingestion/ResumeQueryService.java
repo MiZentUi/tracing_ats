@@ -18,6 +18,7 @@ import org.springframework.data.domain.Page;
 import org.springframework.data.domain.PageRequest;
 import org.springframework.stereotype.Service;
 import scoring_service.v1.models.Messages;
+import scoring_service.v1.models.features.Education;
 
 /** Чтение метаданных резюме без PII. */
 @Service
@@ -82,7 +83,31 @@ public class ResumeQueryService {
                                                         Comparator.comparing(
                                                                 SkillView::normalizedName))
                                                 .toList();
-                                return Optional.of(new ExtractionView(resumeId, skills));
+                                List<EducationView> education =
+                                        parsed.getEducationMap().values().stream()
+                                                .map(
+                                                        item ->
+                                                                new EducationView(
+                                                                        nullToNull(
+                                                                                item
+                                                                                        .getInstitution()),
+                                                                        nullToNull(
+                                                                                item.getMaster()),
+                                                                        educationLevel(
+                                                                                item.getLevel()),
+                                                                        item.hasGraduationYear()
+                                                                                        && item.getGraduationYear()
+                                                                                                        .getYear()
+                                                                                                > 0
+                                                                                ? item.getGraduationYear()
+                                                                                        .getYear()
+                                                                                : null,
+                                                                        item.hasEvidence()
+                                                                                ? item.getEvidence()
+                                                                                        .getText()
+                                                                                : null))
+                                                .toList();
+                                return Optional.of(new ExtractionView(resumeId, skills, education));
                             } catch (InvalidProtocolBufferException | IllegalArgumentException e) {
                                 return Optional.empty();
                             }
@@ -132,12 +157,36 @@ public class ResumeQueryService {
 
     public record ResumeTextView(UUID resumeId, String maskedText, List<String> warnings) {}
 
-    public record ExtractionView(UUID resumeId, List<SkillView> skills) {}
+    private static String educationLevel(Education.EducationLevel level) {
+        return switch (level) {
+            case EDUCATION_LEVEL_SECONDARY -> "SECONDARY";
+            case EDUCATION_LEVEL_SECONDARY_SPECIALIZED -> "SECONDARY_SPECIALIZED";
+            case EDUCATION_LEVEL_BACHELOR -> "BACHELOR";
+            case EDUCATION_LEVEL_MASTER -> "MASTER";
+            case EDUCATION_LEVEL_DOCTOR -> "DOCTOR";
+            case EDUCATION_LEVEL_COURSES -> "COURSES";
+            default -> null;
+        };
+    }
+
+    private static String nullToNull(String value) {
+        return value == null || value.isBlank() ? null : value;
+    }
+
+    public record ExtractionView(
+            UUID resumeId, List<SkillView> skills, List<EducationView> education) {}
 
     public record SkillView(
             String name,
             String normalizedName,
             Integer tenure,
             Integer recency,
+            String evidenceQuote) {}
+
+    public record EducationView(
+            String institution,
+            String specialty,
+            String level,
+            Integer graduationYear,
             String evidenceQuote) {}
 }

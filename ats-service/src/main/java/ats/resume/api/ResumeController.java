@@ -2,6 +2,7 @@ package ats.resume.api;
 
 import ats.api.ResumesApi;
 import ats.gateway.model.ResumeBatchUploadResponse;
+import ats.gateway.model.ResumeExtractedEducation;
 import ats.gateway.model.ResumeExtractedSkill;
 import ats.gateway.model.ResumeExtraction;
 import ats.gateway.model.ResumeFullText;
@@ -135,6 +136,27 @@ public class ResumeController implements ResumesApi {
                                                                                                         .recency())
                                                                                         .evidenceQuote(
                                                                                                 skill
+                                                                                                        .evidenceQuote()))
+                                                                .toList())
+                                                .education(
+                                                        view.education().stream()
+                                                                .map(
+                                                                        education ->
+                                                                                new ResumeExtractedEducation()
+                                                                                        .institution(
+                                                                                                education
+                                                                                                        .institution())
+                                                                                        .specialty(
+                                                                                                education
+                                                                                                        .specialty())
+                                                                                        .level(
+                                                                                                education
+                                                                                                        .level())
+                                                                                        .graduationYear(
+                                                                                                education
+                                                                                                        .graduationYear())
+                                                                                        .evidenceQuote(
+                                                                                                education
                                                                                                         .evidenceQuote()))
                                                                 .toList())))
                 .orElseGet(() -> ResponseEntity.notFound().build());
