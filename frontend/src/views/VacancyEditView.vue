@@ -132,8 +132,12 @@ async function load() {
 }
 
 function requirementsFor(kind: keyof typeof kindLabels) {
-  return requirements.value.filter((item) => item.kind === kind)
+  return requirements.value.filter((item) => !item.qualification && item.kind === kind)
 }
+
+const qualificationCount = computed(
+  () => requirements.value.filter((item) => item.qualification).length,
+)
 
 const kindCounters = computed(() =>
   (Object.keys(kindLabels) as Array<keyof typeof kindLabels>).map((kind) => ({
@@ -169,6 +173,13 @@ const visibleRequirements = computed(() => {
       (item.quote ?? '').toLowerCase().includes(query),
   )
 })
+
+const visibleSkillRequirements = computed(() =>
+  visibleRequirements.value.filter((item) => !item.qualification),
+)
+const visibleQualificationRequirements = computed(() =>
+  visibleRequirements.value.filter((item) => item.qualification),
+)
 
 async function revealRequirement(key: string, focusSkill = false) {
   highlightedKey.value = key
@@ -213,6 +224,7 @@ async function addRequirement(kind: SkillKind = 'MUST') {
     quote: null,
     clarityWarning: null,
     history: null,
+    qualification: false,
   })
   if (kind !== 'MUST') {
     info('Требование добавлено', `Колонка «${kindLabels[kind]}»`)
@@ -436,6 +448,7 @@ onMounted(load)
                 <span v-if="index > 0"> · </span>
                 {{ counter.label }} {{ counter.count }}
               </template>
+              <span v-if="qualificationCount > 0"> · Квалификации {{ qualificationCount }}</span>
             </p>
           </div>
           <div class="flex flex-wrap items-center gap-2">
@@ -498,14 +511,14 @@ onMounted(load)
           <div
             class="hidden gap-2 border-b border-slate-100 bg-slate-50/80 px-3 py-2 text-[11px] font-medium uppercase tracking-wide text-slate-400 md:grid md:grid-cols-[minmax(0,1fr)_9rem_5.5rem_4.5rem]"
           >
-            <span>Навык</span>
+            <span>Требование</span>
             <span>Тип</span>
             <span>Опыт</span>
             <span class="text-right">Действия</span>
           </div>
           <div class="divide-y divide-slate-100">
             <div
-              v-for="item in visibleRequirements"
+              v-for="item in visibleSkillRequirements"
               :key="item.key"
               :data-requirement-key="item.key"
               class="transition-all duration-300"
@@ -519,8 +532,36 @@ onMounted(load)
               />
             </div>
           </div>
+
+          <div v-if="visibleQualificationRequirements.length" class="border-t border-slate-200">
+            <div
+              class="hidden gap-2 border-b border-slate-100 bg-slate-50/80 px-3 py-2 text-[11px] font-medium uppercase tracking-wide text-slate-400 md:grid md:grid-cols-[minmax(0,1fr)_9rem_5.5rem_4.5rem]"
+            >
+              <span>Квалификация</span>
+              <span>Тип</span>
+              <span>Опыт</span>
+              <span class="text-right">Действия</span>
+            </div>
+            <div class="divide-y divide-slate-100">
+              <div
+                v-for="item in visibleQualificationRequirements"
+                :key="item.key"
+                :data-requirement-key="item.key"
+                class="transition-all duration-300"
+                :class="highlightedKey === item.key ? 'ring-2 ring-inset ring-indigo-300' : ''"
+              >
+                <RequirementRow
+                  :requirement="item"
+                  :duplicate="duplicateKeys.has(normalizedSkill(item.skill))"
+                  @update="(patch) => updateRequirement(item.key, patch)"
+                  @remove="removeRequirement(item.key)"
+                />
+              </div>
+            </div>
+          </div>
+
           <p
-            v-if="visibleRequirements.length === 0"
+            v-if="visibleSkillRequirements.length === 0 && visibleQualificationRequirements.length === 0"
             class="px-4 py-10 text-center text-sm text-slate-400"
           >
             {{ requirements.length === 0 ? 'Пока нет требований. Добавьте первое.' : 'Ничего не найдено по запросу.' }}

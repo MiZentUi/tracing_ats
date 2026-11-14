@@ -53,10 +53,11 @@ function updateKind(event: Event) {
         <input
           :value="requirement.skill ?? ''"
           class="min-w-0 flex-1 rounded-md border border-transparent bg-transparent px-1.5 py-1 text-sm font-semibold text-slate-900 outline-none transition placeholder:font-normal placeholder:text-slate-400 hover:border-slate-200 focus:border-indigo-400 focus:bg-white"
-          aria-label="Название навыка"
-          placeholder="Название навыка"
+          :aria-label="requirement.qualification ? 'Название квалификации' : 'Название навыка'"
+          :placeholder="requirement.qualification ? 'Название квалификации' : 'Название навыка'"
           @input="updateSkill"
         />
+        <span v-if="requirement.qualification" class="badge-info shrink-0">Квалификация</span>
         <span v-if="duplicate" class="badge-danger shrink-0">дубликат</span>
       </div>
 

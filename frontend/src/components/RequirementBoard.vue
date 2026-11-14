@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { ref } from 'vue'
+import { computed, ref } from 'vue'
 import { ChevronDown, ChevronUp, GripVertical, Plus, Trash2 } from '@lucide/vue'
 import type { SkillKind } from '@/api/generated'
 import type { EditableRequirement } from '@/types'
@@ -59,8 +59,15 @@ function isDuplicate(item: EditableRequirement): boolean {
   return props.duplicateKeys?.has(normalizedSkill(item.skill)) ?? false
 }
 
+const skillRequirements = computed(() =>
+  props.requirements.filter((item) => !item.qualification),
+)
+const qualificationRequirements = computed(() =>
+  props.requirements.filter((item) => item.qualification),
+)
+
 function requirementsFor(kind: SkillKind): EditableRequirement[] {
-  return props.requirements.filter((item) => item.kind === kind)
+  return skillRequirements.value.filter((item) => item.kind === kind)
 }
 
 function displayName(item: EditableRequirement): string {
@@ -242,5 +249,90 @@ function onMove(event: Event, item: EditableRequirement) {
         </button>
       </section>
     </div>
+
+    <section v-if="qualificationRequirements.length" class="space-y-3 border-t border-slate-200 pt-5">
+      <div class="flex items-end justify-between gap-3">
+        <div>
+          <h3 class="text-sm font-semibold text-slate-900">Квалификации</h3>
+          <p class="mt-0.5 text-xs text-slate-500">
+            Допуски, категории и аттестаты. Они не смешиваются с навыками в колонках.
+          </p>
+        </div>
+        <span class="badge-neutral">{{ qualificationRequirements.length }}</span>
+      </div>
+
+      <div class="grid gap-3 sm:grid-cols-2 xl:grid-cols-3">
+        <article
+          v-for="item in qualificationRequirements"
+          :key="item.key"
+          data-testid="qualification-card"
+          class="rounded-xl border border-slate-200 bg-white p-3 shadow-sm"
+        >
+          <div class="flex items-start gap-2">
+            <div class="min-w-0 flex-1">
+              <div class="flex items-center gap-1.5">
+                <span class="badge-info shrink-0">Квалификация</span>
+                <span v-if="isDuplicate(item)" class="badge-danger shrink-0">дубликат</span>
+              </div>
+              <input
+                :value="item.skill ?? ''"
+                class="mt-2 w-full rounded-md border border-transparent bg-transparent px-1 py-0.5 text-sm font-semibold text-slate-900 outline-none transition placeholder:font-normal placeholder:text-slate-400 hover:border-slate-200 focus:border-indigo-300 focus:bg-white"
+                aria-label="Название квалификации"
+                placeholder="Название квалификации"
+                @input="updateSkill($event, item)"
+              />
+            </div>
+          </div>
+
+          <div class="mt-2 flex flex-wrap items-center gap-2">
+            <select
+              :value="item.kind"
+              class="input min-w-0 flex-1 py-1 text-xs"
+              :aria-label="`Тип требования: ${displayName(item)}`"
+              @change="onMove($event, item)"
+            >
+              <option v-for="option in kindOptions" :key="option.value" :value="option.value">
+                {{ option.label }}
+              </option>
+            </select>
+            <label class="flex items-center gap-1 text-[11px] text-slate-500">
+              <input
+                :value="item.yearsRequired ?? ''"
+                type="number"
+                min="0"
+                max="50"
+                step="1"
+                class="w-12 rounded-md border border-slate-300 px-1.5 py-1 text-xs text-slate-900 outline-none focus:border-indigo-500"
+                aria-label="Лет опыта"
+                @input="updateYears($event, item)"
+              />
+              лет
+            </label>
+            <button
+              v-if="hasDetails(item)"
+              type="button"
+              class="icon-btn h-7 w-7 shrink-0 text-slate-400 hover:bg-slate-100 hover:text-slate-700"
+              :title="isExpanded(item) ? 'Скрыть подробности' : 'Показать подробности'"
+              @click="toggleDetails(item)"
+            >
+              <ChevronUp v-if="isExpanded(item)" :size="14" />
+              <ChevronDown v-else :size="14" />
+            </button>
+            <button
+              type="button"
+              class="icon-btn h-7 w-7 shrink-0 text-slate-400 hover:bg-rose-50 hover:text-rose-600"
+              title="Удалить квалификацию"
+              @click="emit('remove', item.key)"
+            >
+              <Trash2 :size="14" />
+            </button>
+          </div>
+
+          <div v-if="isExpanded(item)" class="mt-2">
+            <RequirementDetails :requirement="item" />
+          </div>
+        </article>
+      </div>
+    </section>
   </div>
 </template>

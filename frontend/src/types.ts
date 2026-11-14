@@ -13,6 +13,7 @@ export interface EditableRequirement {
   quote: string | null
   clarityWarning: string | null
   history: SkillKindHistory | null
+  qualification: boolean
 }
 
 export function toEditable(requirement: Requirement, index: number): EditableRequirement {
@@ -29,6 +30,7 @@ export function toEditable(requirement: Requirement, index: number): EditableReq
     quote: requirement.quote ?? null,
     clarityWarning: requirement.clarity_warning ?? null,
     history: requirement.history ?? null,
+    qualification: requirement.qualification ?? false,
   }
 }
 
