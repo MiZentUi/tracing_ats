@@ -110,6 +110,30 @@ def test_extract_returns_parsed_resume() -> None:
     assert result.parsed.experience[0].metrics == ["Python developer"]
 
 
+def test_extract_keeps_compound_skill_as_separate_items() -> None:
+    quote = "Spring (Boot/Data/Security)"
+    payload = {
+        "schema_version": 3,
+        "skills": [
+            {"name": "Spring", "years": None, "quote": quote},
+            {"name": "Spring Boot", "years": None, "quote": quote},
+            {"name": "Spring Data", "years": None, "quote": quote},
+            {"name": "Spring Security", "years": None, "quote": quote},
+        ],
+    }
+    extractor = ResumeExtractor(ScriptedLlm([json.dumps(payload, ensure_ascii=False)]))
+
+    result = extractor.extract(quote)
+
+    assert [skill.name for skill in result.parsed.skills] == [
+        "Spring",
+        "Spring Boot",
+        "Spring Data",
+        "Spring Security",
+    ]
+    assert result.dropped == 0
+
+
 def test_extract_drops_feature_with_unknown_quote() -> None:
     payload = {
         **VALID_PAYLOAD,
@@ -223,6 +247,12 @@ def test_prompt_contains_schema_and_marks_resume_as_data() -> None:
     assert "не более одного предложения" in prompt
     assert "дословная подстрока не требуется" in prompt
     assert "категорий B и C" in prompt
+    assert "Spring (Boot/Data/Security)" in prompt
+    assert "Spring Security" in prompt
+    assert "Java/Spring" in prompt
+    assert "только коммерческий опыт работы" in prompt
+    assert "место работы" in prompt
+    assert "даты начала/окончания" in prompt
     assert str(SKILL_QUOTE_MAX_CHARS) in prompt
     assert user_prompt("Python developer") == "<resume_text>\nPython developer\n</resume_text>"
 

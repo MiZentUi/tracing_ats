@@ -66,15 +66,15 @@ def test_unknown_tenure_expands_tau_downwards() -> None:
     assert high == pytest.approx(point)
 
 
-def test_unknown_recency_expands_tau_downwards() -> None:
+def test_recency_is_ignored() -> None:
     policy = TemporalPolicy()
 
-    point, low, high = policy.tau_bounds(3.0, 3.0, None)
-
     expected = 0.5 * (1.0 + math.tanh(1.0))
-    assert point == pytest.approx(expected)
-    assert high == pytest.approx(expected)
-    assert low < point
+    for recency in (None, 0.0, 5.0, 10.0):
+        point, low, high = policy.tau_bounds(3.0, 3.0, recency)
+        assert point == pytest.approx(expected)
+        assert low == pytest.approx(expected)
+        assert high == pytest.approx(expected)
 
 
 def test_zero_required_tenure_keeps_tenure_factor_neutral() -> None:
@@ -90,9 +90,9 @@ def test_zero_required_tenure_keeps_tenure_factor_neutral() -> None:
 def test_claim_confidence_distinguishes_listing_duty_and_result() -> None:
     policy = HeuristicClaimConfidence()
 
-    assert policy.confidence("Python") == 0.3
-    assert policy.confidence("Разработал сервис на Python") == 0.5
-    assert policy.confidence("Снизил задержку до 20 ms") == 0.8
+    assert policy.confidence("Python") == 0.5
+    assert policy.confidence("Разработал сервис на Python") == 0.75
+    assert policy.confidence("Снизил задержку до 20 ms") == 1.0
     assert policy.confidence("   ") == 0.0
 
 
@@ -124,6 +124,45 @@ def test_calculator_aggregates_relevance_and_coverage_with_weights() -> None:
     assert general.score_low == pytest.approx(0.575)
     assert general.score_high == pytest.approx(0.8)
     assert general.tenure == 4
+
+
+def test_calculator_adds_tenure_component_with_configured_weight() -> None:
+    calculator = ScoringCalculator(CriticalityWeightPolicy(), tenure_weight=0.2)
+    matches = [
+        _match(
+            "required",
+            criticality=common_pb2.FEATURE_CRITICALITY_REQUIRED,
+            relevance=1.0,
+            coverage=0.8,
+            coverage_low=0.6,
+            coverage_high=0.9,
+        )
+    ]
+
+    general = calculator.aggregate(matches, tenure=4.0, required_tenure=5.0)
+
+    tenure_score = TemporalPolicy().tau(4.0, 5.0, 0.0)
+    assert general.score == pytest.approx(0.8 * 0.8 + 0.2 * tenure_score)
+    assert general.score_low == pytest.approx(0.8 * 0.6 + 0.2 * tenure_score)
+    assert general.score_high == pytest.approx(0.8 * 0.9 + 0.2 * tenure_score)
+
+
+def test_calculator_skips_tenure_component_without_requirement() -> None:
+    calculator = ScoringCalculator(CriticalityWeightPolicy(), tenure_weight=0.2)
+    matches = [
+        _match(
+            "optional",
+            criticality=common_pb2.FEATURE_CRITICALITY_OPTIONAL,
+            relevance=1.0,
+            coverage=0.5,
+            coverage_low=0.5,
+            coverage_high=0.5,
+        )
+    ]
+
+    general = calculator.aggregate(matches, tenure=10.0, required_tenure=0.0)
+
+    assert general.score == pytest.approx(0.5)
 
 
 def test_calculator_returns_zeros_without_requirements() -> None:

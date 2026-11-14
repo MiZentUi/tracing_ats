@@ -1,0 +1,10 @@
+# Синтетическая вакансия для проверки матчинга.
+tenure: 3
+position: middle
+category: backend
+
+skill: required | Python | 3
+skill: nice | Kafka | 2
+skill: nice | Docker
+text: nice | soft | Умение работать в команде
+education: nice | bachelor | Прикладная математика

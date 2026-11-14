@@ -7,3 +7,7 @@ __pycache__/
 .env
 .env.*
 !.env.example
+scripts/benchmark/cache/
+scripts/benchmark/results/
+scripts/benchmark/resumes/*.txt
+scripts/benchmark/vacancies/*.txt

@@ -382,6 +382,43 @@ def test_score_resume_returns_general_score_and_features() -> None:
     assert experience.metrics[0].text == "ООО Ромашка, 2020-2023"
 
 
+def test_skill_is_additionally_confirmed_by_experience() -> None:
+    text = (
+        "Python\n"
+        "Built a Python service, reduced latency by 30%\n"
+        "МГУ, 2019\n"
+        "ООО Ромашка, 2020-2023\n"
+        "III группа по электробезопасности"
+    )
+    resume = _parsed_resume()
+    resume.skills["skill:0"].CopyFrom(
+        skill_pb2.SkillPerResume(
+            name="Python",
+            normalized_name="python",
+            tenure=3,
+            evidence=common_pb2.FeatureEvidence(text="Python"),
+        )
+    )
+    experience = resume.experience["experience:0"]
+    experience.ClearField("metrics")
+    experience.metrics.add().CopyFrom(
+        common_pb2.FeatureEvidence(
+            text="Built a Python service, reduced latency by 30%",
+        )
+    )
+
+    with _running(ResumeExtractor(FakeLlm(PAYLOAD))) as stub:
+        response = stub.EvaluateResumeMatch(
+            _evaluate_request(text=text, resume=resume),
+            timeout=2,
+        )
+
+    python = response.matches["python"]
+    assert python.evidence.text == "Built a Python service, reduced latency by 30%"
+    assert python.coverage > 0.5
+    assert "Дополнительно подтверждено" in python.comment
+
+
 def test_score_resume_is_deterministic_for_same_input() -> None:
     with _running(ResumeExtractor(FakeLlm(PAYLOAD))) as stub:
         first = stub.ScoreResume(_score_request(), timeout=2)
@@ -406,7 +443,9 @@ def test_evaluate_resume_match_statuses_and_explanations() -> None:
         response = stub.EvaluateResumeMatch(_evaluate_request(), timeout=2)
 
     python = response.matches["python"]
-    assert python.status == common_pb2.CORRESPONDENCE_FULL
+    assert python.status == common_pb2.CORRESPONDENCE_PARTIAL
+    assert python.coverage < 0.7
+    assert python.comment == "Навык найден, но подтверждение в резюме слабое."
     assert python.resume_feature_key == "skill:0"
     assert python.evidence.text == "Python developer"
 
@@ -423,11 +462,140 @@ def test_evaluate_resume_match_statuses_and_explanations() -> None:
     assert soft.status == common_pb2.CORRESPONDENCE_NOT_STATED
 
     gap_ids = {gap.requirement_id for gap in response.gaps}
-    assert gap_ids == {"kafka", "soft"}
-    assert "Python" in " ".join(response.strengths)
+    assert gap_ids == {"python", "kafka", "soft"}
+    assert "Python" in " ".join([*response.risks, *response.questions])
     assert response.questions
     assert response.recruiter_note
     assert response.general_score.score_low < response.general_score.score_high
+
+
+def test_evaluate_resume_match_matches_skill_version_to_base_requirement() -> None:
+    text = "Java 11/17 developer"
+    resume = messages_pb2.ParsedResume(schema_version=3)
+    resume.skills["skill:0"].CopyFrom(
+        skill_pb2.SkillPerResume(
+            name="Java 11/17",
+            normalized_name="java 11/17",
+            evidence=common_pb2.FeatureEvidence(text="Java 11/17 developer"),
+        )
+    )
+    vacancy = messages_pb2.Vacancy(
+        requirements={
+            "java": features_pb2.FeatureRequirement(
+                criticality=common_pb2.FEATURE_CRITICALITY_REQUIRED,
+                skill=skill_pb2.SkillRequirement(name="Java"),
+            )
+        }
+    )
+    request = messages_pb2.EvaluateResumeMatchRequest(
+        resume=resume,
+        unprocessed_resume=messages_pb2.UnprocessedResume(text=text),
+        vacancy=vacancy,
+        reference_date=_reference_date(),
+    )
+
+    with _running(ResumeExtractor(FakeLlm(PAYLOAD))) as stub:
+        response = stub.EvaluateResumeMatch(request, timeout=2)
+
+    match = response.matches["java"]
+    assert match.status == common_pb2.CORRESPONDENCE_FULL
+    assert match.relevance == 1.0
+    assert match.resume_feature_key == "skill:0"
+
+
+@pytest.mark.parametrize(
+    ("required_level", "resume_level", "expected_status", "expected_relevance"),
+    [
+        (
+            education_pb2.EDUCATION_LEVEL_BACHELOR,
+            education_pb2.EDUCATION_LEVEL_COURSES,
+            common_pb2.CORRESPONDENCE_PARTIAL,
+            0.7,
+        ),
+        (
+            education_pb2.EDUCATION_LEVEL_COURSES,
+            education_pb2.EDUCATION_LEVEL_BACHELOR,
+            common_pb2.CORRESPONDENCE_FULL,
+            1.0,
+        ),
+        (
+            education_pb2.EDUCATION_LEVEL_SECONDARY,
+            education_pb2.EDUCATION_LEVEL_COURSES,
+            common_pb2.CORRESPONDENCE_FULL,
+            1.0,
+        ),
+        (
+            education_pb2.EDUCATION_LEVEL_COURSES,
+            education_pb2.EDUCATION_LEVEL_SECONDARY,
+            common_pb2.CORRESPONDENCE_PARTIAL,
+            0.7,
+        ),
+        (
+            education_pb2.EDUCATION_LEVEL_COURSES,
+            education_pb2.EDUCATION_LEVEL_COURSES,
+            common_pb2.CORRESPONDENCE_FULL,
+            1.0,
+        ),
+        (
+            education_pb2.EDUCATION_LEVEL_MASTER,
+            education_pb2.EDUCATION_LEVEL_COURSES,
+            common_pb2.CORRESPONDENCE_PARTIAL,
+            0.7,
+        ),
+    ],
+)
+def test_education_courses_rank_between_secondary_and_bachelor(
+    required_level: int,
+    resume_level: int,
+    expected_status: int,
+    expected_relevance: float,
+) -> None:
+    text = "Курсы Python, 2024"
+    resume = messages_pb2.ParsedResume(schema_version=3)
+    resume.education["education:0"].CopyFrom(
+        education_pb2.EducationPerResume(
+            institution="Курсы",
+            master="Python",
+            level=resume_level,
+            evidence=common_pb2.FeatureEvidence(text=text),
+        )
+    )
+    vacancy = messages_pb2.Vacancy(
+        requirements={
+            "education": features_pb2.FeatureRequirement(
+                criticality=common_pb2.FEATURE_CRITICALITY_REQUIRED,
+                education=education_pb2.EducationRequirement(
+                    master="Python",
+                    level=required_level,
+                ),
+            )
+        }
+    )
+    request = messages_pb2.EvaluateResumeMatchRequest(
+        resume=resume,
+        unprocessed_resume=messages_pb2.UnprocessedResume(text=text),
+        vacancy=vacancy,
+        reference_date=_reference_date(),
+    )
+
+    with _running(ResumeExtractor(FakeLlm(PAYLOAD))) as stub:
+        response = stub.EvaluateResumeMatch(request, timeout=2)
+
+    match = response.matches["education"]
+    assert match.status == expected_status
+    assert match.relevance == pytest.approx(expected_relevance)
+
+
+def test_evaluate_resume_match_uses_vacancy_tenure_in_score() -> None:
+    without_tenure = _evaluate_request()
+    without_tenure.vacancy.tenure = 0
+    with_tenure = _evaluate_request()
+
+    with _running(ResumeExtractor(FakeLlm(PAYLOAD))) as stub:
+        zero_score = stub.EvaluateResumeMatch(without_tenure, timeout=2)
+        five_score = stub.EvaluateResumeMatch(with_tenure, timeout=2)
+
+    assert zero_score.general_score.score != five_score.general_score.score
 
 
 def test_evaluate_resume_match_logs_no_resume_text(caplog) -> None:
@@ -436,10 +604,44 @@ def test_evaluate_resume_match_logs_no_resume_text(caplog) -> None:
 
     assert "Python developer" not in caplog.text
     assert TEXT not in caplog.text
+    assert "matcher=skill-versioned-v1" in caplog.text
     assert "strengths=" in caplog.text
     assert "risks=" in caplog.text
     assert "questions=" in caplog.text
-    assert "feedback=feedback-templates.v2" in caplog.text
+    assert "feedback=feedback-templates.v4" in caplog.text
+
+
+def test_evaluate_resume_match_explains_missing_skill_tenure() -> None:
+    resume = _parsed_resume()
+    resume.skills["skill:0"].ClearField("tenure")
+
+    with _running(ResumeExtractor(FakeLlm(PAYLOAD))) as stub:
+        response = stub.EvaluateResumeMatch(
+            _evaluate_request(resume=resume),
+            timeout=2,
+        )
+
+    match = response.matches["python"]
+    assert match.status == common_pb2.CORRESPONDENCE_PARTIAL
+    assert match.relevance == 1.0
+    assert not match.HasField("years_found")
+    assert match.comment == "Навык подтверждён, но стаж по нему не указан."
+
+
+def test_evaluate_resume_match_explains_missing_experience_tenure() -> None:
+    resume = _parsed_resume()
+    resume.experience["experience:0"].ClearField("begin")
+
+    with _running(ResumeExtractor(FakeLlm(PAYLOAD))) as stub:
+        response = stub.EvaluateResumeMatch(
+            _evaluate_request(resume=resume),
+            timeout=2,
+        )
+
+    match = response.matches["experience"]
+    assert match.status == common_pb2.CORRESPONDENCE_PARTIAL
+    assert not match.HasField("years_found")
+    assert match.comment == "Опыт подтверждён, но стаж по нему не указан."
 
 
 def test_evaluate_resume_match_marks_insufficient_tenure() -> None:

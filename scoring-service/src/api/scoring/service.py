@@ -19,6 +19,7 @@ from .evaluator import ResumeEvaluator
 from .feedback import FEEDBACK_TEMPLATE_VERSION
 from .mapping import ExtractionMapper, to_evaluate_response, to_score_response
 from .policies import Clock, SystemClock
+from .versioning import VERSION_MATCHER_VERSION
 
 logger = logging.getLogger(__name__)
 
@@ -59,10 +60,11 @@ class ScoringService(scoring_pb2_grpc.ScoringServiceServicer):
         )
 
         logger.info(
-            "score resume model=%s prompt=%s requirements=%d "
+            "score resume model=%s prompt=%s matcher=%s requirements=%d "
             "skills=%d qualifications=%d education=%d experience=%d dropped=%d",
             self._extractor.model,
             self._extractor.prompt_version,
+            VERSION_MATCHER_VERSION,
             len(request.vacancy.requirements),
             len(result.parsed.skills),
             len(result.parsed.qualifications),
@@ -88,8 +90,9 @@ class ScoringService(scoring_pb2_grpc.ScoringServiceServicer):
         )
 
         logger.info(
-            "evaluate resume match requirements=%d matches=%d gaps=%d "
+            "evaluate resume match matcher=%s requirements=%d matches=%d gaps=%d "
             "strengths=%d risks=%d questions=%d feedback=%s",
+            VERSION_MATCHER_VERSION,
             len(request.vacancy.requirements),
             len(evaluation.matches),
             len(evaluation.gaps),
@@ -154,7 +157,8 @@ class ScoringService(scoring_pb2_grpc.ScoringServiceServicer):
             results[key] = item
 
         logger.info(
-            "evaluate resume matches vacancies=%d ok=%d failed=%d",
+            "evaluate resume matches matcher=%s vacancies=%d ok=%d failed=%d",
+            VERSION_MATCHER_VERSION,
             len(request.vacancies),
             succeeded,
             failed,

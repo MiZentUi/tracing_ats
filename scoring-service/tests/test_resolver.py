@@ -2,6 +2,7 @@ from __future__ import annotations
 
 from api.dictionary.client import DictionaryUnavailable, Resolution, ResolvedName
 from api.scoring.resolver import SkillResolver
+from api.scoring.versioning import VersionMatchPolicy
 
 
 class FakeClient:
@@ -52,6 +53,60 @@ def test_unknown_skills_match_by_key() -> None:
     assert resolver.score(resolution.identity("Postgres"), resolution.identity("postgres")) == 1.0
 
 
+def test_versioned_skill_matches_base_skill() -> None:
+    resolver = SkillResolver(None, enabled=False)
+    resolution = resolver.resolve([("Java", "VACANCY"), ("Java 11/17", "RESUME")])
+
+    assert resolver.score(resolution.identity("Java"), resolution.identity("Java 11/17")) == 1.0
+
+
+def test_versioned_skill_matches_when_dictionary_returns_new_for_variant() -> None:
+    items = {
+        "Java": ResolvedName("Java", "skill-1", "Java", "java", "", "ALIAS_EXACT"),
+        "Java 11/17": ResolvedName(
+            "Java 11/17",
+            None,
+            "",
+            "java 11/17",
+            "",
+            "NEW",
+        ),
+    }
+    resolver = SkillResolver(FakeClient(items), enabled=True)
+    resolution = resolver.resolve([("Java", "VACANCY"), ("Java 11/17", "RESUME")])
+
+    assert resolver.score(resolution.identity("Java"), resolution.identity("Java 11/17")) == 1.0
+
+
+def test_same_canonical_name_matches_even_with_different_ids() -> None:
+    items = {
+        "Java": ResolvedName("Java", "skill-1", "Java", "java", "", "ALIAS_EXACT"),
+        "java": ResolvedName("java", "skill-2", "Java", "java", "", "ALIAS_EXACT"),
+    }
+    resolver = SkillResolver(FakeClient(items), enabled=True)
+    resolution = resolver.resolve([("Java", "VACANCY"), ("java", "RESUME")])
+
+    assert resolver.score(resolution.identity("Java"), resolution.identity("java")) == 1.0
+
+
+def test_java_does_not_match_javascript() -> None:
+    resolver = SkillResolver(None, enabled=False)
+    resolution = resolver.resolve([("Java", "VACANCY"), ("JavaScript", "RESUME")])
+
+    assert resolver.score(resolution.identity("Java"), resolution.identity("JavaScript")) == 0.0
+
+
+def test_version_mismatch_uses_policy() -> None:
+    resolver = SkillResolver(
+        None,
+        enabled=False,
+        version_policy=VersionMatchPolicy(mismatch_score=0.5),
+    )
+    resolution = resolver.resolve([("Java 21", "VACANCY"), ("Java 11/17", "RESUME")])
+
+    assert resolver.score(resolution.identity("Java 21"), resolution.identity("Java 11/17")) == 0.5
+
+
 def test_dictionary_returns_relation_class() -> None:
     class RelationClient(FakeClient):
         def get_relations(self, pairs):
@@ -71,6 +126,8 @@ def test_relation_policy_maps_classes_to_score() -> None:
     from api.scoring.policies import RelationPolicy
 
     policy = RelationPolicy()
-    assert policy.score("SAME_GROUP") == 0.5
-    assert policy.score("RELATED") == 0.5
+    assert policy.score("SAME_GROUP") == 0.7
+    assert policy.score("RELATED") == 0.7
+    assert policy.score("PARENT") == 0.6
+    assert policy.score("CHILD") == 0.5
     assert policy.score(None) == 0.0

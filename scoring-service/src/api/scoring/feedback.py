@@ -23,13 +23,14 @@ from scoring_service.v1.models.features import common_pb2
 from .dates import end_date, start_date, total_experience_years
 from .model import GeneralScore, RequirementScore
 
-FEEDBACK_TEMPLATE_VERSION = "feedback-templates.v2"
+FEEDBACK_TEMPLATE_VERSION = "feedback-templates.v4"
 
 MAX_STRENGTHS = 5
 MAX_RISKS = 5
 MAX_QUESTIONS = 5
 MAX_LABEL_CHARS = 120
 MAX_QUOTE_CHARS = 160
+MAX_CONTEXT_CHARS = 100
 MAX_TEXT_CHARS = 400
 MAX_NOTE_CHARS = 500
 
@@ -57,6 +58,10 @@ class FeedbackFact:
     condition: str
     priority: int
     slots: Mapping[str, str]
+    # Контекст требования или цитаты и подсказка к следующему действию.
+    # Так один и тот же шаблон даёт более конкретный текст без LLM.
+    prefix: str = ""
+    suffix: str = ""
 
 
 @dataclass(frozen=True, slots=True)
@@ -112,19 +117,28 @@ FEEDBACK_TEMPLATES: tuple[FeedbackTemplate, ...] = (
         id="risk.critical_gap",
         kind="risk",
         condition="critical_gap",
-        text="Критичное требование «{label}» {status_phrase} — это ключевой риск для вакансии.",
+        text=(
+            "Критичное требование «{label}» {status_phrase}. "
+            "Без него профиль не закрывает ключевую часть вакансии."
+        ),
     ),
     FeedbackTemplate(
         id="risk.required_gap.v1",
         kind="risk",
         condition="required_gap",
-        text="Обязательное требование «{label}» не закрыто полностью: {status_note}.",
+        text=(
+            "Обязательное требование «{label}» не закрыто полностью: {status_note}. "
+            "Из-за этого основной набор требований остаётся неполным."
+        ),
     ),
     FeedbackTemplate(
         id="risk.required_gap.v2",
         kind="risk",
         condition="required_gap",
-        text="По обязательному требованию «{label}» {status_note}.",
+        text=(
+            "По обязательному требованию «{label}» {status_note}. "
+            "Основной набор требований остаётся неполным."
+        ),
     ),
     FeedbackTemplate(
         id="risk.insufficient_tenure",
@@ -173,8 +187,8 @@ FEEDBACK_TEMPLATES: tuple[FeedbackTemplate, ...] = (
         kind="question",
         condition="skill_not_stated",
         text=(
-            "В резюме не указан навык «{label}». Приведите пример задачи, "
-            "где вы его применяли, и сколько времени это занимало?"
+            "В резюме не указан навык «{label}». В каких проектах вы его применяли, "
+            "какую роль выполняли и сколько времени это заняло?"
         ),
     ),
     FeedbackTemplate(
@@ -219,7 +233,7 @@ FEEDBACK_TEMPLATES: tuple[FeedbackTemplate, ...] = (
         condition="skill_insufficient_tenure",
         text=(
             "По навыку «{label}» подтверждено {found_years}, требуется {required_years}. "
-            "Уточните весь опыт: в каких проектах и сколько времени?"
+            "Какие проекты и периоды дают недостающий опыт?"
         ),
     ),
     FeedbackTemplate(
@@ -236,8 +250,8 @@ FEEDBACK_TEMPLATES: tuple[FeedbackTemplate, ...] = (
         kind="question",
         condition="partial",
         text=(
-            "Требование «{label}» подтверждено частично. "
-            "Какие задачи вы решали в этой области и насколько самостоятельно?"
+            "Требование «{label}» подтверждено частично. Что именно вы делали "
+            "самостоятельно, какой был результат и какие были ограничения?"
         ),
     ),
     FeedbackTemplate(
@@ -264,8 +278,8 @@ FEEDBACK_TEMPLATES: tuple[FeedbackTemplate, ...] = (
         kind="note",
         condition="opener_high",
         text=(
-            "Соответствие высокое: полностью закрыто {full_count} из {total_count} "
-            "требований, оценка {score} (вилка {score_low}–{score_high})."
+            "{strength_note}Соответствие высокое: полностью закрыто {full_count} из "
+            "{total_count} требований, оценка {score} (вилка {score_low}–{score_high})."
         ),
     ),
     FeedbackTemplate(
@@ -273,8 +287,8 @@ FEEDBACK_TEMPLATES: tuple[FeedbackTemplate, ...] = (
         kind="note",
         condition="opener_mid",
         text=(
-            "Соответствие частичное: полностью закрыто {full_count} из {total_count} "
-            "требований, оценка {score} (вилка {score_low}–{score_high})."
+            "{strength_note}Соответствие частичное: полностью закрыто {full_count} из "
+            "{total_count} требований, оценка {score} (вилка {score_low}–{score_high})."
         ),
     ),
     FeedbackTemplate(
@@ -282,8 +296,8 @@ FEEDBACK_TEMPLATES: tuple[FeedbackTemplate, ...] = (
         kind="note",
         condition="opener_low",
         text=(
-            "Соответствие низкое: полностью закрыто {full_count} из {total_count} "
-            "требований, оценка {score} (вилка {score_low}–{score_high})."
+            "{strength_note}Соответствие низкое: полностью закрыто {full_count} из "
+            "{total_count} требований, оценка {score} (вилка {score_low}–{score_high})."
         ),
     ),
     FeedbackTemplate(
@@ -319,6 +333,246 @@ FEEDBACK_TEMPLATES: tuple[FeedbackTemplate, ...] = (
         kind="fallback",
         condition="no_data",
         text="Недостаточно данных резюме для содержательных выводов.",
+    ),
+    # v3: второй вариант для каждого условия, кроме required_gap и fallback.
+    FeedbackTemplate(
+        id="strength.critical_full.v2",
+        kind="strength",
+        condition="critical_full",
+        text=(
+            "Критичное требование «{label}» полностью закрыто: {evidence}.{tenure_note} "
+            "Это ключевое подтверждение для вакансии."
+        ),
+    ),
+    FeedbackTemplate(
+        id="strength.skill_full.v2",
+        kind="strength",
+        condition="skill_full",
+        text="Навык «{label}» подтверждён цитатой из резюме: {evidence}.{tenure_note}",
+    ),
+    FeedbackTemplate(
+        id="strength.experience_full.v2",
+        kind="strength",
+        condition="experience_full",
+        text=(
+            "Опыт в категории «{label}» подтверждён: {evidence}.{tenure_note} "
+            "Его можно учитывать при оценке глубины."
+        ),
+    ),
+    FeedbackTemplate(
+        id="strength.qualification_full.v2",
+        kind="strength",
+        condition="qualification_full",
+        text=(
+            "Квалификация «{label}» подтверждена: {evidence}. "
+            "Документ или запись в резюме можно проверить на интервью."
+        ),
+    ),
+    FeedbackTemplate(
+        id="strength.education_full.v2",
+        kind="strength",
+        condition="education_full",
+        text=(
+            "Образование по направлению «{label}» подтверждено: {evidence}. "
+            "Профиль подготовки соответствует требованию."
+        ),
+    ),
+    FeedbackTemplate(
+        id="strength.text_full.v2",
+        kind="strength",
+        condition="text_full",
+        text=(
+            "Требование «{label}» подтверждено текстом резюме: {evidence}. "
+            "Формулировка требования и цитата согласованы."
+        ),
+    ),
+    FeedbackTemplate(
+        id="risk.critical_gap.v2",
+        kind="risk",
+        condition="critical_gap",
+        text=(
+            "Критичное требование «{label}» {status_phrase}. "
+            "Это блокирует подтверждение ключевой части вакансии."
+        ),
+    ),
+    FeedbackTemplate(
+        id="risk.insufficient_tenure.v2",
+        kind="risk",
+        condition="insufficient_tenure",
+        text=(
+            "По требованию «{label}» подтверждён стаж {found_years}, "
+            "а требуется {required_years}. Стоит уточнить периоды и глубину опыта."
+        ),
+    ),
+    FeedbackTemplate(
+        id="risk.date_issue.v2",
+        kind="risk",
+        condition="date_issue",
+        text=(
+            "В датах опыта есть пробел или расхождение: {detail}. Проверьте хронологию до интервью."
+        ),
+    ),
+    FeedbackTemplate(
+        id="risk.overclaim.v2",
+        kind="risk",
+        condition="overclaim",
+        text=(
+            "Заявленный стаж по навыку «{label}» ({found_years}) превышает "
+            "общий стаж по резюме ({total_years}). Это стоит уточнить."
+        ),
+    ),
+    FeedbackTemplate(
+        id="risk.wide_interval.v2",
+        kind="risk",
+        condition="wide_interval",
+        text=(
+            "Доля требований без сведений в резюме — {not_stated_count} из {total_count}; "
+            "вилка оценки широкая из-за неполных данных."
+        ),
+    ),
+    FeedbackTemplate(
+        id="risk.missing_data.v2",
+        kind="risk",
+        condition="missing_data",
+        text="В резюме нет раздела «{section}»; связанные требования подтверждены неполно.",
+    ),
+    FeedbackTemplate(
+        id="question.skill_not_stated.v2",
+        kind="question",
+        condition="skill_not_stated",
+        text=("В резюме не указан навык «{label}». Опишите проект, вашу роль и период применения."),
+    ),
+    FeedbackTemplate(
+        id="question.experience_not_stated.v2",
+        kind="question",
+        condition="experience_not_stated",
+        text=(
+            "В резюме не указан опыт в категории «{label}». "
+            "Опишите релевантные проекты, свою роль и результат."
+        ),
+    ),
+    FeedbackTemplate(
+        id="question.qualification_not_stated.v2",
+        kind="question",
+        condition="qualification_not_stated",
+        text=(
+            "В резюме не указана квалификация «{label}». "
+            "Есть ли она у вас и можете ли вы подтвердить её документом?"
+        ),
+    ),
+    FeedbackTemplate(
+        id="question.education_not_stated.v2",
+        kind="question",
+        condition="education_not_stated",
+        text=(
+            "В резюме не указано образование по направлению «{label}». "
+            "Уточните профиль обучения и релевантные курсы."
+        ),
+    ),
+    FeedbackTemplate(
+        id="question.text_not_stated.v2",
+        kind="question",
+        condition="text_not_stated",
+        text=(
+            "В резюме не указано подтверждение требования «{label}». "
+            "Приведите пример задачи, где это проявлялось."
+        ),
+    ),
+    FeedbackTemplate(
+        id="question.skill_insufficient_tenure.v2",
+        kind="question",
+        condition="skill_insufficient_tenure",
+        text=(
+            "По навыку «{label}» подтверждено {found_years}, требуется {required_years}. "
+            "Какие проекты дают недостающий опыт?"
+        ),
+    ),
+    FeedbackTemplate(
+        id="question.experience_insufficient_tenure.v2",
+        kind="question",
+        condition="experience_insufficient_tenure",
+        text=(
+            "По опыту в категории «{label}» подтверждено {found_years}, "
+            "требуется {required_years}. Уточните периоды и сложность задач."
+        ),
+    ),
+    FeedbackTemplate(
+        id="question.partial.v2",
+        kind="question",
+        condition="partial",
+        text=(
+            "Требование «{label}» подтверждено частично. "
+            "Что именно вы делали самостоятельно и какой был результат?"
+        ),
+    ),
+    FeedbackTemplate(
+        id="question.absent.v2",
+        kind="question",
+        condition="absent",
+        text=(
+            "В резюме есть близкий опыт, но требование «{label}» не подтверждено. "
+            "Какие похожие инструменты вы использовали?"
+        ),
+    ),
+    FeedbackTemplate(
+        id="question.date_issue.v2",
+        kind="question",
+        condition="date_issue",
+        text=(
+            "В датах опыта есть пробел или расхождение: {detail}. "
+            "Уточните фактические периоды работы."
+        ),
+    ),
+    FeedbackTemplate(
+        id="note.opener_high.v2",
+        kind="note",
+        condition="opener_high",
+        text=(
+            "{strength_note}Высокое соответствие: {full_count} из {total_count} требований "
+            "закрыты полностью, оценка {score} (вилка {score_low}–{score_high})."
+        ),
+    ),
+    FeedbackTemplate(
+        id="note.opener_mid.v2",
+        kind="note",
+        condition="opener_mid",
+        text=(
+            "{strength_note}Соответствие частичное: {full_count} из {total_count} требований "
+            "закрыты полностью, оценка {score} (вилка {score_low}–{score_high})."
+        ),
+    ),
+    FeedbackTemplate(
+        id="note.opener_low.v2",
+        kind="note",
+        condition="opener_low",
+        text=(
+            "{strength_note}Соответствие низкое: {full_count} из {total_count} требований "
+            "закрыты полностью, оценка {score} (вилка {score_low}–{score_high})."
+        ),
+    ),
+    FeedbackTemplate(
+        id="note.next_clarify.v2",
+        kind="note",
+        condition="next_clarify",
+        text=(
+            "На скрининге уточните в первую очередь: {top_topics}. "
+            "Это поможет закрыть оставшиеся пробелы."
+        ),
+    ),
+    FeedbackTemplate(
+        id="note.next_interview.v2",
+        kind="note",
+        condition="next_interview",
+        text=(
+            "Рекомендую техническое интервью: основные требования закрыты, "
+            "детали и спорные данные можно проверить на встрече."
+        ),
+    ),
+    FeedbackTemplate(
+        id="note.next_review.v2",
+        kind="note",
+        condition="next_review",
+        text=("Рекомендую ручную проверку отчёта: финальное решение остаётся за рекрутёром."),
     ),
 )
 
@@ -445,6 +699,7 @@ class FeedbackBuilder:
                                 "found_years": _format_years(match.years_found),
                                 "required_years": _format_years(required),
                             },
+                            suffix=_risk_suffix(requirement, match),
                         )
                     )
                 continue
@@ -459,6 +714,7 @@ class FeedbackBuilder:
                             "label": _short_label(match.label),
                             "status_phrase": _status_phrase(match),
                         },
+                        suffix=_risk_suffix(requirement, match),
                     )
                 )
             elif match.criticality == common_pb2.FEATURE_CRITICALITY_REQUIRED:
@@ -472,6 +728,7 @@ class FeedbackBuilder:
                             "label": _short_label(match.label),
                             "status_note": _status_note(match),
                         },
+                        suffix=_risk_suffix(requirement, match),
                     )
                 )
         facts.extend(_date_risk_facts(resume, reference_date))
@@ -510,6 +767,7 @@ class FeedbackBuilder:
                     condition=condition,
                     priority=_question_priority(match),
                     slots=slots,
+                    prefix=_question_prefix(requirement, match),
                 )
             )
         facts.extend(_date_question_facts(resume, reference_date))
@@ -536,12 +794,14 @@ class FeedbackBuilder:
         full_count = sum(
             1 for match in matches.values() if match.status == common_pb2.CORRESPONDENCE_FULL
         )
+        strong_topics = _strong_topics(matches, vacancy)
         slots = {
             "full_count": str(full_count),
             "total_count": str(len(matches)),
             "score": _percent(general.score),
             "score_low": _percent(general.score_low),
             "score_high": _percent(general.score_high),
+            "strength_note": f"Сильные стороны: {strong_topics}. " if strong_topics else "",
         }
         if general.score >= 0.75:
             opener_condition = "opener_high"
@@ -607,10 +867,10 @@ class FeedbackBuilder:
         for offset in range(len(candidates)):
             template = candidates[(start + offset) % len(candidates)]
             try:
-                text = template.text.format_map(_StrictSlots(fact.slots))
+                rendered = template.text.format_map(_StrictSlots(fact.slots))
             except KeyError, ValueError:
                 continue
-            text = text.strip()
+            text = _join_text(fact.prefix, rendered, fact.suffix)
             if not text or "{" in text or "}" in text:
                 continue
             if len(text) > MAX_TEXT_CHARS:
@@ -826,6 +1086,7 @@ def _overclaim_risk_facts(
                     "found_years": _format_years(float(skill.tenure)),
                     "total_years": _format_years(total_years),
                 },
+                suffix="Сверьте заявленный стаж с периодами работы.",
             )
         )
     return facts
@@ -849,6 +1110,7 @@ def _wide_interval_risk_facts(
             condition="wide_interval",
             priority=30,
             slots={"not_stated_count": str(not_stated), "total_count": str(total)},
+            suffix="Запросите недостающие сведения перед решением.",
         )
     ]
 
@@ -873,6 +1135,7 @@ def _missing_data_risk_facts(
             condition="missing_data",
             priority=40,
             slots={"section": title},
+            suffix="Запросите соответствующий раздел резюме.",
         )
         for code, title in sections
     ]
@@ -891,6 +1154,87 @@ def _topic(match: RequirementScore, vacancy: messages_pb2.Vacancy) -> str:
     if kind == "education":
         return f"образование по направлению «{label}»"
     return f"требование «{label}»"
+
+
+def _strong_topics(
+    matches: Mapping[str, RequirementScore],
+    vacancy: messages_pb2.Vacancy,
+    limit: int = 3,
+) -> str:
+    full = sorted(
+        (match for match in matches.values() if match.status == common_pb2.CORRESPONDENCE_FULL),
+        key=lambda match: (-_match_priority(match), match.requirement_id),
+    )
+    return ", ".join(_topic(match, vacancy) for match in full[:limit])
+
+
+def _requirement_context(requirement: features_pb2.FeatureRequirement | None) -> str:
+    if requirement is None:
+        return ""
+    kind = requirement.WhichOneof("feature")
+    if kind == "skill":
+        text = requirement.skill.description
+    elif kind == "text_requirement":
+        text = requirement.text_requirement.text
+    else:
+        return ""
+    return _clip_words(_WHITESPACE.sub(" ", text).strip(), MAX_CONTEXT_CHARS)
+
+
+def _context_suffix(requirement: features_pb2.FeatureRequirement | None) -> str:
+    context = _requirement_context(requirement)
+    if not context:
+        return ""
+    return f"В вакансии это описано так: «{context}»."
+
+
+def _question_prefix(
+    requirement: features_pb2.FeatureRequirement | None,
+    match: RequirementScore,
+) -> str:
+    if match.status in (
+        common_pb2.CORRESPONDENCE_PARTIAL,
+        common_pb2.CORRESPONDENCE_ABSENT,
+    ):
+        quote = _quote(match)
+        if quote:
+            return f"В резюме есть подтверждение: «{quote}»."
+    context = _requirement_context(requirement)
+    if context:
+        return f"Требование в вакансии: «{context}»."
+    return ""
+
+
+def _risk_suffix(
+    requirement: features_pb2.FeatureRequirement | None,
+    match: RequirementScore,
+) -> str:
+    parts: list[str] = []
+    context = _context_suffix(requirement)
+    if context:
+        parts.append(context)
+    if match.gap_reason == common_pb2.GAP_REASON_INSUFFICIENT_TENURE:
+        parts.append("Уточните периоды и глубину опыта.")
+    elif match.status != common_pb2.CORRESPONDENCE_FULL and match.criticality in (
+        common_pb2.FEATURE_CRITICALITY_CRITICAL,
+        common_pb2.FEATURE_CRITICALITY_REQUIRED,
+    ):
+        parts.append("Уточните проект, период и роль кандидата.")
+    return " ".join(parts)
+
+
+def _clip_words(text: str, limit: int) -> str:
+    if len(text) <= limit:
+        return text
+    cut = text[:limit]
+    boundary = cut.rfind(" ")
+    if boundary >= limit // 2:
+        cut = cut[:boundary]
+    return cut.rstrip(" ,;:.-")
+
+
+def _join_text(*parts: str) -> str:
+    return " ".join(part.strip() for part in parts if part and part.strip())
 
 
 def _quote(match: RequirementScore) -> str | None:

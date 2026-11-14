@@ -165,7 +165,7 @@ vacancy:
     max-attempts: 3
     delay: 5s
     multiplier: 2
-    prompt-version: vacancy-template.v4
+    prompt-version: vacancy-template.v5
     max-requirements: 50
     # Запасной провайдер Cloudflare Workers AI. Включается явно: это ещё одна
     # точка отправки текста вакансии наружу. Используется только после отказа OpenRouter.

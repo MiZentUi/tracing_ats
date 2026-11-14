@@ -4,6 +4,9 @@ from typing import Literal, Self
 from pydantic import Field, SecretStr, model_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
+DEFAULT_TENURE_WEIGHT = 0.1
+DEFAULT_SKILL_FULL_COVERAGE = 0.70
+
 
 class Settings(BaseSettings):
     """Runtime configuration. All values come from the environment."""
@@ -19,6 +22,13 @@ class Settings(BaseSettings):
     grpc_port: int = 8082
     log_level: str = "INFO"
     max_workers: int = 10
+
+    # Доля общего стажа в Score. При vacancy.tenure = 0 слагаемое отключено.
+    tenure_weight: float = Field(default=DEFAULT_TENURE_WEIGHT, ge=0.0, le=1.0)
+
+    # Минимальный coverage навыка для статуса FULL. Вынесено в конфигурацию,
+    # потому что статус влияет на отчёт и решения HR, не только на Score.
+    skill_full_coverage: float = Field(default=DEFAULT_SKILL_FULL_COVERAGE, ge=0.0, le=1.0)
 
     # LLM. `mock` — детерминированная заглушка без сети, `openai` — любой
     # OpenAI-совместимый `/chat/completions` (OpenRouter, локальная модель).

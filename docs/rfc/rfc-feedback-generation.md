@@ -242,15 +242,33 @@ Gap { requirement_id, reason }
 Сортировка фактов: `(-priority, fact_id)`. Это гарантирует, что при одинаковом
 приоритете порядок не зависит от порядка словаря или protobuf-map.
 
-## 6. Каталог шаблонов v2
+## 6. Каталог шаблонов v4
 
-Версия каталога: `FEEDBACK_TEMPLATE_VERSION = "feedback-templates.v2"`.
+Версия каталога: `FEEDBACK_TEMPLATE_VERSION = "feedback-templates.v4"`.
 
-Состав: **32 шаблона** — 6 сильных сторон, 8 рисков, 10 вопросов, 6 элементов
-рекомендации и 2 fallback.
+Состав: **60 шаблонов** — 12 сильных сторон, 14 рисков, 20 вопросов,
+12 элементов рекомендации и 2 fallback.
 
 Формат ID: `{kind}.{condition}` или `{kind}.{condition}.v{n}` для вариантов
-одного условия. В v1 два варианта есть только у `risk.required_gap`.
+одного условия. В v4 у каждого условия, кроме `risk.required_gap` и
+`fallback`, есть второй вариант `.v2`. Таблица ниже перечисляет базовые
+варианты; полный список текстов — в
+`scoring-service/src/api/scoring/feedback.py`.
+
+### 6.1. Что изменилось в v4
+
+- Факт получил `prefix` и `suffix`: контекст требования или проверенной
+  цитаты и подсказку к следующему действию. Это позволяет улучшать текст без
+  дублирования всех 60 шаблонов. Они добавляются после выбора шаблона, а лимит
+  длины проверяется по итоговому тексту.
+- Риски дополняются описанием требования из вакансии, если оно есть, и
+  действием: «Уточните проект, период и роль кандидата».
+- Вопросы по `PARTIAL`/`ABSENT` начинаются с проверенной цитаты из резюме;
+  вопросы по отсутствующему требованию используют его описание.
+- `recruiter_note` перечисляет до трёх подтверждённых тем и ключевые темы для
+  уточнения, а не только счётчик покрытия.
+- Каталог остаётся детерминированным: версия, правила выбора и лимиты не
+  меняются.
 
 | ID | Kind | Condition | Текст |
 |---|---|---|---|
@@ -302,6 +320,7 @@ Gap { requirement_id, reason }
 | `{top_topics}` | До трёх тем для уточнения: навык «Kafka», опыт в категории «backend» |
 | `{score}`, `{score_low}`, `{score_high}` | Проценты, например `47%` |
 | `{full_count}`, `{total_count}`, `{not_stated_count}` | Целые числа |
+| `{strength_note}` | «Сильные стороны: навык «Python», опыт в категории «backend». » или пустая строка |
 
 Правила форматирования:
 
@@ -351,8 +370,8 @@ Gap { requirement_id, reason }
 структурированным, `matches[requirement_id]` хранит цитату, комментарий и
 найденный стаж.
 
-Версия каталога `feedback-templates.v2` пока не входит в контракт. Она
-пишется в лог `evaluate resume match` как `feedback=feedback-templates.v2`.
+Версия каталога `feedback-templates.v4` пока не входит в контракт. Она
+пишется в лог `evaluate resume match` как `feedback=feedback-templates.v4`.
 Чтобы версия сохранялась в неизменяемом запуске скоринга, нужно добавить поле
 в `EvaluateResumeMatchResponse` и в `score_run`; это отдельное изменение
 контракта.
@@ -372,14 +391,14 @@ Gap { requirement_id, reason }
 Пример события:
 
 ```text
-evaluate resume match requirements=5 matches=5 gaps=2 strengths=3 risks=2 questions=2 feedback=feedback-templates.v2
+evaluate resume match requirements=5 matches=5 gaps=2 strengths=3 risks=2 questions=2 feedback=feedback-templates.v4
 ```
 
 ## 11. Тесты
 
 `scoring-service/tests/test_feedback.py`:
 
-- каталог: 32 уникальных ID и состав 6/8/10/6/2;
+- каталог: 60 уникальных ID и состав 12/14/20/12/2;
 - сильные стороны: критичное требование первым, цитата и стаж в тексте;
 - `NOT_STATED`: «не указан», без «не знает», «не владеет», «нет навыка»;
 - `ABSENT`: «есть близкий опыт»;
@@ -403,7 +422,7 @@ evaluate resume match requirements=5 matches=5 gaps=2 strengths=3 risks=2 questi
 
 ## 12. Открытые вопросы
 
-1. **Версия каталога в контракте.** Сейчас `feedback-templates.v2` есть только
+1. **Версия каталога в контракте.** Сейчас `feedback-templates.v4` есть только
    в коде и логах. Для воспроизводимости сохранённых запусков нужно поле в
    `EvaluateResumeMatchResponse` и `score_run`. `ApplicationReport` и
    `ReportView.vue` уже отдают `strengths`, `risks`, `questions` и

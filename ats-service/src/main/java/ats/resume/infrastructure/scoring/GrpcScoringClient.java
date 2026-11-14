@@ -39,7 +39,7 @@ import scoring_service.v1.models.features.Skill;
 @RequiredArgsConstructor
 public class GrpcScoringClient implements ScoringClient {
 
-    private static final String SCORING_VERSION = "grpc-scoring-service-v4";
+    private static final String SCORING_VERSION = "grpc-scoring-service-v7";
     private static final String NO_EVIDENCE_GAP = "Навык не найден в обезличенном тексте";
 
     private final ScoringServiceGrpc.ScoringServiceBlockingStub stub;
