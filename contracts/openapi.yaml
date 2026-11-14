@@ -649,6 +649,58 @@ paths:
         default:
           $ref: "#/components/responses/default"
 
+  /resumes/{resumeId}/vacancies/{vacancyId}/candidate-messages:
+    get:
+      tags:
+        - Reports
+      summary: Последние черновики писем кандидату по паре резюме и вакансия
+      operationId: getResumeVacancyCandidateMessages
+      parameters:
+        - $ref: "#/components/parameters/ResumeId"
+        - $ref: "#/components/parameters/VacancyPathId"
+      responses:
+        "200":
+          description: Черновики писем
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/CandidateMessage"
+        "404":
+          description: Отчёт или запуск не найден
+        default:
+          $ref: "#/components/responses/default"
+    post:
+      tags:
+        - Reports
+      summary: Сгенерировать черновик письма кандидату по паре резюме и вакансия
+      operationId: generateResumeVacancyCandidateMessage
+      parameters:
+        - $ref: "#/components/parameters/ResumeId"
+        - $ref: "#/components/parameters/VacancyPathId"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/CandidateMessageRequest"
+      responses:
+        "200":
+          description: Черновик письма
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/CandidateMessage"
+        "404":
+          description: Отчёт или запуск не найден
+        "422":
+          description: Нет непокрытых требований для письма отказа
+        "502":
+          description: LLM недоступна или вернула невалидный ответ
+        default:
+          $ref: "#/components/responses/default"
+
   /resumes/{resumeId}/vacancies/{vacancyId}/decision:
     put:
       tags:
@@ -763,6 +815,65 @@ paths:
                 $ref: "#/components/schemas/ApplicationReport"
         "404":
           description: Не найдено
+        default:
+          $ref: "#/components/responses/default"
+
+  /applications/{applicationId}/candidate-messages:
+    get:
+      tags:
+        - Reports
+      summary: Последние черновики писем кандидату
+      description: |
+        Возвращает последние сохранённые черновики по каждому типу для выбранного
+        запуска. PII в ответ не попадает.
+      operationId: getCandidateMessages
+      parameters:
+        - $ref: "#/components/parameters/ApplicationId"
+        - $ref: "#/components/parameters/Phase"
+      responses:
+        "200":
+          description: Черновики писем
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/CandidateMessage"
+        "404":
+          description: Отчёт или запуск не найден
+        default:
+          $ref: "#/components/responses/default"
+    post:
+      tags:
+        - Reports
+      summary: Сгенерировать черновик письма кандидату
+      description: |
+        Генерирует черновик приглашения или отказа по данным выбранного запуска.
+        В LLM передаются только название вакансии и тексты требований; PII не
+        передаётся. Черновик сохраняется и не отправляется автоматически.
+      operationId: generateCandidateMessage
+      parameters:
+        - $ref: "#/components/parameters/ApplicationId"
+        - $ref: "#/components/parameters/Phase"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/CandidateMessageRequest"
+      responses:
+        "200":
+          description: Черновик письма
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/CandidateMessage"
+        "404":
+          description: Отчёт или запуск не найден
+        "422":
+          description: Нет непокрытых требований для письма отказа
+        "502":
+          description: LLM недоступна или вернула невалидный ответ
         default:
           $ref: "#/components/responses/default"
 
@@ -2409,6 +2520,67 @@ components:
           nullable: true
         reason:
           type: string
+
+    CandidateMessageKind:
+      type: string
+      enum:
+        - INTERVIEW_INVITATION
+        - REJECTION
+
+    CandidateMessageRequest:
+      type: object
+      required:
+        - kind
+      properties:
+        kind:
+          $ref: "#/components/schemas/CandidateMessageKind"
+
+    CandidateMessage:
+      type: object
+      required:
+        - id
+        - phase
+        - kind
+        - subject
+        - body
+        - promptVersion
+        - createdAt
+      properties:
+        id:
+          type: string
+          format: uuid
+        applicationId:
+          type: string
+          format: uuid
+          nullable: true
+          description: Заполнено для отчёта по отклику.
+        resumeId:
+          type: string
+          format: uuid
+          nullable: true
+        vacancyId:
+          type: string
+          format: uuid
+          nullable: true
+        phase:
+          type: string
+          enum:
+            - PRELIMINARY
+            - FINAL
+        kind:
+          $ref: "#/components/schemas/CandidateMessageKind"
+        subject:
+          type: string
+        body:
+          type: string
+        promptVersion:
+          type: string
+        model:
+          type: string
+          nullable: true
+        createdAt:
+          type: string
+          format: date-time
 
     ReportDecisionRequest:
       type: object

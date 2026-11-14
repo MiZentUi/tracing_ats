@@ -2,6 +2,9 @@ package ats.resume.api;
 
 import ats.api.ReportsApi;
 import ats.gateway.model.ApplicationReport;
+import ats.gateway.model.CandidateMessage;
+import ats.gateway.model.CandidateMessageKind;
+import ats.gateway.model.CandidateMessageRequest;
 import ats.gateway.model.ExternalEvidenceItem;
 import ats.gateway.model.ReportDecision;
 import ats.gateway.model.ReportDecisionRequest;
@@ -9,10 +12,13 @@ import ats.gateway.model.ReportGap;
 import ats.gateway.model.RequirementReportItem;
 import ats.gateway.model.RevealRequest;
 import ats.gateway.model.RevealedCandidate;
+import ats.resume.infrastructure.report.CandidateMessageService;
 import ats.resume.infrastructure.report.ReportDecisionService;
 import ats.resume.infrastructure.report.ReportService;
 import ats.resume.infrastructure.report.RevealService;
+import ats.vacancy.application.ApiException;
 import java.time.ZoneOffset;
+import java.util.List;
 import java.util.UUID;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.ResponseEntity;
@@ -27,6 +33,7 @@ public class ReportController implements ReportsApi {
     private final ReportService reportService;
     private final ReportDecisionService decisionService;
     private final RevealService revealService;
+    private final CandidateMessageService candidateMessageService;
 
     @Override
     public ResponseEntity<ApplicationReport> getApplicationReport(
@@ -57,6 +64,47 @@ public class ReportController implements ReportsApi {
                         .decision(ReportDecision.DecisionEnum.valueOf(view.decision()))
                         .comment(view.comment())
                         .updatedAt(view.updatedAt().atOffset(ZoneOffset.UTC)));
+    }
+
+    @Override
+    public ResponseEntity<List<CandidateMessage>> getCandidateMessages(
+            UUID applicationId, String phase) {
+        return ResponseEntity.ok(
+                candidateMessageService.latest(applicationId, phase).stream()
+                        .map(this::candidateMessage)
+                        .toList());
+    }
+
+    @Override
+    public ResponseEntity<CandidateMessage> generateCandidateMessage(
+            UUID applicationId, CandidateMessageRequest candidateMessageRequest, String phase) {
+        CandidateMessageKind kind = candidateMessageRequest.getKind();
+        if (kind == null) {
+            throw ApiException.unprocessable("KIND_REQUIRED", "Candidate message kind is required");
+        }
+        return ResponseEntity.ok(
+                candidateMessage(candidateMessageService.generate(applicationId, phase, kind)));
+    }
+
+    @Override
+    public ResponseEntity<List<CandidateMessage>> getResumeVacancyCandidateMessages(
+            UUID resumeId, UUID vacancyId) {
+        return ResponseEntity.ok(
+                candidateMessageService.latestForMatch(resumeId, vacancyId).stream()
+                        .map(this::candidateMessage)
+                        .toList());
+    }
+
+    @Override
+    public ResponseEntity<CandidateMessage> generateResumeVacancyCandidateMessage(
+            UUID resumeId, UUID vacancyId, CandidateMessageRequest candidateMessageRequest) {
+        CandidateMessageKind kind = candidateMessageRequest.getKind();
+        if (kind == null) {
+            throw ApiException.unprocessable("KIND_REQUIRED", "Candidate message kind is required");
+        }
+        return ResponseEntity.ok(
+                candidateMessage(
+                        candidateMessageService.generateForMatch(resumeId, vacancyId, kind)));
     }
 
     @Override
@@ -107,6 +155,21 @@ public class ReportController implements ReportsApi {
                 .questions(report.questions())
                 .recruiterNote(report.recruiterNote())
                 .gaps(report.gaps().stream().map(this::gap).toList());
+    }
+
+    private CandidateMessage candidateMessage(CandidateMessageService.View view) {
+        return new CandidateMessage()
+                .id(view.id())
+                .applicationId(view.applicationId())
+                .resumeId(view.resumeId())
+                .vacancyId(view.vacancyId())
+                .phase(CandidateMessage.PhaseEnum.valueOf(view.phase()))
+                .kind(CandidateMessageKind.valueOf(view.kind()))
+                .subject(view.subject())
+                .body(view.body())
+                .promptVersion(view.promptVersion())
+                .model(view.model())
+                .createdAt(view.createdAt().atOffset(ZoneOffset.UTC));
     }
 
     private ReportGap gap(ReportService.ReportGap item) {

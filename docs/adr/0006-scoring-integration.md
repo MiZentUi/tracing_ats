@@ -40,3 +40,13 @@
   будет считать внешние факты отдельным вызовом.
 - `score_run` остаётся неизменяемым: пересчёт и FINAL создают новые строки.
 - `scoring-service` остаётся stateless и не получает PII, БД, файлы или GitHub.
+
+---
+
+## Postscript (2026-11-14)
+
+С момента ADR контракт расширен до четырёх RPC: `ScoreResume`,
+`EvaluateResumeMatch`, `EvaluateResumeMatches`, `ExtractResume`. Java использует
+`ExtractResume` для однократного разбора и `EvaluateResumeMatch`/
+`EvaluateResumeMatches` для скоринга без повторного LLM. `Refine` по-прежнему
+нет, поэтому `FINAL` остаётся копией `PRELIMINARY`.

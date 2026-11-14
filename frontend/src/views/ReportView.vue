@@ -3,6 +3,7 @@ import { computed, onMounted, ref } from 'vue'
 import { useRoute } from 'vue-router'
 import axios from 'axios'
 import { ArrowLeft, LockKeyholeOpen } from '@lucide/vue'
+import { CandidateMessageKind } from '@/api/generated'
 import type {
   ApplicationReport,
   ReportDecisionRequestDecisionEnum,
@@ -10,6 +11,7 @@ import type {
 } from '@/api/generated'
 import { apiErrorMessage, reportsApi, resumesApi, vacanciesApi } from '@/api'
 import AppModal from '@/components/AppModal.vue'
+import CandidateMessagesPanel from '@/components/CandidateMessagesPanel.vue'
 import RevealPiiDialog from '@/components/RevealPiiDialog.vue'
 import TextComparison from '@/components/TextComparison.vue'
 import { useToast } from '@/composables/useToast'
@@ -59,6 +61,23 @@ const analysisLink = computed(() => {
 
 const analysisLabel = computed(() => (report.value?.applicationId ? 'К вакансии' : 'К резюме'))
 const comparisonResumeText = computed(() => revealedResumeText.value || resumeText.value)
+const decisionApplicationId = computed(() => report.value?.applicationId ?? '')
+const decisionResumeId = computed(() => report.value?.resumeId ?? '')
+const decisionVacancyId = computed(() => report.value?.vacancyId ?? '')
+const decisionHasMessageTarget = computed(
+  () =>
+    Boolean(decisionApplicationId.value) ||
+    Boolean(decisionResumeId.value && decisionVacancyId.value),
+)
+const decisionPhase = computed<'PRELIMINARY' | 'FINAL'>(() =>
+  report.value?.phase === 'PRELIMINARY' ? 'PRELIMINARY' : 'FINAL',
+)
+const decisionHasGaps = computed(() => Boolean(report.value?.gaps?.length))
+const decisionMessageKind = computed<CandidateMessageKind>(() =>
+  decisionValue.value === 'NOT_SHORTLISTED'
+    ? CandidateMessageKind.Rejection
+    : CandidateMessageKind.InterviewInvitation,
+)
 
 const decisionOptions: Array<{ value: ReportDecisionRequestDecisionEnum; label: string }> = [
   { value: 'SHORTLISTED', label: 'Собеседование' },
@@ -318,31 +337,10 @@ onMounted(load)
       </div>
 
       <section
-        v-if="
-          report.recruiterNote ||
-          report.strengths?.length ||
-          report.questions?.length ||
-          report.risks?.length ||
-          report.gaps?.length
-        "
+        v-if="report.questions?.length || report.risks?.length"
         class="space-y-4"
       >
-        <div v-if="report.recruiterNote" class="card p-5">
-          <p class="text-xs uppercase tracking-wide text-slate-500">Обратная связь по вакансии</p>
-          <p class="mt-2 text-sm leading-6 text-slate-700">{{ report.recruiterNote }}</p>
-        </div>
-
         <div class="grid gap-4 md:grid-cols-2">
-          <div v-if="report.strengths?.length" class="card p-5">
-            <p class="text-xs uppercase tracking-wide text-slate-500">Подтверждения из резюме</p>
-            <ul class="mt-3 space-y-2 text-sm text-slate-700">
-              <li v-for="item in report.strengths" :key="item" class="flex gap-2">
-                <span class="mt-2 h-1.5 w-1.5 shrink-0 rounded-full bg-emerald-500" />
-                <span>{{ item }}</span>
-              </li>
-            </ul>
-          </div>
-
           <div v-if="report.questions?.length" class="card p-5">
             <p class="text-xs uppercase tracking-wide text-slate-500">Рекомендации и вопросы</p>
             <ul class="mt-3 space-y-2 text-sm text-slate-700">
@@ -363,18 +361,6 @@ onMounted(load)
             </ul>
           </div>
 
-          <div v-if="report.gaps?.length" class="card p-5">
-            <p class="text-xs uppercase tracking-wide text-slate-500">Пробелы</p>
-            <ul class="mt-3 space-y-2 text-sm text-slate-700">
-              <li v-for="item in report.gaps" :key="item.requirementId" class="flex gap-2">
-                <span class="mt-2 h-1.5 w-1.5 shrink-0 rounded-full bg-rose-500" />
-                <span>
-                  {{ item.text ?? item.requirementId }}
-                  <span v-if="item.reason" class="text-slate-400">— {{ item.reason }}</span>
-                </span>
-              </li>
-            </ul>
-          </div>
         </div>
       </section>
 
@@ -476,6 +462,7 @@ onMounted(load)
       :open="decisionOpen"
       title="Решение по отчёту"
       description="Выберите решение и добавьте комментарий."
+      width="lg"
       @close="decisionOpen = false"
     >
       <div class="space-y-4">
@@ -492,11 +479,23 @@ onMounted(load)
           <textarea
             id="report-comment"
             v-model="decisionComment"
-            class="textarea min-h-28"
+            class="textarea min-h-0"
+            rows="2"
             maxlength="2000"
             placeholder="Почему выбрано это решение"
           />
         </div>
+
+        <CandidateMessagesPanel
+          v-if="decisionOpen && decisionHasMessageTarget"
+          :application-id="decisionApplicationId"
+          :resume-id="decisionResumeId"
+          :vacancy-id="decisionVacancyId"
+          :phase="decisionPhase"
+          :kind="decisionMessageKind"
+          :has-gaps="decisionHasGaps"
+        />
+
         <p v-if="decisionError" class="rounded-lg bg-rose-50 px-3 py-2 text-sm text-rose-700">
           {{ decisionError }}
         </p>

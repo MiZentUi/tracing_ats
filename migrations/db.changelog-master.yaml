@@ -70,3 +70,9 @@ databaseChangeLog:
   - include:
       file: changes/023-hh-integration.sql
       relativeToChangelogFile: true
+  - include:
+      file: changes/025-candidate-message.sql
+      relativeToChangelogFile: true
+  - include:
+      file: changes/026-candidate-message-match.sql
+      relativeToChangelogFile: true
