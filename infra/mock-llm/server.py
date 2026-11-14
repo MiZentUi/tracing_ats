@@ -142,6 +142,48 @@ def extract_tag(text: str, tag: str) -> str:
     return match.group(1).strip() if match else ""
 
 
+def candidate_message_payload(raw: str) -> dict[str, Any]:
+    try:
+        data = json.loads(raw)
+    except json.JSONDecodeError:
+        data = {}
+    title = data.get("vacancy_title") or "выбранную вакансию"
+    kind = data.get("kind") or "INTERVIEW_INVITATION"
+    if kind == "REJECTION":
+        requirements = [
+            str(item.get("text")).strip()
+            for item in data.get("uncovered_requirements") or []
+            if isinstance(item, dict) and item.get("text")
+        ][:2]
+        topics = "; ".join(requirements) if requirements else "заявленные требования"
+        return {
+            "subject": f"Отклик на вакансию: {title}",
+            "body": (
+                f"Здравствуйте!\n\nСпасибо за интерес к вакансии «{title}». "
+                "К сожалению, на этом этапе мы не сможем продолжить: "
+                f"не удалось подтвердить опыт по требованиям: {topics}. "
+                "Мы понимаем, что резюме не всегда отражает весь опыт, и благодарим "
+                "за уделённое время.\n\nС уважением, команда подбора"
+            ),
+        }
+    requirements = [
+        str(item).strip()
+        for item in data.get("confirmed_requirements") or []
+        if str(item).strip()
+    ][:2]
+    topics = "; ".join(requirements) if requirements else "релевантные задачи"
+    return {
+        "subject": f"Приглашение на собеседование: {title}",
+        "body": (
+            f"Здравствуйте!\n\nСпасибо за отклик на вакансию «{title}». "
+            f"Ваш опыт по темам {topics} соответствует требованиям. "
+            "Приглашаем на собеседование, чтобы обсудить детали. Подтвердите, "
+            "пожалуйста, удобные [дата] и [время], а также формат встречи: [формат]. "
+            "Контакт для связи: [контакт].\n\nС уважением, команда подбора"
+        ),
+    }
+
+
 def skill_generation_payload(specialization: str) -> dict[str, Any]:
     if "электр" in specialization.lower():
         skills = [
@@ -257,6 +299,12 @@ class Handler(BaseHTTPRequestHandler):
             return
         if scenario == "invalid-json" and attempt == 1:
             self.json_response(200, completion('{"schema_version": 2, "requirements": ['))
+            return
+
+        candidate_message_data = extract_tag(text, "candidate_message_data")
+        if candidate_message_data:
+            payload = candidate_message_payload(candidate_message_data)
+            self.json_response(200, completion("\n\n" + json.dumps(payload, ensure_ascii=False)))
             return
 
         specialization = extract_tag(text, "specialization")

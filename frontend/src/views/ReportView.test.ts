@@ -12,6 +12,8 @@ vi.mock('@/api', () => ({
     getResumeVacancyReport: vi.fn(),
     saveReportDecision: vi.fn(),
     revealCandidate: vi.fn(),
+    getCandidateMessages: vi.fn(() => Promise.resolve({ data: [] })),
+    generateCandidateMessage: vi.fn(),
   },
   resumesApi: {
     getResumeText: vi.fn(() => Promise.resolve({ data: { resumeId: 'resume-1', maskedText: 'Текст', warnings: [], blind: true } })),

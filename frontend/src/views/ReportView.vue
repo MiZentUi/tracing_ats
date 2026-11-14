@@ -2,6 +2,7 @@
 import { computed, onMounted, ref } from 'vue'
 import { useRoute } from 'vue-router'
 import { ArrowLeft, LockKeyholeOpen } from '@lucide/vue'
+import { CandidateMessageKind } from '@/api/generated'
 import type {
   ApplicationReport,
   ReportDecisionRequestDecisionEnum,
@@ -9,6 +10,7 @@ import type {
 } from '@/api/generated'
 import { apiErrorMessage, reportsApi, resumesApi, vacanciesApi } from '@/api'
 import AppModal from '@/components/AppModal.vue'
+import CandidateMessagesPanel from '@/components/CandidateMessagesPanel.vue'
 import RevealPiiDialog from '@/components/RevealPiiDialog.vue'
 import TextComparison from '@/components/TextComparison.vue'
 import { useToast } from '@/composables/useToast'
@@ -58,6 +60,11 @@ const analysisLink = computed(() => {
 
 const analysisLabel = computed(() => (report.value?.applicationId ? 'К вакансии' : 'К резюме'))
 const comparisonResumeText = computed(() => revealedResumeText.value || resumeText.value)
+const preferredMessageKind = computed<CandidateMessageKind>(() =>
+  report.value?.hrDecision === 'NOT_SHORTLISTED'
+    ? CandidateMessageKind.Rejection
+    : CandidateMessageKind.InterviewInvitation,
+)
 
 const decisionOptions: Array<{ value: ReportDecisionRequestDecisionEnum; label: string }> = [
   { value: 'SHORTLISTED', label: 'Собеседование' },
@@ -311,6 +318,14 @@ onMounted(load)
           </button>
         </div>
       </div>
+
+      <CandidateMessagesPanel
+        v-if="report.applicationId"
+        :application-id="report.applicationId"
+        :phase="report.phase"
+        :has-gaps="Boolean(report.gaps?.length)"
+        :preferred-kind="preferredMessageKind"
+      />
 
       <section
         v-if="
