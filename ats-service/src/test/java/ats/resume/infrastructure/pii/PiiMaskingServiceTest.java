@@ -89,6 +89,45 @@ class PiiMaskingServiceTest {
     }
 
     @Test
+    void masksWholeWordWhenNerReturnsOnlyPartOfName() {
+        String text = "Иванов Иван\nJava, Spring Boot";
+        NerModel ner =
+                new NerModel() {
+                    @Override
+                    public List<NerEntity> detect(String value) {
+                        int start = value.indexOf("ван");
+                        return List.of(
+                                new NerEntity(
+                                        NerEntity.PERSON, start, start + "ван".length(), 0.99));
+                    }
+
+                    @Override
+                    public String modelName() {
+                        return "test-ner";
+                    }
+
+                    @Override
+                    public String modelHash() {
+                        return "test";
+                    }
+                };
+
+        PiiMaskingService service =
+                new PiiMaskingService(
+                        List.of(
+                                new RegexPiiDetector(),
+                                new NerPiiDetector(ner, new ats.resume.config.PiiProperties())),
+                        new PiiSpanResolver(),
+                        new EducationExtractor(),
+                        new GitHubUrlExtractor());
+
+        MaskingResult result = service.mask(text, "resume.txt", null);
+
+        assertThat(result.maskedText()).doesNotContain("Иванов");
+        assertThat(result.maskedText()).contains("[PII_NAME_1] Иван");
+    }
+
+    @Test
     void keepsEducationBlockWithoutNer() {
         String text =
                 """

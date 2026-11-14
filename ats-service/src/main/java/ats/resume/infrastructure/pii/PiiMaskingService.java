@@ -32,7 +32,7 @@ public class PiiMaskingService {
         String githubUrl = knownGithubUrl != null ? knownGithubUrl : githubUrlExtractor.find(text);
         addGitHubSpan(spans, text, githubUrl);
 
-        List<PiiSpan> resolved = spanResolver.resolve(spans);
+        List<PiiSpan> resolved = spanResolver.resolve(text, spans);
         Map<PiiType, Integer> counters = new EnumMap<>(PiiType.class);
         List<PiiPayload.PiiEntry> entries = new ArrayList<>();
         StringBuilder masked = new StringBuilder(text.length());

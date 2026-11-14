@@ -9,9 +9,18 @@ import java.util.Map;
 import org.springframework.stereotype.Component;
 
 /**
- * Разрешает пересечения детекторов. Пересекающиеся спаны объединяются в один: лучше замаскировать
- * лишнее, чем пропустить PII. Тип выбирается по приоритету, чтобы ссылка на GitHub не стала
+ * Разрешает пересечения детекторов. Пересекающиеся спаны объединяются в один:
+ * лучше замаскировать
+ * лишнее, чем пропустить PII. Тип выбирается по приоритету, чтобы ссылка на
+ * GitHub не стала
  * безликим URL.
+ *
+ * <p>
+ * Перед объединением каждый спан расширяется до границы слова. Модель иногда
+ * возвращает только
+ * часть имени («ВАН» внутри «Иванов»); без расширения остаток слова попадал бы
+ * в обезличенный
+ * текст.
  */
 @Component
 public class PiiSpanResolver {
@@ -37,11 +46,14 @@ public class PiiSpanResolver {
                     Map.entry(PiiType.MARITAL_STATUS, 40),
                     Map.entry(PiiType.PHOTO, 30));
 
-    public List<PiiSpan> resolve(List<PiiSpan> spans) {
+    public List<PiiSpan> resolve(String text, List<PiiSpan> spans) {
         if (spans.isEmpty()) {
             return List.of();
         }
-        List<PiiSpan> sorted = new ArrayList<>(spans);
+        List<PiiSpan> sorted = new ArrayList<>(spans.size());
+        for (PiiSpan span : spans) {
+            sorted.add(expandToWordBoundary(text, span));
+        }
         sorted.sort(
                 Comparator.comparingInt(PiiSpan::start)
                         .thenComparing(Comparator.comparingInt(PiiSpan::length).reversed()));
@@ -72,6 +84,39 @@ public class PiiSpanResolver {
         }
         result.add(current);
         return result;
+    }
+
+    private PiiSpan expandToWordBoundary(String text, PiiSpan span) {
+        if (text == null
+                || span.start() < 0
+                || span.end() > text.length()
+                || span.start() >= span.end()) {
+            return span;
+        }
+        int start = span.start();
+        int end = span.end();
+        while (start > 0) {
+            int codePoint = text.codePointBefore(start);
+            if (!isWordChar(codePoint)) {
+                break;
+            }
+            start -= Character.charCount(codePoint);
+        }
+        while (end < text.length()) {
+            int codePoint = text.codePointAt(end);
+            if (!isWordChar(codePoint)) {
+                break;
+            }
+            end += Character.charCount(codePoint);
+        }
+        if (start == span.start() && end == span.end()) {
+            return span;
+        }
+        return new PiiSpan(start, end, span.type(), span.confidence(), span.source());
+    }
+
+    private static boolean isWordChar(int codePoint) {
+        return Character.isLetterOrDigit(codePoint) || codePoint == '_' || codePoint == '-';
     }
 
     private int priority(PiiType type) {
