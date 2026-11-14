@@ -40,7 +40,6 @@ flowchart LR
 | OpenRouter или другой OpenAI-совместимый API | Извлечение требований вакансии, разбор резюме, черновики писем | Основной сценарий |
 | Cloudflare Workers AI | Резервный поставщик моделей | Опционально |
 | Telegram Bot API | Уведомления о новых откликах | Опционально |
-| GitHub API | Подтверждение навыков по открытым профилям | Опционально, только для отобранных кандидатов |
 
 ---
 
@@ -55,8 +54,8 @@ flowchart LR
 |---|---|
 | Docker Engine / Compose | 24+ / v2 |
 | RAM / свободный диск | 8 ГБ / 10 ГБ |
-| Свободные порты | `3000`, `5432`, `8080`, `8082`, `8084`, `9000`, `9001`, `9090` |
-| Локальная разработка | Java 21, Gradle 9.8.2, Node 24, Python 3.14 + `uv`, Python 3.12 |
+| Свободные порты | `3000`, `5432`, `8080`, `8082`, `8084`, `9000`, `9001`, `9090`, `8090` |
+| Локальная разработка | Java 21, Gradle 9.8.2, Node 24, Python 3.14 + `uv` |
 
 ### Запуск
 
@@ -99,24 +98,7 @@ SCORING_SERVICE_LLM_API_KEY=yyy
 | `scoring-service` gRPC | `localhost:8082` |
 | `dictionary-service` gRPC | `localhost:8084` |
 | PostgreSQL / MinIO | `localhost:5432` / <http://localhost:9000> |
-
-### Ключевые переменные окружения
-
-| Переменная | Назначение |
-|---|---|
-| `OPENROUTER_API_KEY` | Общий ключ OpenRouter; используется, если отдельный ключ сервиса не задан |
-| `VACANCY_LLM_BASE_URL`, `VACANCY_LLM_MODEL`, `VACANCY_LLM_API_KEY` | LLM `ats-service`: требования вакансии, словарь, письма |
-| `SCORING_SERVICE_LLM_PROVIDER`, `SCORING_SERVICE_LLM_BASE_URL`, `SCORING_SERVICE_LLM_MODEL`, `SCORING_SERVICE_LLM_API_KEY` | LLM `scoring-service`: разбор резюме; для реальной модели задайте `openai` и endpoint |
-| `CLOUDFLARE_AI_ENABLED`, `CLOUDFLARE_AI_BASE_URL`, `CLOUDFLARE_AI_API_TOKEN`, `CLOUDFLARE_AI_MODEL` | Запасной OpenAI-совместимый провайдер |
-| `ATS_PII_ENCRYPTION_KEY` | Base64 32-байтного AES-256-GCM ключа; для production сгенерируйте свой |
-| `ATS_PII_NER_PROVIDER`, `ATS_PII_NER_MODEL_PATH` | Маскировка имён: `fake` или `onnx` с путём к модели |
-| `ATS_HH_ENABLED`, `ATS_HH_TOKEN`, `ATS_HH_EMPLOYER_ID`, `ATS_HH_WEBHOOK_TOKEN`, `ATS_HH_WEBHOOK_PUBLIC_URL` | Интеграция с hh.ru |
-| `ATS_TELEGRAM_ENABLED`, `ATS_TELEGRAM_BOT_TOKEN`, `ATS_TELEGRAM_CHAT_ID` | Алерты в Telegram без PII |
-| `ATS_GITHUB_ENABLED`, `ATS_GITHUB_TOKEN` | Обогащение профиля GitHub для отобранных кандидатов |
-| `POSTGRES_DB`, `POSTGRES_USER`, `POSTGRES_PASSWORD` | Доступ к PostgreSQL |
-| `ATS_S3_ACCESS_KEY`, `ATS_S3_SECRET_KEY`, `ATS_S3_BUCKET` | Доступ к MinIO/S3 и бакет оригиналов |
-
-Порты, таймауты, лимиты и остальные настройки — в [`.env.example`](.env.example).
+| Заглушка hh.ru | <http://localhost:8090> |
 
 ### Моковый hh в dev-режиме
 
