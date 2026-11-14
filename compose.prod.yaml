@@ -2,7 +2,7 @@
 # Запускать вместе с compose.yaml:
 #   docker compose -f compose.yaml -f compose.prod.yaml up -d --no-build ...
 # Образы собираются в CI и публикуются в GHCR.
-# Внутренние сервисы не публикуют порты на хост: снаружи доступен только frontend.
+# Внутренние сервисы не публикуют порты на хост; исключение — mock-hh для демо.
 services:
   migrations:
     image: ${IMAGE_PREFIX}/migrations:${IMAGE_TAG}
@@ -28,6 +28,11 @@ services:
   frontend:
     image: ${IMAGE_PREFIX}/frontend:${IMAGE_TAG}
 
-  # Заглушки не нужны в production и не должны стартовать случайно.
+  # hh.ru mock для демо: запускается deploy-процессом с профилем mock-hh.
+  # Порт 8090 остаётся опубликованным, чтобы открывать mock-UI из браузера.
+  mock-hh:
+    image: ${IMAGE_PREFIX}/mock-hh:${IMAGE_TAG}
+
+  # LLM-заглушка не нужна в production и не должна стартовать случайно.
   mock-llm:
     profiles: ["mock-llm"]
