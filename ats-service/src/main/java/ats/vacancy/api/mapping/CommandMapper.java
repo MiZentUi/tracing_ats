@@ -31,6 +31,7 @@ public class CommandMapper {
                 request.getSpecialization(),
                 request.getLevel(),
                 request.getTitle(),
+                request.getExperienceYears(),
                 request.getSourceText(),
                 request.getConfirm() == null || request.getConfirm(),
                 requirements);

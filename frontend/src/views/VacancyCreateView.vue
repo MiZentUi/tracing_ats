@@ -32,6 +32,7 @@ const loadingTemplate = ref(false)
 const specialization = ref('')
 const level = ref('')
 const title = ref('')
+const experienceYears = ref<number | null>(null)
 const mode = ref<'text' | 'file'>('text')
 const text = ref('')
 const file = ref<File | null>(null)
@@ -108,6 +109,7 @@ async function applyTemplate() {
     templateVacancy.value = template
     templateSource.value = template.source_text ?? ''
     title.value = template.title ?? ''
+    experienceYears.value = template.experience_years ?? null
     specialization.value = template.specialization
     mode.value = 'text'
     file.value = null
@@ -121,6 +123,11 @@ async function applyTemplate() {
   } finally {
     loadingTemplate.value = false
   }
+}
+
+function updateExperienceYears(event: Event) {
+  const value = (event.target as HTMLInputElement).value
+  experienceYears.value = value === '' ? null : Number(value)
 }
 
 function onFile(event: Event) {
@@ -191,6 +198,7 @@ async function submit() {
       specialization: specialization.value,
       level: needsLevel.value ? level.value : undefined,
       title: title.value.trim() || undefined,
+      experienceYears: experienceYears.value ?? undefined,
       text: mode.value === 'text' ? text.value : undefined,
       file: mode.value === 'file' ? file.value : undefined,
     })
@@ -211,6 +219,7 @@ async function submit() {
             specialization: created.specialization,
             level: needsLevel.value ? created.level : undefined,
             title: created.title ?? null,
+            experience_years: templateVacancy.value.experience_years ?? null,
             confirm: false,
             requirements: templateVacancy.value.template.requirements.map((item) => ({
               id: null,
@@ -368,6 +377,25 @@ async function submit() {
                 </p>
               </div>
             </div>
+
+            <div>
+              <label class="label" for="experience-years">
+                Требуемый стаж, лет
+                <span class="font-normal text-slate-400">(необязательно)</span>
+              </label>
+              <input
+                id="experience-years"
+                :value="experienceYears ?? ''"
+                class="input"
+                type="number"
+                min="0"
+                max="50"
+                step="1"
+                placeholder="Например, 3"
+                @input="updateExperienceYears"
+              />
+              <p class="hint">Общий стаж вакансии. На скоринг пока не влияет.</p>
+            </div>
           </div>
         </div>
 
@@ -468,6 +496,12 @@ async function submit() {
             <dt class="text-slate-500">Уровень</dt>
             <dd class="text-right font-medium text-slate-900">
               {{ needsLevel ? levels.find((item) => item.code === level)?.name ?? '—' : 'Без уровня' }}
+            </dd>
+          </div>
+          <div class="flex items-start justify-between gap-3">
+            <dt class="text-slate-500">Стаж</dt>
+            <dd class="text-right font-medium text-slate-900">
+              {{ experienceYears === null ? 'Не указан' : `${experienceYears} лет` }}
             </dd>
           </div>
           <div class="flex items-start justify-between gap-3">

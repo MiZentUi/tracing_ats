@@ -8,6 +8,7 @@ public record VacancyView(
         String specialization,
         String level,
         String title,
+        Integer experienceYears,
         String status,
         String sourceText,
         int version,

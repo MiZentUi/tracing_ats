@@ -294,6 +294,50 @@ class VacancyApiIntegrationTest {
     }
 
     @Test
+    void savesAndClearsVacancyExperience() throws Exception {
+        MvcResult result =
+                mockMvc.perform(
+                                multipart("/api/v1/vacancies")
+                                        .param("specialization", "backend")
+                                        .param("level", "middle")
+                                        .param("experience_years", "4")
+                                        .param("text", TEXT))
+                        .andExpect(status().isCreated())
+                        .andReturn();
+        JsonNode created = objectMapper.readTree(result.getResponse().getContentAsString());
+        assertThat(created.path("experience_years").asInt()).isEqualTo(4);
+
+        String vacancyId = created.path("vacancy_id").asText();
+        List<Map<String, Object>> requirements =
+                List.of(
+                        requirement(
+                                null, "JavaScript", "MUST", 3, "Опыт работы с JS от 3 лет", null));
+
+        Map<String, Object> updateBody =
+                Map.of("base_version", 1, "experience_years", 7, "requirements", requirements);
+        MvcResult updated =
+                mockMvc.perform(
+                                put("/api/v1/vacancies/{id}/template", vacancyId)
+                                        .contentType(MediaType.APPLICATION_JSON)
+                                        .content(objectMapper.writeValueAsString(updateBody)))
+                        .andExpect(status().isOk())
+                        .andReturn();
+        JsonNode updatedJson = objectMapper.readTree(updated.getResponse().getContentAsString());
+        assertThat(updatedJson.path("experience_years").asInt()).isEqualTo(7);
+
+        Map<String, Object> clearBody = Map.of("base_version", 2, "requirements", requirements);
+        MvcResult cleared =
+                mockMvc.perform(
+                                put("/api/v1/vacancies/{id}/template", vacancyId)
+                                        .contentType(MediaType.APPLICATION_JSON)
+                                        .content(objectMapper.writeValueAsString(clearBody)))
+                        .andExpect(status().isOk())
+                        .andReturn();
+        JsonNode clearedJson = objectMapper.readTree(cleared.getResponse().getContentAsString());
+        assertThat(clearedJson.path("experience_years").isNull()).isTrue();
+    }
+
+    @Test
     void savesOpenQualificationWithoutCreatingSkill() throws Exception {
         String text = "Допуск: III группа по электробезопасности.";
         String json =
