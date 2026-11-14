@@ -11,6 +11,7 @@ from scoring_service.v1.models.features import (
     common_pb2,
     education_pb2,
     experience_pb2,
+    qualification_pb2,
     skill_pb2,
 )
 
@@ -45,6 +46,16 @@ class ExtractionMapper:
             if skill.years is not None:
                 message.tenure = skill.years
             parsed.skills[f"skill:{position}"].CopyFrom(message)
+
+        for position, qualification in enumerate(extraction.qualifications):
+            evidence = _evidence(index, qualification.quote)
+            if evidence is None:
+                continue
+            message = qualification_pb2.QualificationPerResume(
+                label=qualification.label,
+                evidence=evidence,
+            )
+            parsed.qualifications[f"qualification:{position}"].CopyFrom(message)
 
         for position, item in enumerate(extraction.education):
             evidence = _evidence(index, item.quote)
@@ -154,6 +165,10 @@ def to_feature_assessment(match: RequirementScore) -> features_pb2.FeatureAssess
         message.tenure = round(match.years_found)
     if match.resume_kind == "skill" and isinstance(match.resume_feature, skill_pb2.SkillPerResume):
         message.skill.CopyFrom(match.resume_feature)
+    elif match.resume_kind == "qualification" and isinstance(
+        match.resume_feature, qualification_pb2.QualificationPerResume
+    ):
+        message.qualification.CopyFrom(match.resume_feature)
     elif match.resume_kind == "education" and isinstance(
         match.resume_feature, education_pb2.EducationPerResume
     ):

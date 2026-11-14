@@ -11,8 +11,11 @@ WORKDIR /workspace/ats-service
 RUN --mount=type=cache,id=ats-service-gradle,target=/home/gradle/.gradle \
     gradle clean build -x test --no-daemon
 
-FROM eclipse-temurin:21-jre-alpine
-RUN apk --no-cache add curl
+# ONNX Runtime для локальной NER-модели требует glibc, поэтому не Alpine.
+FROM eclipse-temurin:21-jre-jammy
+RUN apt-get update \
+    && apt-get install -y --no-install-recommends curl libstdc++6 \
+    && rm -rf /var/lib/apt/lists/*
 WORKDIR /app
 EXPOSE 8080 9090
 COPY --from=build /workspace/ats-service/build/libs/*.jar app.jar

@@ -60,11 +60,144 @@ export async function listSkills(
   query = '',
   skillType = '',
   status = 'ACTIVE',
+  limit = 50,
 ): Promise<Skill[]> {
   const { data } = await axios.get<Skill[]>(`${base}/skills`, {
-    params: { query, skillType, status },
+    params: { query, skillType, status, limit },
   })
   return data
+}
+
+export interface QualificationAlias {
+  id: string
+  qualificationId: string
+  raw: string
+  canonical: boolean
+  lang: string
+  source: string
+  lemmaMode: string
+  createdBy: string
+  createdAt: string
+}
+
+export interface Qualification {
+  id: string
+  canonicalName: string
+  status: string
+  qualificationType: string
+  aliases: QualificationAlias[]
+}
+
+export interface Relation {
+  leftSkillId: string
+  rightSkillId: string
+  kind: string
+}
+
+export interface QualificationReviewItem {
+  id: string
+  key: string
+  samples: string[]
+  occurrences: number
+  status: string
+  suggestedQualificationId: string | null
+  suggestedConfidence: number | null
+  resolvedQualificationId: string | null
+  resolvedBy: string | null
+  resolvedAt: string | null
+}
+
+export async function listQualificationReview(
+  status = 'PENDING',
+): Promise<QualificationReviewItem[]> {
+  const { data } = await axios.get<QualificationReviewItem[]>(
+    `${base}/qualification-review-items`,
+    { params: { status } },
+  )
+  return data
+}
+
+export async function resolveQualificationReview(
+  id: string,
+  action: 'ALIAS' | 'NEW_QUALIFICATION' | 'REJECT',
+  qualificationId?: string,
+  canonicalName?: string,
+): Promise<void> {
+  await axios.post(`${base}/qualification-review-items/${id}/resolve`, {
+    action,
+    qualificationId,
+    canonicalName,
+  })
+}
+
+export async function listQualifications(
+  query = '',
+  status = 'ACTIVE',
+  limit = 50,
+): Promise<Qualification[]> {
+  const { data } = await axios.get<Qualification[]>(`${base}/qualifications`, {
+    params: { query, status, limit },
+  })
+  return data
+}
+
+export async function createQualification(
+  canonicalName: string,
+  qualificationType = 'OTHER',
+): Promise<Qualification> {
+  const { data } = await axios.post<Qualification>(`${base}/qualifications`, {
+    canonicalName,
+    qualificationType,
+  })
+  return data
+}
+
+export async function addQualificationAlias(
+  qualificationId: string,
+  raw: string,
+): Promise<void> {
+  await axios.post(`${base}/qualifications/${qualificationId}/aliases`, {
+    raw,
+    lang: 'mixed',
+    lemmaMode: 'AUTO',
+  })
+}
+
+export async function setCanonicalQualificationAlias(
+  qualificationId: string,
+  aliasId: string,
+): Promise<void> {
+  await axios.post(`${base}/qualifications/${qualificationId}/canonical`, { aliasId })
+}
+
+export async function deleteQualificationAlias(aliasId: string): Promise<void> {
+  await axios.delete(`${base}/qualification-aliases/${aliasId}`)
+}
+
+export async function deleteQualification(id: string): Promise<void> {
+  await axios.delete(`${base}/qualifications/${id}`)
+}
+
+export async function listRelations(limit = 500): Promise<Relation[]> {
+  const { data } = await axios.get<Relation[]>(`${base}/relations`, { params: { limit } })
+  return data
+}
+
+export async function createRelation(
+  leftSkillId: string,
+  rightSkillId: string,
+  kind: string,
+): Promise<Relation> {
+  const { data } = await axios.post<Relation>(`${base}/relations`, {
+    leftSkillId,
+    rightSkillId,
+    kind,
+  })
+  return data
+}
+
+export async function deleteRelation(left: string, right: string): Promise<void> {
+  await axios.delete(`${base}/relations`, { params: { left, right } })
 }
 
 export async function addAlias(skillId: string, raw: string): Promise<void> {

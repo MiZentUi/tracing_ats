@@ -14,6 +14,7 @@ from scoring_service.v1.models.features import (
     common_pb2,
     education_pb2,
     experience_pb2,
+    qualification_pb2,
     skill_pb2,
 )
 
@@ -21,8 +22,9 @@ ResumeFeature = (
     skill_pb2.SkillPerResume
     | education_pb2.EducationPerResume
     | experience_pb2.PriorExperiencePerResume
+    | qualification_pb2.QualificationPerResume
 )
-ResumeKind = Literal["skill", "education", "experience"]
+ResumeKind = Literal["skill", "qualification", "education", "experience"]
 
 
 @dataclass(frozen=True, slots=True)

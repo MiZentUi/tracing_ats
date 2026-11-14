@@ -9,6 +9,7 @@ from dictionary_service.service import (
     ApplySkillInput,
     DictionaryService,
     ResolveInput,
+    ResolveQualificationInput,
 )
 from dictionary_service.store import InMemoryStore
 
@@ -179,3 +180,109 @@ def test_apply_skills_conflict_leaves_no_version(service: DictionaryService) -> 
             "hr",
         )
     assert service.version().dictionary_version == before
+
+
+def resolve_qualification(service: DictionaryService, raw: str, as_of: str = ""):
+    _, items = service.resolve_qualifications(
+        [ResolveQualificationInput("q", raw, "RESUME")],
+        as_of=as_of,
+    )
+    return items[0]
+
+
+def test_qualification_group_aliases(service: DictionaryService) -> None:
+    third = resolve_qualification(service, "3 группа по электробезопасности")
+    roman = resolve_qualification(service, "III группа по электробезопасности")
+    assert third.qualification_id is not None
+    assert third.qualification_id == roman.qualification_id
+
+
+def test_driver_licence_categories_are_distinct(service: DictionaryService) -> None:
+    b = resolve_qualification(service, "права категории B")
+    c = resolve_qualification(service, "водительские права категории C")
+    assert b.qualification_id is not None
+    assert c.qualification_id is not None
+    assert b.qualification_id != c.qualification_id
+
+
+def test_unknown_qualification_is_new(service: DictionaryService) -> None:
+    item = resolve_qualification(service, "Свидетельство пилота")
+    assert item.qualification_id is None
+    assert item.method == "NEW"
+
+
+def test_skill_relations_are_symmetric(service: DictionaryService) -> None:
+    kafka = resolve(service, "Kafka").skill_id
+    rabbit = resolve(service, "RabbitMQ").skill_id
+    assert kafka and rabbit
+    _, relations = service.get_relations([(kafka, rabbit)])
+    assert len(relations) == 1
+    assert relations[0].kind == "RELATED"
+    _, reverse = service.get_relations([(rabbit, kafka)])
+    assert reverse[0].kind == "RELATED"
+
+
+def test_relation_version_is_part_of_resolver_version(service: DictionaryService) -> None:
+    version = service.version()
+    assert version.qualification_version >= 2
+    assert version.relation_version >= 2
+    assert f"-q{version.qualification_version}" in version.resolver_version
+    assert f"-r{version.relation_version}" in version.resolver_version
+
+
+def test_qualification_admin_operations(service: DictionaryService) -> None:
+    qualification = service.create_qualification("Тестовая квалификация", "OTHER", "hr")
+    assert qualification.canonical_name == "Тестовая квалификация"
+    alias = service.add_qualification_alias(qualification.id, "тестовый допуск", "ru", "AUTO", "hr")
+    assert alias.qualification_id == qualification.id
+    updated = service.set_canonical_qualification_alias(qualification.id, alias.id, "hr")
+    assert updated.canonical_name == "тестовый допуск"
+    assert any(item.is_canonical and item.id == alias.id for item in updated.aliases)
+    resolved = resolve_qualification(service, "тестовый допуск")
+    assert resolved.qualification_id == qualification.id
+
+
+def test_relation_admin_operations(service: DictionaryService) -> None:
+    kafka = resolve(service, "Kafka").skill_id
+    docker = resolve(service, "Docker").skill_id
+    assert kafka and docker
+    created = service.create_relation(kafka, docker, "RELATED", "hr")
+    assert created.kind == "RELATED"
+    items, total = service.list_relations(500, 0)
+    assert total >= 4
+    assert any(
+        item.left_skill_id == created.left_skill_id
+        and item.right_skill_id == created.right_skill_id
+        for item in items
+    )
+    service.delete_relation(kafka, docker, "hr")
+    _, remaining = service.get_relations([(kafka, docker)])
+    assert remaining == ()
+
+
+def test_delete_qualification_removes_aliases(service: DictionaryService) -> None:
+    qualification = service.create_qualification("Удаляемая квалификация", "OTHER", "hr")
+    service.add_qualification_alias(qualification.id, "удаляемый допуск", "ru", "AUTO", "hr")
+    service.delete_qualification(qualification.id, "hr")
+    assert resolve_qualification(service, "удаляемый допуск").qualification_id is None
+
+
+def test_unknown_qualification_goes_to_review(service: DictionaryService) -> None:
+    item = resolve_qualification(service, "Свидетельство пилота")
+    assert item.qualification_id is None
+    items, total = service.list_qualification_review("PENDING", 10, 0)
+    assert total == 1
+    assert items[0].key == "свидетельство пилота"
+
+
+def test_resolve_qualification_review_as_alias(service: DictionaryService) -> None:
+    resolve_qualification(service, "Свидетельство пилота")
+    review, _ = service.list_qualification_review("PENDING", 10, 0)
+    target = resolve_qualification(service, "III группа по электробезопасности").qualification_id
+    assert target
+    resolved, qualification = service.resolve_qualification_review(
+        review[0].id, "ALIAS", "hr", target, None, None, []
+    )
+    assert resolved.status == "RESOLVED_ALIAS"
+    assert qualification is not None
+    assert resolve_qualification(service, "Свидетельство пилота").qualification_id == target

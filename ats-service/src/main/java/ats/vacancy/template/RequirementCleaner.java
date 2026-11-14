@@ -25,6 +25,7 @@ public class RequirementCleaner {
         int dropped = 0;
         int droppedQuote = 0;
         int droppedNoSubject = 0;
+        int droppedAmbiguous = 0;
         int droppedDuplicate = 0;
         int droppedLimit = 0;
         List<String> dropExamples = new ArrayList<>();
@@ -35,30 +36,58 @@ public class RequirementCleaner {
                 dropped++;
                 droppedQuote++;
                 log.debug(
-                        "template_requirement_dropped reason=quote_mismatch skill={}", raw.skill());
-                addExample(dropExamples, "quote_mismatch", raw.skill());
+                        "template_requirement_dropped reason=quote_mismatch qualification={}",
+                        raw.qualification() != null);
+                addExample(
+                        dropExamples,
+                        "quote_mismatch",
+                        raw.qualification() != null ? "qualification" : raw.skill());
                 continue;
             }
 
-            String skill = raw.skill() == null ? null : raw.skill().strip();
+            String skill = stripToNull(raw.skill());
             if (skill != null && skill.length() > 128) {
                 skill = null;
             }
-            String clarity = raw.clarityWarning() == null ? null : raw.clarityWarning().strip();
-            if (clarity != null && clarity.isEmpty()) {
-                clarity = null;
+            String qualification = stripToNull(raw.qualification());
+            if (qualification != null && qualification.length() > 128) {
+                qualification = null;
             }
-            if (skill == null && clarity == null) {
+            if (skill != null && qualification != null) {
+                // Одно требование — один субъект. Смешанный ответ неоднозначен.
                 dropped++;
-                droppedNoSubject++;
-                log.debug("template_requirement_dropped reason=no_subject skill={}", skill);
-                addExample(dropExamples, "no_subject", skill);
+                droppedAmbiguous++;
+                log.debug("template_requirement_dropped reason=ambiguous_subject");
+                addExample(dropExamples, "ambiguous_subject", "qualification");
                 continue;
             }
-
+            String clarity = stripToNull(raw.clarityWarning());
+            String subject = qualification != null ? qualification : skill;
+            if (subject == null && clarity == null) {
+                dropped++;
+                droppedNoSubject++;
+                log.debug(
+                        "template_requirement_dropped reason=no_subject qualification={}",
+                        qualification != null);
+                addExample(
+                        dropExamples, "no_subject", qualification != null ? "qualification" : null);
+                continue;
+            }
             BigDecimal years = normalizeYears(raw.yearsRequired());
             Kind kind = TemplateResponseParser.parseKind(raw.kind());
-            ResolvedSkill resolved = skillCatalog.resolve(skill, aliases);
+            ResolvedSkill resolved;
+            boolean isQualification = qualification != null;
+            if (isQualification) {
+                resolved =
+                        new ResolvedSkill(
+                                SkillNormalizer.normalizeKey(qualification),
+                                NormalizationStatus.NEW,
+                                null,
+                                qualification,
+                                qualification);
+            } else {
+                resolved = skillCatalog.resolve(skill, aliases);
+            }
 
             DraftRequirement draft =
                     new DraftRequirement(
@@ -72,7 +101,8 @@ public class RequirementCleaner {
                             quote.isEmpty() ? null : quote,
                             clarity,
                             null,
-                            resolved.normalizedKey());
+                            resolved.normalizedKey(),
+                            isQualification);
 
             String duplicateKey = duplicateKey(draft);
             DraftRequirement existing = byKey.get(duplicateKey);
@@ -81,7 +111,9 @@ public class RequirementCleaner {
             } else {
                 dropped++;
                 droppedDuplicate++;
-                log.debug("template_requirement_dropped reason=duplicate skill={}", draft.skill());
+                log.debug(
+                        "template_requirement_dropped reason=duplicate qualification={}",
+                        draft.qualification());
                 if (priority(draft.kind()) > priority(existing.kind())) {
                     // Цитата и срок остаются у первого вхождения, тип берём сильнейший.
                     byKey.put(
@@ -106,15 +138,25 @@ public class RequirementCleaner {
         if (result.isEmpty() && !payload.requirements().isEmpty()) {
             log.warn(
                     "template_requirements_all_dropped total={} quote_mismatch={}"
-                            + " no_subject={} duplicates={} limit={} examples={}",
+                            + " no_subject={} ambiguous={}"
+                            + " duplicates={} limit={} examples={}",
                     payload.requirements().size(),
                     droppedQuote,
                     droppedNoSubject,
+                    droppedAmbiguous,
                     droppedDuplicate,
                     droppedLimit,
                     dropExamples);
         }
         return new CleanedTemplate(title, List.copyOf(result), dropped);
+    }
+
+    private static String stripToNull(String value) {
+        if (value == null) {
+            return null;
+        }
+        String stripped = value.strip();
+        return stripped.isEmpty() ? null : stripped;
     }
 
     private static void addExample(List<String> examples, String reason, String skill) {
@@ -135,6 +177,9 @@ public class RequirementCleaner {
     }
 
     private static String duplicateKey(DraftRequirement draft) {
+        if (draft.qualification()) {
+            return "QUAL:" + draft.normalizedKey();
+        }
         if (draft.skillId() != null) {
             return "S:" + draft.skillId();
         }

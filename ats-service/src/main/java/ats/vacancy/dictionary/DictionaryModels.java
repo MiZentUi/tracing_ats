@@ -34,6 +34,41 @@ public final class DictionaryModels {
     public record Skill(
             UUID id, String canonicalName, String skillType, String status, List<Alias> aliases) {}
 
+    public record QualificationAlias(
+            UUID id,
+            UUID qualificationId,
+            String raw,
+            boolean canonical,
+            String lang,
+            String source,
+            String lemmaMode,
+            String createdBy,
+            String createdAt) {}
+
+    public record Qualification(
+            UUID id,
+            String canonicalName,
+            String status,
+            String qualificationType,
+            List<QualificationAlias> aliases) {}
+
+    public record Relation(UUID leftSkillId, UUID rightSkillId, String kind) {}
+
+    public record QualificationReview(
+            UUID id,
+            String key,
+            List<String> samples,
+            long occurrences,
+            String status,
+            UUID suggestedQualificationId,
+            Double suggestedConfidence,
+            UUID resolvedQualificationId,
+            String resolvedBy,
+            String resolvedAt) {}
+
+    public record QualificationReviewResult(
+            QualificationReview review, Qualification qualification) {}
+
     public record Review(
             UUID id,
             String key,

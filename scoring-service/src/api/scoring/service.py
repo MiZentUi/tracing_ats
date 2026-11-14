@@ -16,6 +16,7 @@ from ..llm.client import LlmUnavailable
 from .dates import resolve_reference_date
 from .errors import ScoringError
 from .evaluator import ResumeEvaluator
+from .feedback import FEEDBACK_TEMPLATE_VERSION
 from .mapping import ExtractionMapper, to_evaluate_response, to_score_response
 from .policies import Clock, SystemClock
 
@@ -54,15 +55,17 @@ class ScoringService(scoring_pb2_grpc.ScoringServiceServicer):
             text,
             request.vacancy,
             self._reference_date(request.reference_date),
+            request.qualification_catalog,
         )
 
         logger.info(
             "score resume model=%s prompt=%s requirements=%d "
-            "skills=%d education=%d experience=%d dropped=%d",
+            "skills=%d qualifications=%d education=%d experience=%d dropped=%d",
             self._extractor.model,
             self._extractor.prompt_version,
             len(request.vacancy.requirements),
             len(result.parsed.skills),
+            len(result.parsed.qualifications),
             len(result.parsed.education),
             len(result.parsed.experience),
             result.dropped,
@@ -81,13 +84,19 @@ class ScoringService(scoring_pb2_grpc.ScoringServiceServicer):
             text,
             request.vacancy,
             self._reference_date(request.reference_date),
+            request.qualification_catalog,
         )
 
         logger.info(
-            "evaluate resume match requirements=%d matches=%d gaps=%d",
+            "evaluate resume match requirements=%d matches=%d gaps=%d "
+            "strengths=%d risks=%d questions=%d feedback=%s",
             len(request.vacancy.requirements),
             len(evaluation.matches),
             len(evaluation.gaps),
+            len(evaluation.strengths),
+            len(evaluation.risks),
+            len(evaluation.questions),
+            FEEDBACK_TEMPLATE_VERSION,
         )
         return to_evaluate_response(evaluation)
 
@@ -113,6 +122,7 @@ class ScoringService(scoring_pb2_grpc.ScoringServiceServicer):
                     text,
                     vacancy,
                     reference_date,
+                    request.qualification_catalog,
                 )
                 item.match.CopyFrom(to_evaluate_response(evaluation))
                 if not resolver_version:
@@ -168,11 +178,12 @@ class ScoringService(scoring_pb2_grpc.ScoringServiceServicer):
 
         logger.info(
             "extract resume model=%s prompt=%s schema=%d "
-            "skills=%d education=%d experience=%d dropped=%d warnings=%d",
+            "skills=%d qualifications=%d education=%d experience=%d dropped=%d warnings=%d",
             self._extractor.model,
             self._extractor.prompt_version,
             result.parsed.schema_version,
             len(result.parsed.skills),
+            len(result.parsed.qualifications),
             len(result.parsed.education),
             len(result.parsed.experience),
             result.dropped,

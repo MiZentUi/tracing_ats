@@ -13,6 +13,7 @@ from scoring_service.v1.models.features import (
     common_pb2,
     education_pb2,
     experience_pb2,
+    qualification_pb2,
     skill_pb2,
 )
 
@@ -20,7 +21,8 @@ from ..extraction.quotes import QuoteIndex
 from .dates import experience_years
 from .errors import InvalidRequirement
 from .model import RequirementScore
-from .policies import ClaimConfidence, TemporalPolicyProtocol
+from .policies import ClaimConfidence, RelationPolicy, TemporalPolicyProtocol
+from .qualification import BatchQualificationResolution
 from .resolver import BatchResolution, SkillResolver
 from .similarity import SimilarityScorer
 from .text import TextMatcher
@@ -38,12 +40,14 @@ class RequirementMatcher:
         confidence: ClaimConfidence,
         text_matcher: TextMatcher,
         resolver: SkillResolver,
+        relations: RelationPolicy,
     ) -> None:
         self._similarity = similarity
         self._temporal = temporal
         self._confidence = confidence
         self._text = text_matcher
         self._resolver = resolver
+        self._relations = relations
 
     def prepare(
         self,
@@ -68,12 +72,21 @@ class RequirementMatcher:
         index: QuoteIndex,
         reference_date: date,
         resolution: BatchResolution,
+        qualifications: BatchQualificationResolution,
     ) -> RequirementScore:
         kind = requirement.WhichOneof("feature")
         if kind is None:
             raise InvalidRequirement(requirement_id)
         if kind == "skill":
             return self._match_skill(requirement_id, requirement, resume, index, resolution)
+        if kind == "qualification":
+            return self._match_qualification(
+                requirement_id,
+                requirement,
+                resume,
+                index,
+                qualifications,
+            )
         if kind == "education":
             return self._match_education(requirement_id, requirement, resume, index)
         if kind == "experience":
@@ -105,10 +118,12 @@ class RequirementMatcher:
             evidence = _verified_evidence(index, skill.evidence)
             if evidence is None:
                 continue
-            score = self._resolver.score(
-                target_identity,
-                resolution.identity(skill.normalized_name or skill.name),
-            )
+            candidate_identity = resolution.identity(skill.normalized_name or skill.name)
+            score = self._resolver.score(target_identity, candidate_identity)
+            if score <= 0.0 and target_identity is not None and candidate_identity is not None:
+                score = self._relations.score(
+                    resolution.relation(target_identity.skill_id, candidate_identity.skill_id)
+                )
             if best is None or (score, key) > (best[0], best[1]):
                 best = (score, key, skill, evidence)
 
@@ -151,6 +166,60 @@ class RequirementMatcher:
             gap_reason=gap_reason,
             resume_kind="skill",
             resume_feature=skill,
+        )
+
+    def _match_qualification(
+        self,
+        requirement_id: str,
+        requirement: features_pb2.FeatureRequirement,
+        resume: messages_pb2.ParsedResume,
+        index: QuoteIndex,
+        qualifications: BatchQualificationResolution,
+    ) -> RequirementScore:
+        spec = requirement.qualification
+        label = spec.label.strip()
+        if not label:
+            raise InvalidRequirement(requirement_id)
+        required_identity = qualifications.identity(label)
+
+        best: (
+            tuple[
+                str,
+                qualification_pb2.QualificationPerResume,
+                common_pb2.FeatureEvidence,
+            ]
+            | None
+        ) = None
+        for key, qualification in sorted(resume.qualifications.items()):
+            evidence = _verified_evidence(index, qualification.evidence)
+            if evidence is None:
+                continue
+            if not qualifications.matches(
+                required_identity,
+                qualifications.identity(qualification.label),
+            ):
+                continue
+            if best is None or key < best[0]:
+                best = (key, qualification, evidence)
+
+        if best is None:
+            return _not_stated(requirement_id, requirement, label)
+
+        key, qualification, evidence = best
+        return RequirementScore(
+            requirement_id=requirement_id,
+            criticality=requirement.criticality,
+            status=common_pb2.CORRESPONDENCE_FULL,
+            relevance=1.0,
+            coverage=1.0,
+            coverage_low=1.0,
+            coverage_high=1.0,
+            comment="Квалификация подтверждена в резюме.",
+            label=label,
+            feature_key=key,
+            evidence=evidence,
+            resume_kind="qualification",
+            resume_feature=qualification,
         )
 
     def _match_education(

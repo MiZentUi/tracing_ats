@@ -1,5 +1,11 @@
 # Tracing ATS — текущее состояние сервиса
 
+> [!NOTE]
+> Исторический снимок на 2026-11-12: ветка `feature/unified-ats-service`,
+> коммит `1fadb9b`. Утверждения о заглушке `scoring-service` и нереализованной
+> математике устарели. Актуальное состояние — `scoring-service/README.md`,
+> `docs/rfc/rfc-scoring-model.md` и `docs/rfc/rfc-feedback-generation.md`.
+
 Документ фиксирует, что реализовано в объединённом Java-сервисе `ats-service` на ветке
 `feature/unified-ats-service` (коммит `1fadb9b`), какие решения приняты и что делать дальше.
 Дата: 2026-11-12.
@@ -167,11 +173,11 @@ compose.yaml
 
 ### 6.2 Шаблон из LLM
 
-- Промпт `vacancy-template.v2` + строгая JSON-схема; текст вакансии передаётся как данные
+- Промпт `vacancy-template.v4` + строгая JSON-схема; текст вакансии передаётся как данные
   в `<vacancy_text>`.
-- `TemplateResponseParser`: `schema_version=2`, `kind` из `MUST/NICE/OPTIONAL`.
+- `TemplateResponseParser`: `schema_version=3`, `kind` из `MUST/NICE/OPTIONAL`, `qualification` — открытый label квалификации.
 - `RequirementCleaner`: цитата — подстрока текста, дедупликация с приоритетом
-  `MUST > NICE > OPTIONAL`, отбрасывание пунктов без навыка и предупреждения, лимит 50.
+  `MUST > NICE > OPTIONAL`, отбрасывание пунктов без навыка/квалификации и предупреждения, проверка label как подстроки цитаты, лимит 50.
 - `SkillCatalog`/`SkillNormalizer`: алиасы (`JS → JavaScript`, `C#`, `.NET`).
 - `KindHistoryService`: подсказка типа по `skill_kind_stat` (3 наблюдения, доля 0.6).
 - Один повтор при невалидном ответе; при недоступности LLM вакансия создаётся с пустым

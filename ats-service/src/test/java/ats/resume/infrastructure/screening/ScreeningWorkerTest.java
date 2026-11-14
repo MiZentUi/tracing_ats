@@ -295,7 +295,15 @@ class ScreeningWorkerTest {
     private VacancyTemplate template(UUID vacancyId, int version) {
         Requirement requirement =
                 new Requirement(
-                        UUID.randomUUID(), "Java", "Java", RequirementKind.MUST, 3, true, 3, 5);
+                        UUID.randomUUID(),
+                        "Java",
+                        "Java",
+                        RequirementKind.MUST,
+                        3,
+                        true,
+                        3,
+                        5,
+                        false);
         return new VacancyTemplate(
                 vacancyId,
                 version,

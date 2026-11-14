@@ -51,11 +51,23 @@ class GrpcScoringClientTest {
         channel = InProcessChannelBuilder.forName(name).directExecutor().build();
         ScoringGrpcProperties properties = new ScoringGrpcProperties();
         properties.setDeadline(Duration.ofSeconds(2));
-        client = new GrpcScoringClient(ScoringServiceGrpc.newBlockingStub(channel), properties);
+        client =
+                new GrpcScoringClient(
+                        ScoringServiceGrpc.newBlockingStub(channel),
+                        properties,
+                        new StubQualificationCatalog());
 
         java =
                 new Requirement(
-                        UUID.randomUUID(), "Java", "Java", RequirementKind.MUST, 3, true, 3, 5);
+                        UUID.randomUUID(),
+                        "Java",
+                        "Java",
+                        RequirementKind.MUST,
+                        3,
+                        true,
+                        3,
+                        5,
+                        false);
         spring =
                 new Requirement(
                         UUID.randomUUID(),
@@ -65,10 +77,19 @@ class GrpcScoringClientTest {
                         3,
                         false,
                         2,
-                        3);
+                        3,
+                        false);
         kafka =
                 new Requirement(
-                        UUID.randomUUID(), "Kafka", "Kafka", RequirementKind.NICE, 1, false, 1, 3);
+                        UUID.randomUUID(),
+                        "Kafka",
+                        "Kafka",
+                        RequirementKind.NICE,
+                        1,
+                        false,
+                        1,
+                        3,
+                        false);
         template =
                 new VacancyTemplate(
                         UUID.randomUUID(),
@@ -173,6 +194,44 @@ class GrpcScoringClientTest {
     }
 
     @Test
+    void mapsQualificationAndSendsCatalogSnapshot() {
+        Requirement qualification =
+                new Requirement(
+                        UUID.randomUUID(),
+                        "3 группа по электробезопасности",
+                        "3 группа по электробезопасности",
+                        RequirementKind.MUST,
+                        3,
+                        true,
+                        0,
+                        0,
+                        true);
+        VacancyTemplate withQualification = withVacancy(template, UUID.randomUUID(), qualification);
+        fake.match = matchResponse();
+
+        client.score(
+                new ScoringRequest(
+                        UUID.randomUUID(),
+                        "Допуск: 3 группа по электробезопасности.",
+                        withQualification,
+                        parsed()));
+
+        FeatureRequirement requirement =
+                fake.evaluateRequest
+                        .getVacancy()
+                        .getRequirementsMap()
+                        .get(qualification.id().toString());
+        assertThat(requirement.hasQualification()).isTrue();
+        assertThat(requirement.getQualification().getLabel())
+                .isEqualTo("3 группа по электробезопасности");
+        assertThat(requirement.getSkill().getName()).isEmpty();
+        assertThat(fake.evaluateRequest.getQualificationCatalog().getVersion())
+                .isEqualTo("stub-v1");
+        assertThat(fake.evaluateRequest.getQualificationCatalog().getAliasesCount())
+                .isGreaterThan(0);
+    }
+
+    @Test
     void batchKeepsPerVacancyErrors() {
         VacancyTemplate second = withVacancy(template, UUID.randomUUID(), spring);
         fake.batch =
@@ -200,6 +259,8 @@ class GrpcScoringClientTest {
         assertThat(items.get(0).result().score()).isEqualTo(72);
         assertThat(items.get(1).isFailed()).isTrue();
         assertThat(items.get(1).errorCode()).isEqualTo("INVALID_ARGUMENT");
+        assertThat(fake.batchRequest.getQualificationCatalog().getVersion()).isEqualTo("stub-v1");
+        assertThat(fake.batchRequest.getQualificationCatalog().getAliasesCount()).isGreaterThan(0);
     }
 
     private static Messages.EvaluateResumeMatchResponse matchResponse() {
@@ -244,6 +305,7 @@ class GrpcScoringClientTest {
             extends ScoringServiceGrpc.ScoringServiceImplBase {
 
         private Messages.EvaluateResumeMatchRequest evaluateRequest;
+        private Messages.EvaluateResumeMatchesRequest batchRequest;
         private Messages.EvaluateResumeMatchResponse match =
                 Messages.EvaluateResumeMatchResponse.getDefaultInstance();
         private Messages.EvaluateResumeMatchesResponse batch =
@@ -273,6 +335,7 @@ class GrpcScoringClientTest {
         public void evaluateResumeMatches(
                 Messages.EvaluateResumeMatchesRequest request,
                 StreamObserver<Messages.EvaluateResumeMatchesResponse> observer) {
+            this.batchRequest = request;
             observer.onNext(batch);
             observer.onCompleted();
         }

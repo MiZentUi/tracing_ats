@@ -676,8 +676,528 @@ paths:
         default:
           $ref: "#/components/responses/default"
 
+  /admin/dictionary/version:
+    get:
+      tags: [Dictionary]
+      operationId: dictionaryVersion
+      responses:
+        "200":
+          description: Версия словаря
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/DictionaryVersion"
+        default:
+          $ref: "#/components/responses/default"
+
+  /admin/dictionary/review-items:
+    get:
+      tags: [Dictionary]
+      operationId: listDictionaryReviewItems
+      parameters:
+        - name: status
+          in: query
+          schema: { type: string, default: PENDING }
+        - name: limit
+          in: query
+          schema: { type: integer, default: 50 }
+        - name: offset
+          in: query
+          schema: { type: integer, default: 0 }
+      responses:
+        "200":
+          description: Очередь новых написаний
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/DictionaryReviewItem"
+        default:
+          $ref: "#/components/responses/default"
+
+  /admin/dictionary/review-items/{id}/resolve:
+    post:
+      tags: [Dictionary]
+      operationId: resolveDictionaryReviewItem
+      parameters:
+        - $ref: "#/components/parameters/DictionaryId"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/DictionaryResolveReviewRequest"
+      responses:
+        "200":
+          description: Результат обработки
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/DictionaryReviewResult"
+        default:
+          $ref: "#/components/responses/default"
+
+  /admin/dictionary/skills:
+    get:
+      tags: [Dictionary]
+      operationId: listDictionarySkills
+      parameters:
+        - name: query
+          in: query
+          schema: { type: string, default: "" }
+        - name: skillType
+          in: query
+          schema: { type: string, default: "" }
+        - name: status
+          in: query
+          schema: { type: string, default: ACTIVE }
+        - name: limit
+          in: query
+          schema: { type: integer, default: 50 }
+        - name: offset
+          in: query
+          schema: { type: integer, default: 0 }
+      responses:
+        "200":
+          description: Навыки словаря
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/DictionarySkill"
+        default:
+          $ref: "#/components/responses/default"
+    post:
+      tags: [Dictionary]
+      operationId: createDictionarySkill
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/DictionaryCreateSkillRequest"
+      responses:
+        "200":
+          description: Созданный навык
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/DictionarySkill"
+        default:
+          $ref: "#/components/responses/default"
+
+  /admin/dictionary/skills/{id}/aliases:
+    post:
+      tags: [Dictionary]
+      operationId: addDictionarySkillAlias
+      parameters:
+        - $ref: "#/components/parameters/DictionaryId"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/DictionaryAddAliasRequest"
+      responses:
+        "200":
+          description: Созданный алиас
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/DictionaryAlias"
+        default:
+          $ref: "#/components/responses/default"
+
+  /admin/dictionary/skills/{id}/canonical:
+    post:
+      tags: [Dictionary]
+      operationId: setDictionarySkillCanonicalAlias
+      parameters:
+        - $ref: "#/components/parameters/DictionaryId"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/DictionarySetCanonicalRequest"
+      responses:
+        "200":
+          description: Навык с новым каноном
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/DictionarySkill"
+        default:
+          $ref: "#/components/responses/default"
+
+  /admin/dictionary/aliases/{id}:
+    delete:
+      tags: [Dictionary]
+      operationId: deleteDictionaryAlias
+      parameters:
+        - $ref: "#/components/parameters/DictionaryId"
+      responses:
+        "200":
+          description: Алиас удалён
+        default:
+          $ref: "#/components/responses/default"
+
+  /admin/dictionary/skills/{id}/deprecate:
+    post:
+      tags: [Dictionary]
+      operationId: deprecateDictionarySkill
+      parameters:
+        - $ref: "#/components/parameters/DictionaryId"
+      responses:
+        "200":
+          description: Навык в архиве
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/DictionarySkill"
+        default:
+          $ref: "#/components/responses/default"
+
+  /admin/dictionary/skills/{id}:
+    delete:
+      tags: [Dictionary]
+      operationId: deleteDictionarySkill
+      parameters:
+        - $ref: "#/components/parameters/DictionaryId"
+        - name: confirmNoRefs
+          in: query
+          schema: { type: boolean, default: false }
+      responses:
+        "200":
+          description: Навык удалён
+        default:
+          $ref: "#/components/responses/default"
+
+  /admin/dictionary/qualifications:
+    get:
+      tags: [Dictionary]
+      operationId: listDictionaryQualifications
+      parameters:
+        - name: query
+          in: query
+          schema: { type: string, default: "" }
+        - name: status
+          in: query
+          schema: { type: string, default: ACTIVE }
+        - name: limit
+          in: query
+          schema: { type: integer, default: 50 }
+        - name: offset
+          in: query
+          schema: { type: integer, default: 0 }
+      responses:
+        "200":
+          description: Квалификации словаря
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/DictionaryQualification"
+        default:
+          $ref: "#/components/responses/default"
+    post:
+      tags: [Dictionary]
+      operationId: createDictionaryQualification
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/DictionaryCreateQualificationRequest"
+      responses:
+        "200":
+          description: Созданная квалификация
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/DictionaryQualification"
+        default:
+          $ref: "#/components/responses/default"
+
+  /admin/dictionary/qualifications/{id}/aliases:
+    post:
+      tags: [Dictionary]
+      operationId: addDictionaryQualificationAlias
+      parameters:
+        - $ref: "#/components/parameters/DictionaryId"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/DictionaryAddQualificationAliasRequest"
+      responses:
+        "200":
+          description: Созданный алиас квалификации
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/DictionaryQualificationAlias"
+        default:
+          $ref: "#/components/responses/default"
+
+  /admin/dictionary/qualifications/{id}/canonical:
+    post:
+      tags: [Dictionary]
+      operationId: setDictionaryQualificationCanonicalAlias
+      parameters:
+        - $ref: "#/components/parameters/DictionaryId"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/DictionarySetCanonicalRequest"
+      responses:
+        "200":
+          description: Квалификация с новым каноном
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/DictionaryQualification"
+        default:
+          $ref: "#/components/responses/default"
+
+  /admin/dictionary/qualification-aliases/{id}:
+    delete:
+      tags: [Dictionary]
+      operationId: deleteDictionaryQualificationAlias
+      parameters:
+        - $ref: "#/components/parameters/DictionaryId"
+      responses:
+        "200":
+          description: Алиас квалификации удалён
+        default:
+          $ref: "#/components/responses/default"
+
+  /admin/dictionary/qualifications/{id}:
+    delete:
+      tags: [Dictionary]
+      operationId: deleteDictionaryQualification
+      parameters:
+        - $ref: "#/components/parameters/DictionaryId"
+      responses:
+        "200":
+          description: Квалификация удалена
+        default:
+          $ref: "#/components/responses/default"
+
+  /admin/dictionary/qualification-review-items:
+    get:
+      tags: [Dictionary]
+      operationId: listDictionaryQualificationReviewItems
+      parameters:
+        - name: status
+          in: query
+          schema: { type: string, default: PENDING }
+        - name: limit
+          in: query
+          schema: { type: integer, default: 50 }
+        - name: offset
+          in: query
+          schema: { type: integer, default: 0 }
+      responses:
+        "200":
+          description: Очередь новых квалификаций
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/DictionaryQualificationReviewItem"
+        default:
+          $ref: "#/components/responses/default"
+
+  /admin/dictionary/qualification-review-items/{id}/resolve:
+    post:
+      tags: [Dictionary]
+      operationId: resolveDictionaryQualificationReviewItem
+      parameters:
+        - $ref: "#/components/parameters/DictionaryId"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/DictionaryResolveQualificationReviewRequest"
+      responses:
+        "200":
+          description: Результат обработки
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/DictionaryQualificationReviewResult"
+        default:
+          $ref: "#/components/responses/default"
+
+  /admin/dictionary/relations:
+    get:
+      tags: [Dictionary]
+      operationId: listDictionaryRelations
+      parameters:
+        - name: limit
+          in: query
+          schema: { type: integer, default: 500 }
+        - name: offset
+          in: query
+          schema: { type: integer, default: 0 }
+      responses:
+        "200":
+          description: Связи навыков
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/DictionaryRelation"
+        default:
+          $ref: "#/components/responses/default"
+    post:
+      tags: [Dictionary]
+      operationId: createDictionaryRelation
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/DictionaryCreateRelationRequest"
+      responses:
+        "200":
+          description: Созданная связь
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/DictionaryRelation"
+        default:
+          $ref: "#/components/responses/default"
+    delete:
+      tags: [Dictionary]
+      operationId: deleteDictionaryRelation
+      parameters:
+        - name: left
+          in: query
+          required: true
+          schema: { type: string, format: uuid }
+        - name: right
+          in: query
+          required: true
+          schema: { type: string, format: uuid }
+      responses:
+        "200":
+          description: Связь удалена
+        default:
+          $ref: "#/components/responses/default"
+
+  /admin/dictionary/generation-jobs:
+    get:
+      tags: [Dictionary]
+      operationId: listDictionaryGenerationJobs
+      parameters:
+        - name: limit
+          in: query
+          schema: { type: integer, default: 20 }
+      responses:
+        "200":
+          description: Задания генерации
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/DictionaryGenerationJob"
+        default:
+          $ref: "#/components/responses/default"
+    post:
+      tags: [Dictionary]
+      operationId: createDictionaryGenerationJob
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/DictionaryCreateGenerationJobRequest"
+      responses:
+        "200":
+          description: Задание генерации
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/DictionaryGenerationJob"
+        default:
+          $ref: "#/components/responses/default"
+
+  /admin/dictionary/generation-jobs/{id}:
+    get:
+      tags: [Dictionary]
+      operationId: getDictionaryGenerationJob
+      parameters:
+        - $ref: "#/components/parameters/DictionaryId"
+      responses:
+        "200":
+          description: Задание генерации
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/DictionaryGenerationJob"
+        default:
+          $ref: "#/components/responses/default"
+
+  /admin/dictionary/generation-jobs/{id}/approve:
+    post:
+      tags: [Dictionary]
+      operationId: approveDictionaryGenerationJob
+      parameters:
+        - $ref: "#/components/parameters/DictionaryId"
+      requestBody:
+        required: false
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/DictionaryApproveGenerationRequest"
+      responses:
+        "200":
+          description: Задание подтверждено
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/DictionaryGenerationJob"
+        default:
+          $ref: "#/components/responses/default"
+
+  /admin/dictionary/generation-jobs/{id}/reject:
+    post:
+      tags: [Dictionary]
+      operationId: rejectDictionaryGenerationJob
+      parameters:
+        - $ref: "#/components/parameters/DictionaryId"
+      responses:
+        "200":
+          description: Задание отклонено
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/DictionaryGenerationJob"
+        default:
+          $ref: "#/components/responses/default"
+
+
 components:
   parameters:
+    DictionaryId:
+      name: id
+      in: path
+      required: true
+      schema:
+        type: string
+        format: uuid
     VacancyId:
       name: id
       in: path
@@ -1638,6 +2158,479 @@ components:
           type: string
         originalFilename:
           type: string
+
+    DictionaryVersion:
+      type: object
+      required: [resolverVersion]
+      properties:
+        resolverVersion:
+          type: string
+
+    DictionaryCandidate:
+      type: object
+      required: [skillId, canonicalName, confidence]
+      properties:
+        skillId:
+          type: string
+          format: uuid
+        canonicalName:
+          type: string
+        confidence:
+          type: number
+          format: double
+
+    DictionaryAlias:
+      type: object
+      required: [id, skillId, raw, canonical, lang, source, lemmaMode, createdBy, createdAt]
+      properties:
+        id:
+          type: string
+          format: uuid
+        skillId:
+          type: string
+          format: uuid
+        raw:
+          type: string
+        canonical:
+          type: boolean
+        lang:
+          type: string
+        source:
+          type: string
+        lemmaMode:
+          type: string
+        createdBy:
+          type: string
+        createdAt:
+          type: string
+          format: date-time
+
+    DictionarySkill:
+      type: object
+      required: [id, canonicalName, skillType, status, aliases]
+      properties:
+        id:
+          type: string
+          format: uuid
+        canonicalName:
+          type: string
+        skillType:
+          type: string
+          enum: [TECH, TOOL, DOMAIN, SOFT, OTHER]
+        status:
+          type: string
+          enum: [ACTIVE, DEPRECATED]
+        aliases:
+          type: array
+          items:
+            $ref: "#/components/schemas/DictionaryAlias"
+
+    DictionaryReviewItem:
+      type: object
+      required: [id, key, samples, occurrences, status, candidates]
+      properties:
+        id:
+          type: string
+          format: uuid
+        key:
+          type: string
+        samples:
+          type: array
+          items: { type: string }
+        occurrences:
+          type: integer
+          format: int64
+        status:
+          type: string
+          enum: [PENDING, RESOLVED_ALIAS, RESOLVED_NEW_SKILL, REJECTED]
+        suggestedSkillId:
+          type: string
+          format: uuid
+          nullable: true
+        suggestedConfidence:
+          type: number
+          format: double
+          nullable: true
+        candidates:
+          type: array
+          items:
+            $ref: "#/components/schemas/DictionaryCandidate"
+        resolvedSkillId:
+          type: string
+          format: uuid
+          nullable: true
+        resolvedBy:
+          type: string
+          nullable: true
+        resolvedAt:
+          type: string
+          nullable: true
+
+    DictionaryReviewResult:
+      type: object
+      required: [review]
+      properties:
+        review:
+          $ref: "#/components/schemas/DictionaryReviewItem"
+        skill:
+          allOf:
+            - $ref: "#/components/schemas/DictionarySkill"
+          nullable: true
+
+    DictionaryQualificationAlias:
+      type: object
+      required: [id, qualificationId, raw, canonical, lang, source, lemmaMode, createdBy, createdAt]
+      properties:
+        id:
+          type: string
+          format: uuid
+        qualificationId:
+          type: string
+          format: uuid
+        raw:
+          type: string
+        canonical:
+          type: boolean
+        lang:
+          type: string
+        source:
+          type: string
+        lemmaMode:
+          type: string
+        createdBy:
+          type: string
+        createdAt:
+          type: string
+          format: date-time
+
+    DictionaryQualification:
+      type: object
+      required: [id, canonicalName, status, qualificationType, aliases]
+      properties:
+        id:
+          type: string
+          format: uuid
+        canonicalName:
+          type: string
+        status:
+          type: string
+          enum: [ACTIVE, DEPRECATED]
+        qualificationType:
+          type: string
+        aliases:
+          type: array
+          items:
+            $ref: "#/components/schemas/DictionaryQualificationAlias"
+
+    DictionaryRelation:
+      type: object
+      required: [leftSkillId, rightSkillId, kind]
+      properties:
+        leftSkillId:
+          type: string
+          format: uuid
+        rightSkillId:
+          type: string
+          format: uuid
+        kind:
+          type: string
+          enum: [SAME_GROUP, RELATED, PARENT, CHILD]
+
+    DictionaryResolveReviewRequest:
+      type: object
+      required: [action]
+      properties:
+        action:
+          type: string
+          enum: [ALIAS, NEW_SKILL, REJECT]
+        skillId:
+          type: string
+          format: uuid
+          nullable: true
+        canonicalName:
+          type: string
+          nullable: true
+        skillType:
+          type: string
+          nullable: true
+        additionalAliases:
+          type: array
+          items: { type: string }
+
+    DictionaryCreateSkillRequest:
+      type: object
+      required: [canonicalName]
+      properties:
+        canonicalName:
+          type: string
+        skillType:
+          type: string
+          enum: [TECH, TOOL, DOMAIN, SOFT, OTHER]
+          default: OTHER
+
+    DictionaryAddAliasRequest:
+      type: object
+      required: [raw]
+      properties:
+        raw:
+          type: string
+        lang:
+          type: string
+          default: mixed
+        lemmaMode:
+          type: string
+          enum: [AUTO, RAW_ONLY]
+          default: AUTO
+
+    DictionarySetCanonicalRequest:
+      type: object
+      required: [aliasId]
+      properties:
+        aliasId:
+          type: string
+          format: uuid
+
+    DictionaryCreateQualificationRequest:
+      type: object
+      required: [canonicalName]
+      properties:
+        canonicalName:
+          type: string
+        qualificationType:
+          type: string
+          default: OTHER
+
+    DictionaryAddQualificationAliasRequest:
+      type: object
+      required: [raw]
+      properties:
+        raw:
+          type: string
+        lang:
+          type: string
+          default: mixed
+        lemmaMode:
+          type: string
+          enum: [AUTO, RAW_ONLY]
+          default: AUTO
+
+    DictionaryQualificationReviewItem:
+      type: object
+      required: [id, key, samples, occurrences, status]
+      properties:
+        id:
+          type: string
+          format: uuid
+        key:
+          type: string
+        samples:
+          type: array
+          items: { type: string }
+        occurrences:
+          type: integer
+          format: int64
+        status:
+          type: string
+          enum: [PENDING, RESOLVED_ALIAS, RESOLVED_NEW_QUALIFICATION, REJECTED]
+        suggestedQualificationId:
+          type: string
+          format: uuid
+          nullable: true
+        suggestedConfidence:
+          type: number
+          format: double
+          nullable: true
+        resolvedQualificationId:
+          type: string
+          format: uuid
+          nullable: true
+        resolvedBy:
+          type: string
+          nullable: true
+        resolvedAt:
+          type: string
+          nullable: true
+
+    DictionaryQualificationReviewResult:
+      type: object
+      required: [review]
+      properties:
+        review:
+          $ref: "#/components/schemas/DictionaryQualificationReviewItem"
+        qualification:
+          allOf:
+            - $ref: "#/components/schemas/DictionaryQualification"
+          nullable: true
+
+    DictionaryResolveQualificationReviewRequest:
+      type: object
+      required: [action]
+      properties:
+        action:
+          type: string
+          enum: [ALIAS, NEW_QUALIFICATION, REJECT]
+        qualificationId:
+          type: string
+          format: uuid
+          nullable: true
+        canonicalName:
+          type: string
+          nullable: true
+        qualificationType:
+          type: string
+          nullable: true
+        additionalAliases:
+          type: array
+          items: { type: string }
+
+    DictionaryCreateRelationRequest:
+      type: object
+      required: [leftSkillId, rightSkillId, kind]
+      properties:
+        leftSkillId:
+          type: string
+          format: uuid
+        rightSkillId:
+          type: string
+          format: uuid
+        kind:
+          type: string
+          enum: [SAME_GROUP, RELATED, PARENT, CHILD]
+
+    DictionaryGenerationAliasDraft:
+      type: object
+      properties:
+        id:
+          type: string
+          format: uuid
+        text:
+          type: string
+        lang:
+          type: string
+        category:
+          type: string
+          nullable: true
+        conflictSkillId:
+          type: string
+          format: uuid
+          nullable: true
+        conflictSkillName:
+          type: string
+          nullable: true
+        status:
+          type: string
+
+    DictionaryGenerationSkillDraft:
+      type: object
+      properties:
+        id:
+          type: string
+          format: uuid
+        canonical:
+          type: string
+        skillType:
+          type: string
+        targetSkillId:
+          type: string
+          format: uuid
+          nullable: true
+        targetSkillName:
+          type: string
+          nullable: true
+        conflictSkillId:
+          type: string
+          format: uuid
+          nullable: true
+        conflictSkillName:
+          type: string
+          nullable: true
+        status:
+          type: string
+        aliases:
+          type: array
+          items:
+            $ref: "#/components/schemas/DictionaryGenerationAliasDraft"
+
+    DictionaryGenerationJob:
+      type: object
+      required: [id, specialization, status, maxSkills, skills]
+      properties:
+        id:
+          type: string
+          format: uuid
+        specialization:
+          type: string
+        note:
+          type: string
+          nullable: true
+        status:
+          type: string
+          enum: [PENDING, RUNNING, DONE, FAILED, APPROVED, REJECTED]
+        model:
+          type: string
+          nullable: true
+        promptVersion:
+          type: string
+          nullable: true
+        maxSkills:
+          type: integer
+        error:
+          type: string
+          nullable: true
+        createdAt:
+          type: string
+          format: date-time
+        finishedAt:
+          type: string
+          format: date-time
+          nullable: true
+        skills:
+          type: array
+          items:
+            $ref: "#/components/schemas/DictionaryGenerationSkillDraft"
+
+    DictionaryCreateGenerationJobRequest:
+      type: object
+      required: [specialization]
+      properties:
+        specialization:
+          type: string
+        note:
+          type: string
+          nullable: true
+        maxSkills:
+          type: integer
+          default: 30
+
+    DictionaryAcceptedSkill:
+      type: object
+      required: [canonical]
+      properties:
+        draftId:
+          type: string
+          format: uuid
+          nullable: true
+        canonical:
+          type: string
+        skillType:
+          type: string
+        targetSkillId:
+          type: string
+          format: uuid
+          nullable: true
+        aliases:
+          type: array
+          items: { type: string }
+
+    DictionaryApproveGenerationRequest:
+      type: object
+      properties:
+        skills:
+          type: array
+          items:
+            $ref: "#/components/schemas/DictionaryAcceptedSkill"
+          nullable: true
+
 
   securitySchemes:
     BearerAuth:

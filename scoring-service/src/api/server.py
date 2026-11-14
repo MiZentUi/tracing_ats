@@ -56,7 +56,11 @@ def create_server(
         scoring_servicer = build_scoring_service(settings)
     else:
         scoring_servicer = ScoringService(
-            extractor=extractor or ResumeExtractor(build_llm_client(settings)),
+            extractor=extractor
+            or ResumeExtractor(
+                build_llm_client(settings),
+                enforce_validity=not settings.ignore_invalid_quotes,
+            ),
             evaluator=evaluator or build_evaluator(),
             mapper=mapper or ExtractionMapper(),
             clock=clock or SystemClock(),

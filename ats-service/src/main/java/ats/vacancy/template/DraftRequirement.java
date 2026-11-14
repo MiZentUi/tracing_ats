@@ -14,7 +14,8 @@ public record DraftRequirement(
         String quote,
         String clarityWarning,
         SkillKindHistory history,
-        String normalizedKey) {
+        String normalizedKey,
+        boolean qualification) {
 
     public DraftRequirement withKindAndHistory(
             Kind newKind, KindSource newSource, Kind newLlmKind, SkillKindHistory newHistory) {
@@ -29,6 +30,7 @@ public record DraftRequirement(
                 quote,
                 clarityWarning,
                 newHistory,
-                normalizedKey);
+                normalizedKey,
+                qualification);
     }
 }

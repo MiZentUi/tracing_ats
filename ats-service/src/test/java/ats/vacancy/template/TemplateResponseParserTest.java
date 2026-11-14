@@ -12,7 +12,7 @@ class TemplateResponseParserTest {
 
     private static String payload(String kind) {
         return """
-                {"schema_version": 2, "title": "Backend", "requirements": [
+                {"schema_version": 3, "title": "Backend", "requirements": [
                   {"skill": "Java", "kind": "%s", "years_required": 3,
                    "quote": "Java от 3 лет", "clarity_warning": null}
                 ]}
@@ -42,7 +42,7 @@ class TemplateResponseParserTest {
     void ignoresUnknownFields() {
         String withExtra =
                 """
-                {"schema_version": 2, "title": null, "requirements": [
+                {"schema_version": 3, "title": null, "requirements": [
                   {"skill": "Java", "kind": "MUST", "years_required": null,
                    "quote": "Java", "clarity_warning": null, "weight": 3, "critical": true}
                 ]}
@@ -52,14 +52,14 @@ class TemplateResponseParserTest {
 
     @Test
     void rejectsTruncatedAndWrongSchemaAndUnknownKind() {
-        assertThatThrownBy(() -> parser.parse("{\"schema_version\": 2,"))
+        assertThatThrownBy(() -> parser.parse("{\"schema_version\": 3,"))
                 .isInstanceOf(TemplateParseException.class);
         assertThatThrownBy(
                         () ->
                                 parser.parse(
                                         payload("MUST")
                                                 .replace(
-                                                        "\"schema_version\": 2",
+                                                        "\"schema_version\": 3",
                                                         "\"schema_version\": 1")))
                 .isInstanceOf(TemplateParseException.class);
         assertThatThrownBy(() -> parser.parse(payload("MAYBE")))

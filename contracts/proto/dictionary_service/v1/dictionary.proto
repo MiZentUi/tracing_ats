@@ -13,6 +13,9 @@ option java_package = "ats.dictionary.proto";
 // только ats-service (BFF), потому что только он знает ссылки на skill_id.
 service DictionaryService {
   rpc Resolve(ResolveBatchRequest) returns (ResolveBatchResponse);
+  rpc ResolveQualifications(ResolveQualificationsRequest)
+      returns (ResolveQualificationsResponse);
+  rpc GetRelations(GetRelationsRequest) returns (GetRelationsResponse);
   rpc GetVersion(GetVersionRequest) returns (GetVersionResponse);
   rpc GetSkills(GetSkillsRequest) returns (GetSkillsResponse);
 
@@ -24,6 +27,22 @@ service DictionaryService {
   rpc AddAlias(AddAliasRequest) returns (Alias);
   rpc SetCanonicalAlias(SetCanonicalAliasRequest) returns (Skill);
   rpc DeleteAlias(DeleteAliasRequest) returns (google.protobuf.Empty);
+
+  rpc ListQualificationReviewItems(ListQualificationReviewItemsRequest)
+      returns (ListQualificationReviewItemsResponse);
+  rpc ResolveQualificationReviewItem(ResolveQualificationReviewItemRequest)
+      returns (ResolveQualificationReviewItemResponse);
+  rpc ListQualifications(ListQualificationsRequest) returns (ListQualificationsResponse);
+  rpc CreateQualification(CreateQualificationRequest) returns (Qualification);
+  rpc AddQualificationAlias(AddQualificationAliasRequest) returns (QualificationAlias);
+  rpc SetCanonicalQualificationAlias(SetCanonicalQualificationAliasRequest)
+      returns (Qualification);
+  rpc DeleteQualificationAlias(DeleteQualificationAliasRequest)
+      returns (google.protobuf.Empty);
+  rpc DeleteQualification(DeleteQualificationRequest) returns (google.protobuf.Empty);
+  rpc ListRelations(ListRelationsRequest) returns (ListRelationsResponse);
+  rpc CreateRelation(CreateRelationRequest) returns (SkillRelation);
+  rpc DeleteRelation(DeleteRelationRequest) returns (google.protobuf.Empty);
   rpc DeprecateSkill(DeprecateSkillRequest) returns (Skill);
   rpc DeleteSkill(DeleteSkillRequest) returns (google.protobuf.Empty);
   // Пакетное применение подтверждённых HR черновиков: один dictionary_version++.
@@ -46,6 +65,14 @@ enum ResolveMethod {
   RESOLVE_METHOD_NEW = 5;
   // Зарезервирован: в v1 не выдаётся, подсказки живут только в candidates.
   RESOLVE_METHOD_EMBEDDING = 6;
+}
+
+enum RelationKind {
+  RELATION_KIND_UNSPECIFIED = 0;
+  RELATION_KIND_SAME_GROUP = 1;
+  RELATION_KIND_PARENT = 2;
+  RELATION_KIND_CHILD = 3;
+  RELATION_KIND_RELATED = 4;
 }
 
 enum SkillType {
@@ -93,6 +120,52 @@ enum ReviewAction {
   REVIEW_ACTION_REJECT = 3;
 }
 
+enum QualificationReviewAction {
+  QUALIFICATION_REVIEW_ACTION_UNSPECIFIED = 0;
+  QUALIFICATION_REVIEW_ACTION_ALIAS = 1;
+  QUALIFICATION_REVIEW_ACTION_NEW_QUALIFICATION = 2;
+  QUALIFICATION_REVIEW_ACTION_REJECT = 3;
+}
+
+message QualificationReviewItem {
+  string id = 1;
+  string key = 2;
+  repeated string samples = 3;
+  int64 occurrences = 4;
+  string status = 5;
+  string suggested_qualification_id = 6;
+  double suggested_confidence = 7;
+  string resolved_qualification_id = 8;
+  string resolved_by = 9;
+  string resolved_at = 10;
+}
+
+message ListQualificationReviewItemsRequest {
+  string status = 1;
+  int32 limit = 2;
+  int32 offset = 3;
+}
+
+message ListQualificationReviewItemsResponse {
+  repeated QualificationReviewItem items = 1;
+  int32 total = 2;
+}
+
+message ResolveQualificationReviewItemRequest {
+  string review_id = 1;
+  QualificationReviewAction action = 2;
+  string actor = 3;
+  string qualification_id = 4;
+  string canonical_name = 5;
+  string qualification_type = 6;
+  repeated string additional_aliases = 7;
+}
+
+message ResolveQualificationReviewItemResponse {
+  QualificationReviewItem item = 1;
+  Qualification qualification = 2;
+}
+
 message RawSkill {
   // Клиентский ключ для склейки ответа.
   string key = 1;
@@ -132,6 +205,56 @@ message ResolveBatchResponse {
   repeated ResolvedSkill items = 2;
 }
 
+message RawQualification {
+  string key = 1;
+  string raw_label = 2;
+  ResolveSource source = 3;
+}
+
+message ResolvedQualification {
+  string key = 1;
+  string raw_label = 2;
+  string qualification_id = 3;
+  string canonical_name = 4;
+  string normalized_key = 5;
+  string folded_key = 6;
+  ResolveMethod method = 7;
+  double confidence = 8;
+  repeated Candidate candidates = 9;
+}
+
+message ResolveQualificationsRequest {
+  repeated RawQualification items = 1;
+  string as_of_resolver_version = 2;
+  bool skip_review = 3;
+}
+
+message ResolveQualificationsResponse {
+  string resolver_version = 1;
+  repeated ResolvedQualification items = 2;
+}
+
+message SkillPair {
+  string left_skill_id = 1;
+  string right_skill_id = 2;
+}
+
+message SkillRelation {
+  string left_skill_id = 1;
+  string right_skill_id = 2;
+  RelationKind kind = 3;
+}
+
+message GetRelationsRequest {
+  repeated SkillPair pairs = 1;
+  string as_of_resolver_version = 2;
+}
+
+message GetRelationsResponse {
+  string resolver_version = 1;
+  repeated SkillRelation relations = 2;
+}
+
 message GetVersionRequest {}
 
 message GetVersionResponse {
@@ -141,6 +264,8 @@ message GetVersionResponse {
   string config_hash = 4;
   string pymorphy_version = 5;
   string homoglyph_rules_version = 6;
+  int64 qualification_version = 7;
+  int64 relation_version = 8;
 }
 
 message GetSkillsRequest {
@@ -169,6 +294,91 @@ message Skill {
   SkillType skill_type = 3;
   SkillStatus status = 4;
   repeated Alias aliases = 5;
+}
+
+message QualificationAlias {
+  string id = 1;
+  string qualification_id = 2;
+  string raw = 3;
+  bool is_canonical = 4;
+  string lang = 5;
+  AliasSource source = 6;
+  LemmaMode lemma_mode = 7;
+  string created_by = 8;
+  string created_at = 9;
+}
+
+message Qualification {
+  string id = 1;
+  string canonical_name = 2;
+  string status = 3;
+  string qualification_type = 4;
+  repeated QualificationAlias aliases = 5;
+}
+
+message ListQualificationsRequest {
+  string query = 1;
+  string status = 2;
+  int32 limit = 3;
+  int32 offset = 4;
+}
+
+message ListQualificationsResponse {
+  repeated Qualification items = 1;
+  int32 total = 2;
+}
+
+message CreateQualificationRequest {
+  string canonical_name = 1;
+  string qualification_type = 2;
+  string actor = 3;
+}
+
+message AddQualificationAliasRequest {
+  string qualification_id = 1;
+  string alias_raw = 2;
+  string lang = 3;
+  LemmaMode lemma_mode = 4;
+  string actor = 5;
+}
+
+message SetCanonicalQualificationAliasRequest {
+  string qualification_id = 1;
+  string alias_id = 2;
+  string actor = 3;
+}
+
+message DeleteQualificationAliasRequest {
+  string alias_id = 1;
+  string actor = 2;
+}
+
+message DeleteQualificationRequest {
+  string qualification_id = 1;
+  string actor = 2;
+}
+
+message ListRelationsRequest {
+  int32 limit = 1;
+  int32 offset = 2;
+}
+
+message ListRelationsResponse {
+  repeated SkillRelation items = 1;
+  int32 total = 2;
+}
+
+message CreateRelationRequest {
+  string left_skill_id = 1;
+  string right_skill_id = 2;
+  RelationKind kind = 3;
+  string actor = 4;
+}
+
+message DeleteRelationRequest {
+  string left_skill_id = 1;
+  string right_skill_id = 2;
+  string actor = 3;
 }
 
 message ReviewItem {

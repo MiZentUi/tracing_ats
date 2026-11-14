@@ -19,14 +19,21 @@ from scoring_service.v1.models.features import (
     common_pb2,
     education_pb2,
     experience_pb2,
+    qualification_pb2,
     skill_pb2,
 )
 
-TEXT = "Python developer\nМГУ, 2019\nООО Ромашка, 2020-2023"
+TEXT = "Python developer\nМГУ, 2019\nООО Ромашка, 2020-2023\nIII группа по электробезопасности"
 
 PAYLOAD = {
-    "schema_version": 2,
+    "schema_version": 3,
     "skills": [{"name": "Python", "years": 3, "quote": "Python developer"}],
+    "qualifications": [
+        {
+            "label": "III группа по электробезопасности",
+            "quote": "III группа по электробезопасности",
+        }
+    ],
     "education": [
         {
             "institution": "МГУ",
@@ -130,7 +137,7 @@ def _extract_request(text: str = TEXT) -> messages_pb2.ExtractResumeRequest:
 
 
 def _parsed_resume() -> messages_pb2.ParsedResume:
-    parsed = messages_pb2.ParsedResume(schema_version=2)
+    parsed = messages_pb2.ParsedResume(schema_version=3)
     parsed.skills["skill:0"].CopyFrom(
         skill_pb2.SkillPerResume(
             name="Python",
@@ -185,6 +192,158 @@ def _evaluate_request(
         vacancy=vacancy,
         reference_date=_reference_date(),
     )
+
+
+def _qualification_catalog() -> qualification_pb2.QualificationCatalog:
+    return qualification_pb2.QualificationCatalog(
+        version="test-v1",
+        aliases=[
+            qualification_pb2.QualificationAlias(
+                alias_normalized="3 группа по электробезопасности",
+                canonical_key="electrical_safety_group_iii",
+                canonical_label="III группа по электробезопасности",
+            ),
+            qualification_pb2.QualificationAlias(
+                alias_normalized="iii группа по электробезопасности",
+                canonical_key="electrical_safety_group_iii",
+                canonical_label="III группа по электробезопасности",
+            ),
+            qualification_pb2.QualificationAlias(
+                alias_normalized="права категории b",
+                canonical_key="driver_license_b",
+                canonical_label="Водительские права категории B",
+            ),
+            qualification_pb2.QualificationAlias(
+                alias_normalized="водительские права категории b",
+                canonical_key="driver_license_b",
+                canonical_label="Водительские права категории B",
+            ),
+            qualification_pb2.QualificationAlias(
+                alias_normalized="права категории c",
+                canonical_key="driver_license_c",
+                canonical_label="Водительские права категории C",
+            ),
+            qualification_pb2.QualificationAlias(
+                alias_normalized="водительские права категории c",
+                canonical_key="driver_license_c",
+                canonical_label="Водительские права категории C",
+            ),
+        ],
+    )
+
+
+def _qualification_vacancy() -> messages_pb2.Vacancy:
+    return messages_pb2.Vacancy(
+        requirements={
+            "electrical": features_pb2.FeatureRequirement(
+                criticality=common_pb2.FEATURE_CRITICALITY_REQUIRED,
+                qualification=qualification_pb2.QualificationRequirement(
+                    label="3 группа по электробезопасности"
+                ),
+            )
+        }
+    )
+
+
+def test_evaluate_resume_match_qualification_is_binary_and_uses_catalog() -> None:
+    resume = _parsed_resume()
+    resume.qualifications["qualification:0"].CopyFrom(
+        qualification_pb2.QualificationPerResume(
+            label="III группа по электробезопасности",
+            evidence=common_pb2.FeatureEvidence(text="III группа по электробезопасности"),
+        )
+    )
+    request = messages_pb2.EvaluateResumeMatchRequest(
+        resume=resume,
+        unprocessed_resume=messages_pb2.UnprocessedResume(text=TEXT),
+        vacancy=_qualification_vacancy(),
+        reference_date=_reference_date(),
+        qualification_catalog=_qualification_catalog(),
+    )
+
+    with _running(ResumeExtractor(FakeLlm(PAYLOAD))) as stub:
+        response = stub.EvaluateResumeMatch(request, timeout=2)
+
+    match = response.matches["electrical"]
+    assert match.status == common_pb2.CORRESPONDENCE_FULL
+    assert match.coverage == 1.0
+    assert match.relevance == 1.0
+    assert response.general_score.score == 1.0
+
+
+def test_evaluate_resume_match_qualification_label_can_be_normalized() -> None:
+    text = "Имею водительские права категорий B и C."
+    resume = _parsed_resume()
+    for position, label in enumerate(
+        ["Водительские права категории B", "Водительские права категории C"]
+    ):
+        resume.qualifications[f"qualification:{position}"].CopyFrom(
+            qualification_pb2.QualificationPerResume(
+                label=label,
+                evidence=common_pb2.FeatureEvidence(text=text),
+            )
+        )
+    vacancy = messages_pb2.Vacancy(
+        requirements={
+            "license_b": features_pb2.FeatureRequirement(
+                criticality=common_pb2.FEATURE_CRITICALITY_REQUIRED,
+                qualification=qualification_pb2.QualificationRequirement(label="права категории B"),
+            ),
+            "license_c": features_pb2.FeatureRequirement(
+                criticality=common_pb2.FEATURE_CRITICALITY_REQUIRED,
+                qualification=qualification_pb2.QualificationRequirement(label="права категории C"),
+            ),
+        }
+    )
+    request = messages_pb2.EvaluateResumeMatchRequest(
+        resume=resume,
+        unprocessed_resume=messages_pb2.UnprocessedResume(text=text),
+        vacancy=vacancy,
+        reference_date=_reference_date(),
+        qualification_catalog=_qualification_catalog(),
+    )
+
+    with _running(ResumeExtractor(FakeLlm(PAYLOAD))) as stub:
+        response = stub.EvaluateResumeMatch(request, timeout=2)
+
+    for key in ("license_b", "license_c"):
+        assert response.matches[key].status == common_pb2.CORRESPONDENCE_FULL
+        assert response.matches[key].coverage == 1.0
+
+
+def test_evaluate_resume_match_missing_qualification_reduces_score() -> None:
+    request = messages_pb2.EvaluateResumeMatchRequest(
+        resume=_parsed_resume(),
+        unprocessed_resume=messages_pb2.UnprocessedResume(text=TEXT),
+        vacancy=_qualification_vacancy(),
+        reference_date=_reference_date(),
+        qualification_catalog=_qualification_catalog(),
+    )
+
+    with _running(ResumeExtractor(FakeLlm(PAYLOAD))) as stub:
+        response = stub.EvaluateResumeMatch(request, timeout=2)
+
+    match = response.matches["electrical"]
+    assert match.status == common_pb2.CORRESPONDENCE_NOT_STATED
+    assert match.coverage == 0.0
+    assert response.general_score.score == 0.0
+
+
+def test_score_resume_matches_qualification_through_catalog() -> None:
+    request = messages_pb2.ScoreResumeRequest(
+        vacancy=_qualification_vacancy(),
+        resume=messages_pb2.UnprocessedResume(text=TEXT),
+        reference_date=_reference_date(),
+        qualification_catalog=_qualification_catalog(),
+    )
+
+    with _running(ResumeExtractor(FakeLlm(PAYLOAD))) as stub:
+        response = stub.ScoreResume(request, timeout=2)
+
+    feature = response.features["electrical"]
+    assert feature.WhichOneof("resume") == "qualification"
+    assert feature.qualification.label == "III группа по электробезопасности"
+    assert feature.coverage == 1.0
 
 
 def test_score_resume_returns_general_score_and_features() -> None:
@@ -265,10 +424,22 @@ def test_evaluate_resume_match_statuses_and_explanations() -> None:
 
     gap_ids = {gap.requirement_id for gap in response.gaps}
     assert gap_ids == {"kafka", "soft"}
-    assert "Python" in response.strengths
+    assert "Python" in " ".join(response.strengths)
     assert response.questions
     assert response.recruiter_note
     assert response.general_score.score_low < response.general_score.score_high
+
+
+def test_evaluate_resume_match_logs_no_resume_text(caplog) -> None:
+    with caplog.at_level(logging.INFO), _running(ResumeExtractor(FakeLlm(PAYLOAD))) as stub:
+        stub.EvaluateResumeMatch(_evaluate_request(), timeout=2)
+
+    assert "Python developer" not in caplog.text
+    assert TEXT not in caplog.text
+    assert "strengths=" in caplog.text
+    assert "risks=" in caplog.text
+    assert "questions=" in caplog.text
+    assert "feedback=feedback-templates.v2" in caplog.text
 
 
 def test_evaluate_resume_match_marks_insufficient_tenure() -> None:
@@ -347,7 +518,7 @@ def test_extract_resume_returns_parsed_resume() -> None:
         response = stub.ExtractResume(_extract_request(), timeout=2)
 
     parsed = response.parsed
-    assert parsed.schema_version == 2
+    assert parsed.schema_version == 3
     assert response.dropped == 0
     assert response.warnings == []
 
@@ -358,6 +529,11 @@ def test_extract_resume_returns_parsed_resume() -> None:
     assert skill.tenure == 3
     assert skill.evidence.text == "Python developer"
     assert skill.evidence.start_index == 0
+
+    assert set(parsed.qualifications) == {"qualification:0"}
+    qualification = parsed.qualifications["qualification:0"]
+    assert qualification.label == "III группа по электробезопасности"
+    assert qualification.evidence.text == "III группа по электробезопасности"
 
     assert set(parsed.education) == {"education:0"}
     education = parsed.education["education:0"]
@@ -385,8 +561,8 @@ def test_extract_resume_logs_only_metadata(caplog) -> None:
     ):
         stub.ExtractResume(_extract_request(), timeout=2)
 
-    assert "extract resume model=fake prompt=resume-extraction.v2 schema=2" in caplog.text
-    assert "skills=1 education=1 experience=1 dropped=0" in caplog.text
+    assert "extract resume model=fake prompt=resume-extraction.v4 schema=3" in caplog.text
+    assert "skills=1 qualifications=1 education=1 experience=1 dropped=0" in caplog.text
     assert TEXT not in caplog.text
     assert "Python developer" not in caplog.text
 
@@ -442,7 +618,7 @@ def test_extract_resume_reports_unavailable_llm() -> None:
 
 def test_extract_resume_reports_invalid_llm_response() -> None:
     with (
-        _running(ResumeExtractor(FakeLlm({"schema_version": 3}))) as stub,
+        _running(ResumeExtractor(FakeLlm({"schema_version": 2}))) as stub,
         pytest.raises(grpc.RpcError) as exc_info,
     ):
         stub.ExtractResume(_extract_request(), timeout=2)
@@ -472,7 +648,7 @@ def test_score_resume_reports_unavailable_llm() -> None:
 
 def test_score_resume_reports_invalid_llm_response() -> None:
     with (
-        _running(ResumeExtractor(FakeLlm({"schema_version": 3}))) as stub,
+        _running(ResumeExtractor(FakeLlm({"schema_version": 2}))) as stub,
         pytest.raises(grpc.RpcError) as exc_info,
     ):
         stub.ScoreResume(_score_request(), timeout=2)

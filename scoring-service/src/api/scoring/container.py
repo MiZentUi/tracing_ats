@@ -13,15 +13,18 @@ from ..extraction.extractor import ResumeExtractor
 from ..llm import build_llm_client
 from .calculator import ScoringCalculator
 from .evaluator import ResumeEvaluator
+from .feedback import FeedbackBuilder
 from .mapping import ExtractionMapper
 from .matcher import RequirementMatcher
 from .policies import (
     CriticalityWeightPolicy,
     HeuristicClaimConfidence,
     NoDomainMatcher,
+    RelationPolicy,
     SystemClock,
     TemporalPolicy,
 )
+from .qualification import QualificationResolver
 from .resolver import SkillResolver
 from .service import ScoringService
 from .similarity import DeterministicSimilarity
@@ -41,12 +44,14 @@ def build_evaluator(settings: Settings | None = None) -> ResumeEvaluator:
                 settings.dictionary_as_of_version,
             )
     resolver = SkillResolver(client, enabled=enabled)
+    qualification_resolver = QualificationResolver(client, enabled=enabled)
     matcher = RequirementMatcher(
         similarity=similarity,
         temporal=TemporalPolicy(),
         confidence=HeuristicClaimConfidence(),
         text_matcher=DeterministicTextMatcher(similarity),
         resolver=resolver,
+        relations=RelationPolicy(),
     )
     calculator = ScoringCalculator(
         weights=CriticalityWeightPolicy(),
@@ -57,6 +62,8 @@ def build_evaluator(settings: Settings | None = None) -> ResumeEvaluator:
         matcher=matcher,
         calculator=calculator,
         domain=NoDomainMatcher(),
+        feedback=FeedbackBuilder(),
+        qualification_resolver=qualification_resolver,
     )
 
 

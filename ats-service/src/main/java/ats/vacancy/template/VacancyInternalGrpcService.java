@@ -116,6 +116,7 @@ public class VacancyInternalGrpcService
                             .setCritical(requirement.critical())
                             .setYearsRequired(requirement.yearsRequired())
                             .setHalfLifeYears(requirement.halfLifeYears())
+                            .setQualification(requirement.qualification())
                             .build());
         }
         return builder.build();

@@ -36,6 +36,8 @@ class Settings(BaseSettings):
     dictionary_deadline_seconds: float = Field(default=2.0, gt=0, le=10)
     dictionary_as_of_version: str = ""
 
+    ignore_invalid_quotes: bool = False
+
     @model_validator(mode="after")
     def _check_llm(self) -> Self:
         if self.llm_provider == "openai":

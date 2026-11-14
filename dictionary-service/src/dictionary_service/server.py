@@ -11,8 +11,23 @@ from dictionary_service.v1 import dictionary_pb2 as pb
 from dictionary_service.v1 import dictionary_pb2_grpc as pb_grpc
 
 from .config import Settings
-from .domain import AliasConflict, CanonicalRequired, NotFound, ReviewItem, Skill
-from .service import ApplyAliasInput, ApplySkillInput, DictionaryService, ResolveInput
+from .domain import (
+    AliasConflict,
+    CanonicalRequired,
+    NotFound,
+    Qualification,
+    QualificationAlias,
+    QualificationReviewItem,
+    ReviewItem,
+    Skill,
+)
+from .service import (
+    ApplyAliasInput,
+    ApplySkillInput,
+    DictionaryService,
+    ResolveInput,
+    ResolveQualificationInput,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -48,6 +63,13 @@ _ALIAS_SOURCE_TO_PROTO = {
     "EMBEDDING_CONFIRMED": pb.ALIAS_SOURCE_EMBEDDING_CONFIRMED,
 }
 _LEMMA_MODE_TO_PROTO = {"AUTO": pb.LEMMA_MODE_AUTO, "RAW_ONLY": pb.LEMMA_MODE_RAW_ONLY}
+_RELATION_TO_PROTO = {
+    "SAME_GROUP": pb.RELATION_KIND_SAME_GROUP,
+    "PARENT": pb.RELATION_KIND_PARENT,
+    "CHILD": pb.RELATION_KIND_CHILD,
+    "RELATED": pb.RELATION_KIND_RELATED,
+}
+_RELATION_FROM_PROTO = {value: key for key, value in _RELATION_TO_PROTO.items()}
 _REVIEW_STATUS_TO_PROTO = {
     "PENDING": pb.REVIEW_STATUS_PENDING,
     "RESOLVED_ALIAS": pb.REVIEW_STATUS_RESOLVED_ALIAS,
@@ -116,6 +138,80 @@ class DictionaryServicer(pb_grpc.DictionaryServiceServicer):
                 )
         return response
 
+    def ResolveQualifications(
+        self,
+        request: pb.ResolveQualificationsRequest,
+        context: grpc.ServicerContext,
+    ):
+        if len(request.items) > self._settings.max_batch:
+            context.abort(
+                grpc.StatusCode.INVALID_ARGUMENT,
+                f"TOO_MANY_ITEMS|max={self._settings.max_batch}",
+            )
+        raw_items = []
+        for index, item in enumerate(request.items):
+            raw_label = item.raw_label.strip()
+            if not raw_label:
+                context.abort(grpc.StatusCode.INVALID_ARGUMENT, "EMPTY_NAME")
+            if len(raw_label) > 256:
+                context.abort(grpc.StatusCode.INVALID_ARGUMENT, "NAME_TOO_LONG")
+            raw_items.append(
+                ResolveQualificationInput(
+                    key=item.key or str(index),
+                    raw_label=raw_label,
+                    source=_SOURCE_FROM_PROTO.get(item.source, "ADMIN"),
+                )
+            )
+        try:
+            version, resolved_items = self._service.resolve_qualifications(
+                raw_items, request.as_of_resolver_version, request.skip_review
+            )
+        except NotFound as error:
+            context.abort(grpc.StatusCode.NOT_FOUND, f"VERSION_NOT_FOUND|{error}")
+        response = pb.ResolveQualificationsResponse(resolver_version=version)
+        for item, resolved in zip(raw_items, resolved_items, strict=True):
+            message = response.items.add(
+                key=item.key,
+                raw_label=resolved.raw_label,
+                normalized_key=resolved.normalized_key,
+                folded_key=resolved.folded_key,
+                canonical_name=resolved.canonical_name,
+                method=_METHOD_TO_PROTO.get(resolved.method, pb.RESOLVE_METHOD_NEW),
+                confidence=resolved.confidence,
+            )
+            if resolved.qualification_id:
+                message.qualification_id = resolved.qualification_id
+        return response
+
+    def GetRelations(self, request: pb.GetRelationsRequest, context: grpc.ServicerContext):
+        if len(request.pairs) > self._settings.max_batch:
+            context.abort(
+                grpc.StatusCode.INVALID_ARGUMENT,
+                f"TOO_MANY_PAIRS|max={self._settings.max_batch}",
+            )
+        pairs = []
+        for pair in request.pairs:
+            left = pair.left_skill_id.strip()
+            right = pair.right_skill_id.strip()
+            if not left or not right or left == right:
+                continue
+            pairs.append((left, right))
+        try:
+            version, relations = self._service.get_relations(pairs, request.as_of_resolver_version)
+        except NotFound as error:
+            context.abort(grpc.StatusCode.NOT_FOUND, f"VERSION_NOT_FOUND|{error}")
+        return pb.GetRelationsResponse(
+            resolver_version=version,
+            relations=[
+                pb.SkillRelation(
+                    left_skill_id=item.left_skill_id,
+                    right_skill_id=item.right_skill_id,
+                    kind=_RELATION_TO_PROTO.get(item.kind, pb.RELATION_KIND_UNSPECIFIED),
+                )
+                for item in relations
+            ],
+        )
+
     # --- версия и справочники ----------------------------------------------
     def GetVersion(self, request: pb.GetVersionRequest, context: grpc.ServicerContext):
         meta = self._service.version()
@@ -126,6 +222,8 @@ class DictionaryServicer(pb_grpc.DictionaryServiceServicer):
             config_hash=meta.config_hash,
             pymorphy_version=meta.pymorphy_version,
             homoglyph_rules_version=meta.homoglyph_rules_version,
+            qualification_version=meta.qualification_version,
+            relation_version=meta.relation_version,
         )
 
     def GetSkills(self, request: pb.GetSkillsRequest, context: grpc.ServicerContext):
@@ -252,6 +350,176 @@ class DictionaryServicer(pb_grpc.DictionaryServiceServicer):
             context.abort(grpc.StatusCode.NOT_FOUND, _error(error))
         return empty_pb2.Empty()
 
+    def ListQualificationReviewItems(
+        self,
+        request: pb.ListQualificationReviewItemsRequest,
+        context: grpc.ServicerContext,
+    ):
+        status = (
+            request.status
+            if request.status
+            in (
+                "PENDING",
+                "RESOLVED_ALIAS",
+                "RESOLVED_NEW_QUALIFICATION",
+                "REJECTED",
+            )
+            else ""
+        )
+        items, total = self._service.list_qualification_review(
+            status, request.limit or 50, request.offset
+        )
+        return pb.ListQualificationReviewItemsResponse(
+            items=[_qualification_review(item) for item in items],
+            total=total,
+        )
+
+    def ResolveQualificationReviewItem(
+        self,
+        request: pb.ResolveQualificationReviewItemRequest,
+        context: grpc.ServicerContext,
+    ):
+        action = {
+            pb.QUALIFICATION_REVIEW_ACTION_ALIAS: "ALIAS",
+            pb.QUALIFICATION_REVIEW_ACTION_NEW_QUALIFICATION: "NEW_QUALIFICATION",
+            pb.QUALIFICATION_REVIEW_ACTION_REJECT: "REJECT",
+        }.get(request.action)
+        if not action:
+            context.abort(grpc.StatusCode.INVALID_ARGUMENT, "REVIEW_ACTION_REQUIRED")
+        try:
+            item, qualification = self._service.resolve_qualification_review(
+                request.review_id,
+                action,
+                request.actor or "hr",
+                request.qualification_id or None,
+                request.canonical_name or None,
+                request.qualification_type or None,
+                list(request.additional_aliases),
+            )
+        except AliasConflict as error:
+            context.abort(grpc.StatusCode.FAILED_PRECONDITION, _error(error))
+        except NotFound as error:
+            context.abort(grpc.StatusCode.NOT_FOUND, _error(error))
+        response = pb.ResolveQualificationReviewItemResponse(item=_qualification_review(item))
+        if qualification is not None:
+            response.qualification.CopyFrom(_qualification(qualification))
+        return response
+
+    def ListQualifications(
+        self, request: pb.ListQualificationsRequest, context: grpc.ServicerContext
+    ):
+        status = request.status if request.status in ("ACTIVE", "DEPRECATED") else ""
+        items, total = self._service.list_qualifications(
+            request.query, status, request.limit or 50, request.offset
+        )
+        return pb.ListQualificationsResponse(
+            items=[_qualification(item) for item in items], total=total
+        )
+
+    def CreateQualification(
+        self, request: pb.CreateQualificationRequest, context: grpc.ServicerContext
+    ):
+        try:
+            item = self._service.create_qualification(
+                request.canonical_name,
+                request.qualification_type or "OTHER",
+                request.actor or "hr",
+            )
+        except (AliasConflict, NotFound, ValueError) as error:
+            context.abort(grpc.StatusCode.INVALID_ARGUMENT, _error(error))
+        return _qualification(item)
+
+    def AddQualificationAlias(
+        self, request: pb.AddQualificationAliasRequest, context: grpc.ServicerContext
+    ):
+        lemma_mode = "RAW_ONLY" if request.lemma_mode == pb.LEMMA_MODE_RAW_ONLY else "AUTO"
+        try:
+            alias = self._service.add_qualification_alias(
+                request.qualification_id,
+                request.alias_raw,
+                request.lang or "mixed",
+                lemma_mode,
+                request.actor or "hr",
+            )
+        except AliasConflict as error:
+            context.abort(grpc.StatusCode.FAILED_PRECONDITION, _error(error))
+        except (NotFound, ValueError) as error:
+            context.abort(grpc.StatusCode.INVALID_ARGUMENT, _error(error))
+        return _qualification_alias(alias)
+
+    def SetCanonicalQualificationAlias(
+        self, request: pb.SetCanonicalQualificationAliasRequest, context: grpc.ServicerContext
+    ):
+        try:
+            item = self._service.set_canonical_qualification_alias(
+                request.qualification_id, request.alias_id, request.actor or "hr"
+            )
+        except NotFound as error:
+            context.abort(grpc.StatusCode.NOT_FOUND, _error(error))
+        return _qualification(item)
+
+    def DeleteQualificationAlias(
+        self, request: pb.DeleteQualificationAliasRequest, context: grpc.ServicerContext
+    ):
+        try:
+            self._service.delete_qualification_alias(request.alias_id, request.actor or "hr")
+        except CanonicalRequired as error:
+            context.abort(grpc.StatusCode.FAILED_PRECONDITION, _error(error))
+        except NotFound as error:
+            context.abort(grpc.StatusCode.NOT_FOUND, _error(error))
+        return empty_pb2.Empty()
+
+    def DeleteQualification(
+        self, request: pb.DeleteQualificationRequest, context: grpc.ServicerContext
+    ):
+        try:
+            self._service.delete_qualification(request.qualification_id, request.actor or "hr")
+        except NotFound as error:
+            context.abort(grpc.StatusCode.NOT_FOUND, _error(error))
+        return empty_pb2.Empty()
+
+    def ListRelations(self, request: pb.ListRelationsRequest, context: grpc.ServicerContext):
+        items, total = self._service.list_relations(request.limit or 500, request.offset)
+        return pb.ListRelationsResponse(
+            items=[
+                pb.SkillRelation(
+                    left_skill_id=item.left_skill_id,
+                    right_skill_id=item.right_skill_id,
+                    kind=_RELATION_TO_PROTO.get(item.kind, pb.RELATION_KIND_UNSPECIFIED),
+                )
+                for item in items
+            ],
+            total=total,
+        )
+
+    def CreateRelation(self, request: pb.CreateRelationRequest, context: grpc.ServicerContext):
+        kind = _RELATION_FROM_PROTO.get(request.kind)
+        if not kind:
+            context.abort(grpc.StatusCode.INVALID_ARGUMENT, "RELATION_KIND_REQUIRED")
+        try:
+            item = self._service.create_relation(
+                request.left_skill_id,
+                request.right_skill_id,
+                kind,
+                request.actor or "hr",
+            )
+        except NotFound as error:
+            context.abort(grpc.StatusCode.INVALID_ARGUMENT, _error(error))
+        return pb.SkillRelation(
+            left_skill_id=item.left_skill_id,
+            right_skill_id=item.right_skill_id,
+            kind=_RELATION_TO_PROTO.get(item.kind, pb.RELATION_KIND_UNSPECIFIED),
+        )
+
+    def DeleteRelation(self, request: pb.DeleteRelationRequest, context: grpc.ServicerContext):
+        try:
+            self._service.delete_relation(
+                request.left_skill_id, request.right_skill_id, request.actor or "hr"
+            )
+        except NotFound as error:
+            context.abort(grpc.StatusCode.NOT_FOUND, _error(error))
+        return empty_pb2.Empty()
+
     def ApplySkills(self, request: pb.ApplySkillsRequest, context: grpc.ServicerContext):
         inputs = []
         for item in request.skills:
@@ -305,6 +573,45 @@ def _skill(skill: Skill) -> pb.Skill:
             )
             for alias in skill.aliases
         ],
+    )
+
+
+def _qualification_alias(alias: QualificationAlias) -> pb.QualificationAlias:
+    return pb.QualificationAlias(
+        id=alias.id,
+        qualification_id=alias.qualification_id,
+        raw=alias.raw,
+        is_canonical=alias.is_canonical,
+        lang=alias.lang,
+        source=_ALIAS_SOURCE_TO_PROTO.get(alias.source, pb.ALIAS_SOURCE_HR),
+        lemma_mode=_LEMMA_MODE_TO_PROTO.get(alias.lemma_mode, pb.LEMMA_MODE_AUTO),
+        created_by=alias.created_by,
+        created_at=alias.created_at,
+    )
+
+
+def _qualification_review(item: QualificationReviewItem) -> pb.QualificationReviewItem:
+    return pb.QualificationReviewItem(
+        id=item.id,
+        key=item.key,
+        samples=list(item.sample_masked),
+        occurrences=item.occurrences,
+        status=item.status,
+        suggested_qualification_id=item.suggested_qualification_id or "",
+        suggested_confidence=item.suggested_confidence or 0.0,
+        resolved_qualification_id=item.resolved_qualification_id or "",
+        resolved_by=item.resolved_by or "",
+        resolved_at=item.resolved_at or "",
+    )
+
+
+def _qualification(item: Qualification) -> pb.Qualification:
+    return pb.Qualification(
+        id=item.id,
+        canonical_name=item.canonical_name,
+        status=item.status,
+        qualification_type=item.qualification_type or "",
+        aliases=[_qualification_alias(alias) for alias in item.aliases],
     )
 
 

@@ -49,6 +49,9 @@ databaseChangeLog:
       file: changes/018-report-decision.sql
       relativeToChangelogFile: true
   - include:
+      file: changes/019-qualification-open-vocabulary.sql
+      relativeToChangelogFile: true
+  - include:
       file: changes/020-dictionary-schema.sql
       relativeToChangelogFile: true
   - include:
@@ -56,4 +59,7 @@ databaseChangeLog:
       relativeToChangelogFile: true
   - include:
       file: changes/022-skill-generation.sql
+      relativeToChangelogFile: true
+  - include:
+      file: changes/023-dictionary-qualifications-and-relations.sql
       relativeToChangelogFile: true

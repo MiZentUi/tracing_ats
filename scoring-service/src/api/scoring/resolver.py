@@ -24,9 +24,20 @@ class BatchResolution:
     resolver_version: str
     mode: str
     identities: dict[str, SkillIdentity]
+    relations: dict[tuple[str, str], str] = field(default_factory=dict)
 
     def identity(self, raw_name: str) -> SkillIdentity | None:
         return self.identities.get(raw_name)
+
+    def relation(self, left_skill_id: str | None, right_skill_id: str | None) -> str | None:
+        if not left_skill_id or not right_skill_id or left_skill_id == right_skill_id:
+            return None
+        key = (
+            (left_skill_id, right_skill_id)
+            if left_skill_id < right_skill_id
+            else (right_skill_id, left_skill_id)
+        )
+        return self.relations.get(key)
 
 
 class SkillResolver:
@@ -53,7 +64,27 @@ class SkillResolver:
                     for raw, item in resolution.items.items()
                     if raw in unique
                 }
-                return BatchResolution(resolution.resolver_version, resolution.mode, identities)
+                relations: dict[tuple[str, str], str] = {}
+                if self._client is not None:
+                    skill_ids = sorted(
+                        {identity.skill_id for identity in identities.values() if identity.skill_id}
+                    )
+                    pairs = [
+                        (left, right)
+                        for index, left in enumerate(skill_ids)
+                        for right in skill_ids[index + 1 :]
+                    ][:200]
+                    if pairs:
+                        try:
+                            relations = self._client.get_relations(pairs)
+                        except DictionaryUnavailable as error:
+                            logger.warning(
+                                "dictionary_relations_unavailable fallback=none error=%s",
+                                type(error).__name__,
+                            )
+                return BatchResolution(
+                    resolution.resolver_version, resolution.mode, identities, relations
+                )
             except DictionaryUnavailable as error:
                 logger.warning(
                     "dictionary_unavailable fallback=exact error=%s", type(error).__name__
