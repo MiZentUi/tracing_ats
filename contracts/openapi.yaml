@@ -438,6 +438,12 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/ResumeBatchUploadResponse"
+        "413":
+          description: Файл больше допустимого размера
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiStatusResponse"
         default:
           $ref: "#/components/responses/default"
 
@@ -2053,6 +2059,10 @@ components:
           format: uuid
           nullable: true
           description: Вакансия отклика, если отклик есть.
+        vacancyTitle:
+          type: string
+          nullable: true
+          description: Название вакансии отклика, если отклик есть.
         source:
           type: string
           nullable: true

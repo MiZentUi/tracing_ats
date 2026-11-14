@@ -30,7 +30,7 @@ public class TelegramProperties {
 
     @NotNull private Duration retryDelay = Duration.ofSeconds(30);
 
-    /** База для ссылки на вакансию в сообщении. */
+    /** База для ссылки на анализ 1:1 в сообщении. */
     private String frontendBaseUrl = "http://localhost:3000";
 
     public boolean isConfigured() {

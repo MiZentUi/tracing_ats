@@ -226,6 +226,7 @@ public class ResumeController implements ResumesApi {
                 .matching(view.matching())
                 .applicationId(view.applicationId())
                 .vacancyId(view.vacancyId())
+                .vacancyTitle(view.vacancyTitle())
                 .source(
                         view.source() == null
                                 ? null

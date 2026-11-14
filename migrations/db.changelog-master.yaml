@@ -66,6 +66,7 @@ databaseChangeLog:
   - include:
       file: changes/024-education-requirement.sql
       relativeToChangelogFile: true
+  # Имя файла 023 сохранено, потому что на dev-базах changeset уже применён под этим путём.
   - include:
-      file: changes/025-hh-integration.sql
+      file: changes/023-hh-integration.sql
       relativeToChangelogFile: true

@@ -186,7 +186,7 @@ async fn index_page(State(state): State<AppState>) -> Html<String> {
          <title>mock hh.ru — вакансии</title>{style}</head><body>\
          {header}\
          <main><h1>Опубликованные вакансии</h1>\
-         <p class=\"muted\">Это локальная заглушка hh.ru. Здесь можно открыть вакансию и отправить отклик в Tracing ATS.</p>\
+         <p class=\"muted\">Локальная среда hh.ru: откройте вакансию и отправьте отклик, чтобы проверить пайплайн Tracing ATS.</p>\
          <div class=\"grid\">{content}</div></main></body></html>",
         style = PAGE_STYLE,
         header = PAGE_HEADER,
@@ -221,20 +221,24 @@ async fn vacancy_page(
     } else {
         format!(
             "<form class=\"respond\" method=\"post\" action=\"/vacancy/{id}/respond\" enctype=\"multipart/form-data\">\
-             <label for=\"resume\">Резюме</label>\
-             <select id=\"resume\" name=\"resume_id\">\
-             <option value=\"resume-strong\">Сильное: Java, Spring Boot, PostgreSQL, Kafka, Docker</option>\
-             <option value=\"resume-weak\">Слабое: Python без опыта</option>\
-             <option value=\"resume-empty\">Пустое резюме</option>\
-             <option value=\"custom\">Своё резюме: текст или файл</option>\
-             </select>\
-             <div class=\"custom\">\
-             <label for=\"resume-text\">Текст резюме — заполните, если выбрали «Своё резюме»</label>\
-             <textarea id=\"resume-text\" name=\"resume_text\" rows=\"8\" placeholder=\"Вставьте текст резюме: опыт, навыки, образование...\"></textarea>\
-             <label for=\"resume-file\">Или файл .txt / .md</label>\
+             <div class=\"form-head\">\
+             <h2>Отправить отклик</h2>\
+             <p class=\"muted\">Резюме уйдёт в Tracing ATS: сервис обезличит данные и посчитает предварительный скор.</p>\
+             </div>\
+             <div class=\"field\">\
+             <label for=\"resume-title\">Название резюме <span class=\"optional\">необязательно</span></label>\
+             <input id=\"resume-title\" name=\"resume_title\" type=\"text\" maxlength=\"120\" placeholder=\"Например, Java-разработчик, 5 лет\">\
+             <p class=\"hint\">Если оставить пустым, название возьмём из первой строки резюме.</p>\
+             </div>\
+             <div class=\"field\">\
+             <label for=\"resume-text\">Текст резюме</label>\
+             <textarea id=\"resume-text\" name=\"resume_text\" rows=\"10\" placeholder=\"Вставьте резюме целиком: желаемая должность, опыт, навыки, образование.\"></textarea>\
+             </div>\
+             <div class=\"field\">\
+             <label for=\"resume-file\">Или загрузите файл <span class=\"optional\">.txt / .md</span></label>\
              <input id=\"resume-file\" type=\"file\" name=\"resume_file\" accept=\".txt,.md,text/plain,text/markdown\">\
              </div>\
-             <button type=\"submit\">Отправить отклик</button>\
+             <div class=\"actions\"><button type=\"submit\">Отправить отклик</button></div>\
              </form>",
             id = html_escape(&vacancy.id)
         )
@@ -270,7 +274,7 @@ async fn vacancy_page(
          <main>\
          <a class=\"back\" href=\"/\">← Все вакансии</a>\
          <h1>{name}</h1>\
-         <div class=\"meta\">Работодатель: {employer} · hh vacancy id: {id} · {status}</div>\
+         <div class=\"meta\"><span>Работодатель: {employer}</span><span>hh vacancy id: {id}</span><span>{status}</span></div>\
          {banner}\
          <section class=\"description\">{description}</section>\
          {respond_block}\
@@ -298,7 +302,7 @@ async fn respond_page(
     Path(vacancy_id): Path<String>,
     mut multipart: Multipart,
 ) -> Result<Redirect, (StatusCode, Html<String>)> {
-    let mut resume_id = String::new();
+    let mut resume_title = String::new();
     let mut resume_text = String::new();
     let mut file_text: Option<String> = None;
 
@@ -310,7 +314,7 @@ async fn respond_page(
     })? {
         let name = field.name().unwrap_or("").to_string();
         match name.as_str() {
-            "resume_id" => resume_id = field.text().await.unwrap_or_default(),
+            "resume_title" => resume_title = field.text().await.unwrap_or_default(),
             "resume_text" => resume_text = field.text().await.unwrap_or_default(),
             "resume_file" => {
                 let filename = field.file_name().unwrap_or("").to_lowercase();
@@ -349,42 +353,43 @@ async fn respond_page(
         }
     }
 
-    let selected_resume_id = if resume_id == "custom" {
-        let text = if !resume_text.trim().is_empty() {
-            resume_text
-        } else {
-            file_text.unwrap_or_default()
-        };
-        if text.trim().is_empty() {
-            return Err((
-                StatusCode::UNPROCESSABLE_ENTITY,
-                Html(error_page(
-                    "Нет текста резюме",
-                    "Вставьте текст резюме или загрузите TXT/MD файл.",
-                )),
-            ));
-        }
-        let id = format!("resume-custom-{}", Uuid::new_v4());
-        let resume = json!({
-            "id": id,
-            "title": "Резюме кандидата",
-            "skills": text,
-            "skill_set": [],
-            "experience": [],
-            "education": {}
-        });
-        {
-            let mut mock = state.mock.write().await;
-            mock.resumes.insert(id.clone(), resume);
-            persist(&state, &mock);
-        }
-        info!("mock_hh_custom_resume_created resume_id={}", id);
-        id
-    } else if resume_id.is_empty() {
-        "resume-strong".to_string()
+    let text = if !resume_text.trim().is_empty() {
+        resume_text
     } else {
-        resume_id
+        file_text.unwrap_or_default()
     };
+    if text.trim().is_empty() {
+        return Err((
+            StatusCode::UNPROCESSABLE_ENTITY,
+            Html(error_page(
+                "Нет текста резюме",
+                "Вставьте текст резюме или загрузите TXT/MD файл.",
+            )),
+        ));
+    }
+    let selected_resume_id = format!("resume-custom-{}", Uuid::new_v4());
+    let title = if resume_title.trim().is_empty() {
+        resume_title_from_text(&text)
+    } else {
+        truncate_chars(resume_title.trim(), 120)
+    };
+    let resume = json!({
+        "id": selected_resume_id,
+        "title": title,
+        "skills": text,
+        "skill_set": [],
+        "experience": [],
+        "education": {}
+    });
+    {
+        let mut mock = state.mock.write().await;
+        mock.resumes.insert(selected_resume_id.clone(), resume);
+        persist(&state, &mock);
+    }
+    info!(
+        "mock_hh_custom_resume_created resume_id={}",
+        selected_resume_id
+    );
 
     match deliver_webhook(&state, &vacancy_id, &selected_resume_id, None, None, None).await {
         Ok(_) => Ok(Redirect::to(&format!("/vacancy/{vacancy_id}?responded=1"))),
@@ -769,6 +774,40 @@ fn resume_label(id: &str) -> String {
     }
 }
 
+fn resume_title_from_text(text: &str) -> String {
+    let lines: Vec<&str> = text
+        .lines()
+        .map(str::trim)
+        .filter(|line| !line.is_empty())
+        .collect();
+    for (index, line) in lines.iter().enumerate() {
+        let lower = line.to_lowercase();
+        if lower.contains("должность") || lower.contains("позиция") {
+            if let Some(next) = lines.get(index + 1) {
+                return truncate_chars(next, 120);
+            }
+        }
+    }
+    lines
+        .first()
+        .map(|line| truncate_chars(line, 120))
+        .filter(|line| !line.is_empty())
+        .unwrap_or_else(|| "Резюме кандидата".to_string())
+}
+
+fn truncate_chars(value: &str, max: usize) -> String {
+    let trimmed = value.trim();
+    if trimmed.chars().count() <= max {
+        return trimmed.to_string();
+    }
+    trimmed
+        .chars()
+        .take(max)
+        .collect::<String>()
+        .trim_end()
+        .to_string()
+}
+
 fn error_page(title: &str, message: &str) -> String {
     format!(
         "<!doctype html><html lang=\"ru\"><head><meta charset=\"utf-8\">\
@@ -783,45 +822,93 @@ fn error_page(title: &str, message: &str) -> String {
     )
 }
 
-const PAGE_HEADER: &str = "<header><span class=\"logo\">hh</span>\
-    <span class=\"brand\">mock hh.ru</span>\
-    <span class=\"env\">локальная заглушка</span></header>";
+const PAGE_HEADER: &str = r##"<header class="topbar"><div class="topbar-inner">
+    <a class="brand-link" href="/">
+      <span class="logo">hh</span>
+      <span class="brand-block"><span class="brand">mock hh.ru</span><span class="brand-sub">отклики в Tracing ATS</span></span>
+    </a>
+    <nav class="nav"><a href="/">Вакансии</a><span class="env">локальная среда</span></nav>
+  </div></header>"##;
 
-const PAGE_STYLE: &str = "<style>\
-    *{box-sizing:border-box}\
-    body{margin:0;background:#f3f4f6;color:#1f2937;font:15px/1.5 system-ui,-apple-system,'Segoe UI',sans-serif}\
-    header{display:flex;align-items:center;gap:12px;padding:14px 28px;background:#d6001c;color:#fff}\
-    .logo{display:grid;place-items:center;width:40px;height:40px;border-radius:12px;background:#fff;color:#d6001c;font-weight:800;font-size:18px}\
-    .brand{font-weight:700;font-size:18px}\
-    .env{margin-left:auto;font-size:12px;opacity:.8;border:1px solid rgba(255,255,255,.5);padding:4px 8px;border-radius:999px}\
-    main{max-width:920px;margin:0 auto;padding:32px 20px 64px}\
-    h1{font-size:28px;line-height:1.2;margin:0 0 8px}\
-    .muted{color:#6b7280;font-size:13px}\
-    .grid{display:grid;gap:12px;margin-top:20px}\
-    .card{display:block;padding:16px;border:1px solid #e5e7eb;border-radius:14px;background:#fff;color:inherit;text-decoration:none;transition:.15s}\
-    .card:hover{border-color:#d6001c;box-shadow:0 8px 24px rgba(214,0,28,.08)}\
-    .card-head{display:flex;align-items:center;justify-content:space-between;gap:12px}\
-    .badge{font-size:11px;text-transform:uppercase;letter-spacing:.04em;background:#fef2f2;color:#b91c1c;padding:3px 8px;border-radius:999px}\
-    .back{display:inline-block;margin-bottom:18px;color:#6b7280;text-decoration:none;font-size:13px}\
-    .back:hover{color:#111827}\
-    .meta{margin:8px 0 20px;color:#6b7280;font-size:13px}\
-    .description{white-space:pre-wrap;background:#fff;border:1px solid #e5e7eb;border-radius:14px;padding:20px;margin-bottom:20px}\
-    .respond{display:flex;flex-wrap:wrap;gap:10px;align-items:end;background:#fff;border:1px solid #e5e7eb;border-radius:14px;padding:16px}\
-    .respond label{width:100%;font-size:13px;font-weight:600}\
-    .respond select{flex:1;min-width:260px;padding:10px 12px;border:1px solid #d1d5db;border-radius:10px;background:#fff;font:inherit}\
-    .custom{display:flex;flex-direction:column;gap:6px;width:100%;margin-top:6px}\
-    .custom textarea,.custom input[type=file]{width:100%;padding:10px 12px;border:1px solid #d1d5db;border-radius:10px;background:#fff;font:inherit}\
-    .custom textarea{resize:vertical;min-height:120px}\
-    .respond button{padding:10px 16px;border:0;border-radius:10px;background:#d6001c;color:#fff;font:inherit;font-weight:600;cursor:pointer}\
-    .respond button:hover{background:#b80018}\
-    .success{margin:0 0 18px;padding:12px 14px;border-radius:12px;background:#ecfdf5;color:#047857;border:1px solid #a7f3d0}\
-    .error{margin:16px 0;padding:12px 14px;border-radius:12px;background:#fef2f2;color:#b91c1c;border:1px solid #fecaca}\
-    .empty{padding:20px;border:1px dashed #d1d5db;border-radius:14px;background:#fff;color:#6b7280}\
-    .responses{margin-top:20px;background:#fff;border:1px solid #e5e7eb;border-radius:14px;padding:16px}\
-    .responses h2{font-size:16px;margin:0 0 10px}\
-    .responses ul{margin:0;padding:0;list-style:none;display:grid;gap:10px}\
-    .responses li{padding:10px 12px;border:1px solid #f3f4f6;border-radius:10px;background:#fafafa}\
-    </style>";
+const PAGE_STYLE: &str = r##"<style>
+    *{box-sizing:border-box}
+    :root{
+      --bg:#faf7f7;
+      --surface:#fff;
+      --line:#f0dada;
+      --line-strong:#e7c4c4;
+      --text:#1f2937;
+      --muted:#7c6a6a;
+      --accent:#d6001c;
+      --accent-dark:#b80018;
+      --accent-soft:#fef2f2;
+      --ring:rgba(214,0,28,.14);
+    }
+    html,body{margin:0;min-height:100%}
+    body{
+      background:
+        radial-gradient(circle at top left,rgba(214,0,28,.10),transparent 30rem),
+        radial-gradient(circle at bottom right,rgba(248,113,113,.10),transparent 28rem),
+        var(--bg);
+      color:var(--text);
+      font:15px/1.5 Inter,system-ui,-apple-system,'Segoe UI',sans-serif;
+    }
+    a{color:inherit}
+    .topbar{position:sticky;top:0;z-index:10;background:rgba(255,255,255,.86);backdrop-filter:blur(16px);border-bottom:1px solid var(--line)}
+    .topbar-inner{max-width:1080px;margin:0 auto;display:flex;align-items:center;gap:24px;padding:12px 20px}
+    .brand-link{display:flex;align-items:center;gap:12px;text-decoration:none}
+    .logo{display:grid;place-items:center;width:40px;height:40px;border-radius:12px;background:linear-gradient(135deg,#ef4444,var(--accent-dark));color:#fff;font-weight:800;font-size:18px;box-shadow:0 10px 24px -12px rgba(214,0,28,.6)}
+    .brand-block{display:flex;flex-direction:column;line-height:1.2}
+    .brand{font-weight:700;font-size:15px;letter-spacing:-.01em}
+    .brand-sub{font-size:12px;color:var(--muted)}
+    .nav{margin-left:auto;display:flex;align-items:center;gap:14px}
+    .nav a{font-size:14px;font-weight:600;color:#5f5252;text-decoration:none;padding:8px 12px;border-radius:10px}
+    .nav a:hover{background:var(--accent-soft);color:var(--accent-dark)}
+    .env{font-size:12px;color:var(--accent-dark);background:var(--accent-soft);border:1px solid #f6caca;padding:5px 10px;border-radius:999px}
+    main{max-width:1080px;margin:0 auto;padding:36px 20px 72px}
+    h1{font-size:30px;line-height:1.15;letter-spacing:-.02em;margin:0 0 8px}
+    h2{font-size:18px;margin:0}
+    .muted{color:var(--muted);font-size:14px;margin:0}
+    .grid{display:grid;gap:14px;margin-top:24px}
+    .card{display:block;padding:20px;border:1px solid var(--line);border-radius:16px;background:var(--surface);color:inherit;text-decoration:none;box-shadow:0 1px 2px rgba(31,41,55,.03),0 18px 40px -32px rgba(31,41,55,.25);transition:.16s ease}
+    .card:hover{border-color:#efb3b3;box-shadow:0 1px 2px rgba(31,41,55,.04),0 22px 44px -30px rgba(214,0,28,.35);transform:translateY(-1px)}
+    .card-head{display:flex;align-items:flex-start;justify-content:space-between;gap:16px}
+    .card-head strong{font-size:17px;letter-spacing:-.01em}
+    .card .muted{margin-top:6px}
+    .badge{font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:.05em;background:var(--accent-soft);color:var(--accent-dark);border:1px solid #f6caca;padding:4px 9px;border-radius:999px;white-space:nowrap}
+    .back{display:inline-flex;align-items:center;gap:6px;margin-bottom:20px;color:var(--muted);text-decoration:none;font-size:13px;font-weight:600}
+    .back:hover{color:var(--accent-dark)}
+    .meta{display:flex;flex-wrap:wrap;gap:8px;margin:10px 0 22px;color:var(--muted);font-size:13px}
+    .meta span{background:#fff;border:1px solid var(--line);padding:5px 10px;border-radius:999px}
+    .description{white-space:pre-wrap;background:var(--surface);border:1px solid var(--line);border-radius:16px;padding:22px;margin-bottom:18px;box-shadow:0 18px 40px -36px rgba(31,41,55,.25)}
+    .respond{display:grid;gap:16px;background:var(--surface);border:1px solid var(--line);border-radius:16px;padding:22px;box-shadow:0 18px 40px -36px rgba(31,41,55,.25)}
+    .form-head h2{margin:0 0 4px}
+    .field{display:grid;gap:6px}
+    .field label{font-size:13px;font-weight:700;color:#4b3f3f}
+    .optional{font-weight:500;color:var(--muted)}
+    .field input,.field textarea{width:100%;padding:11px 13px;border:1px solid var(--line-strong);border-radius:12px;background:#fff;color:var(--text);font:inherit;outline:none;transition:.15s}
+    .field input:focus,.field textarea:focus{border-color:var(--accent);box-shadow:0 0 0 4px var(--ring)}
+    .field textarea{resize:vertical;min-height:190px;font-family:inherit}
+    .field input[type=file]{padding:9px 11px;background:#fffafa}
+    .hint{margin:0;color:var(--muted);font-size:12px}
+    .actions{display:flex;justify-content:flex-end;gap:10px;padding-top:2px}
+    button{padding:11px 18px;border:0;border-radius:12px;background:linear-gradient(135deg,#ef4444,var(--accent-dark));color:#fff;font:inherit;font-weight:700;cursor:pointer;box-shadow:0 12px 24px -14px rgba(214,0,28,.65);transition:.15s}
+    button:hover{filter:brightness(1.05);transform:translateY(-1px)}
+    .success{margin:0 0 18px;padding:13px 15px;border-radius:12px;background:#ecfdf5;color:#047857;border:1px solid #a7f3d0;font-size:14px}
+    .error{margin:16px 0;padding:13px 15px;border-radius:12px;background:#fef2f2;color:#b91c1c;border:1px solid #fecaca;font-size:14px}
+    .empty{padding:22px;border:1px dashed var(--line-strong);border-radius:16px;background:#fff;color:var(--muted)}
+    .responses{margin-top:20px;background:var(--surface);border:1px solid var(--line);border-radius:16px;padding:20px;box-shadow:0 18px 40px -36px rgba(31,41,55,.25)}
+    .responses ul{margin:12px 0 0;padding:0;list-style:none;display:grid;gap:10px}
+    .responses li{padding:12px 14px;border:1px solid var(--line);border-radius:12px;background:#fffafa}
+    .responses .muted{font-size:12px;margin-top:2px}
+    @media (max-width:640px){
+      .topbar-inner{gap:12px}
+      .nav a{display:none}
+      .brand-sub{display:none}
+      h1{font-size:24px}
+      main{padding-top:26px}
+    }
+    </style>"##;
 
 fn persist(state: &AppState, mock: &MockState) {
     let Some(path) = &state.state_file else {

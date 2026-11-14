@@ -5,6 +5,7 @@ import type { ResumeBatchUploadResponse } from '@/api/generated'
 import { apiErrorMessage, resumesApi } from '@/api'
 import { useToast } from '@/composables/useToast'
 import { formatBytes } from '@/lib/format'
+import { uploadFailureMessage } from '@/lib/labels'
 
 const props = withDefaults(
   defineProps<{
@@ -109,12 +110,23 @@ async function upload() {
       consentGithub: false,
       ...(props.vacancyId ? { vacancyId: props.vacancyId } : {}),
     })
-    success(
-      props.vacancyId ? 'Резюме добавлено' : 'Резюме принято',
-      props.vacancyId
-        ? 'Обработка идёт в фоне, резюме появится в кандидатах вакансии'
-        : 'Обработка идёт в фоне, подходящие вакансии появятся в списке',
-    )
+    const results = response.data.resumes ?? []
+    const failed = results.filter((item) => item.status !== 'MASKED')
+    if (failed.length > 0) {
+      const message = uploadFailureMessage(failed[0].status, failed[0].warnings)
+      error.value = message
+      toastError(
+        failed.length === results.length ? 'Резюме не обработано' : 'Часть резюме не обработана',
+        message,
+      )
+    } else {
+      success(
+        props.vacancyId ? 'Резюме добавлено' : 'Резюме принято',
+        props.vacancyId
+          ? 'Обработка идёт в фоне, резюме появится в кандидатах вакансии'
+          : 'Обработка идёт в фоне, подходящие вакансии появятся в списке',
+      )
+    }
     files.value = []
     pastedText.value = ''
     if (fileInput.value) {

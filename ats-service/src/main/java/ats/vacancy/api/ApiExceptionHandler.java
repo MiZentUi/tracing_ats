@@ -16,6 +16,8 @@ import org.springframework.web.bind.MethodArgumentNotValidException;
 import org.springframework.web.bind.MissingServletRequestParameterException;
 import org.springframework.web.bind.annotation.ExceptionHandler;
 import org.springframework.web.bind.annotation.RestControllerAdvice;
+import org.springframework.web.multipart.MaxUploadSizeExceededException;
+import org.springframework.web.multipart.MultipartException;
 
 @Slf4j
 @RestControllerAdvice
@@ -80,6 +82,22 @@ public class ApiExceptionHandler {
                 HttpStatus.valueOf(exception.errorCode().httpStatus()),
                 exception.errorCode().name(),
                 exception.getMessage());
+    }
+
+    @ExceptionHandler(MaxUploadSizeExceededException.class)
+    public ResponseEntity<ApiStatusResponse> handleUploadTooLarge(
+            MaxUploadSizeExceededException exception) {
+        log.warn("upload_rejected code=FILE_TOO_LARGE error={}", LogSupport.describe(exception));
+        return response(
+                HttpStatus.PAYLOAD_TOO_LARGE,
+                "FILE_TOO_LARGE",
+                "File is larger than the allowed size");
+    }
+
+    @ExceptionHandler(MultipartException.class)
+    public ResponseEntity<ApiStatusResponse> handleMultipart(MultipartException exception) {
+        log.warn("multipart_rejected error={}", LogSupport.describe(exception));
+        return response(HttpStatus.BAD_REQUEST, "MULTIPART_ERROR", "Invalid multipart request");
     }
 
     @ExceptionHandler({

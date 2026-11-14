@@ -87,7 +87,7 @@ class NotificationOutboxDispatcherTest {
         return new NotificationOutboxDispatcher(
                 repository,
                 sender,
-                new HhNotificationMessageFactory(),
+                new HhNotificationMessageFactory(properties),
                 new TelegramPropertiesProvider(properties),
                 jsonCodec);
     }

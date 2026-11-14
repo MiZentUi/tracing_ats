@@ -80,7 +80,8 @@ public class NotificationOutboxDispatcher {
                     messageFactory.scored(
                             jsonCodec.read(
                                     entity.getPayload(),
-                                    NotificationOutboxService.HhScoreNotificationPayload.class));
+                                    NotificationOutboxService.HhScoreNotificationPayload.class),
+                            entity.getApplicationId());
             case "HH_UNMATCHED" ->
                     messageFactory.unmatched(
                             jsonCodec.read(
