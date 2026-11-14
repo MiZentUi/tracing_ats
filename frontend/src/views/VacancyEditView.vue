@@ -480,9 +480,25 @@ onMounted(load)
       <div class="card p-5">
         <h2 class="text-base font-semibold text-slate-900">Параметры вакансии</h2>
         <div class="mt-4 grid gap-4 sm:grid-cols-2">
-          <div class="sm:col-span-2">
-            <label class="label" for="editor-title">Название вакансии</label>
-            <input id="editor-title" v-model="title" class="input" />
+          <div class="grid gap-3 sm:col-span-2 sm:grid-cols-[minmax(0,1fr)_7rem]">
+            <div>
+              <label class="label" for="editor-title">Название вакансии</label>
+              <input id="editor-title" v-model="title" class="input" />
+            </div>
+            <div>
+              <label class="label" for="editor-experience-years">Стаж, лет</label>
+              <input
+                id="editor-experience-years"
+                :value="experienceYears ?? ''"
+                class="input w-full"
+                type="number"
+                min="0"
+                max="50"
+                step="1"
+                placeholder="3"
+                @input="updateExperienceYears"
+              />
+            </div>
           </div>
           <div>
             <label class="label" for="editor-specialization">Специализация</label>
@@ -505,24 +521,6 @@ onMounted(load)
             >
               Не требуется: специализация не IT
             </p>
-          </div>
-          <div>
-            <label class="label" for="editor-experience-years">
-              Требуемый стаж, лет
-              <span class="font-normal text-slate-400">(необязательно)</span>
-            </label>
-            <input
-              id="editor-experience-years"
-              :value="experienceYears ?? ''"
-              class="input"
-              type="number"
-              min="0"
-              max="50"
-              step="1"
-              placeholder="Например, 3"
-              @input="updateExperienceYears"
-            />
-            <p class="hint">Общий стаж вакансии. На скоринг пока не влияет.</p>
           </div>
         </div>
       </div>

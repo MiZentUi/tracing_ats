@@ -382,14 +382,18 @@ onMounted(load)
           <span class="text-xs text-slate-400">«Не указано» ≠ «отсутствует»</span>
         </div>
         <ul class="mt-3 grid gap-2 text-xs sm:grid-cols-2">
-          <li v-for="item in statusLegend" :key="item.status" class="flex items-start gap-2">
+          <li
+            v-for="item in statusLegend"
+            :key="item.status"
+            class="grid grid-cols-[8.5rem_minmax(0,1fr)] items-start gap-2"
+          >
             <span
-              class="shrink-0 rounded-md border px-2 py-0.5 font-medium"
+              class="justify-self-start rounded-md border px-2 py-0.5 font-medium"
               :class="statusClass[item.status]"
             >
               {{ statusLabel[item.status] }}
             </span>
-            <span class="text-slate-600">{{ item.description }}</span>
+            <span class="text-slate-600 leading-5">{{ item.description }}</span>
           </li>
         </ul>
       </div>

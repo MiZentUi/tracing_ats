@@ -20,6 +20,19 @@ export function resumeStatusLabel(status: string): string {
   return resumeStatusLabels[status] ?? status
 }
 
+export function resumeSourceLabel(source: string | null | undefined): string {
+  switch (source) {
+    case 'HH':
+      return 'hh.ru'
+    case 'MANUAL':
+    case null:
+    case undefined:
+      return 'Вручную'
+    default:
+      return source
+  }
+}
+
 export function resumeStatusClass(status: string): string {
   switch (status) {
     case 'MATCHED':

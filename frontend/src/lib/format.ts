@@ -19,11 +19,18 @@ export function formatBytes(bytes: number): string {
   return `${(bytes / (1024 * 1024)).toFixed(1)} МБ`
 }
 
+export function cleanResumeTitle(title: string | null | undefined): string {
+  return (title ?? '')
+    .replace(/(^|[\s,.;:!?()-])ЧД(?=[\s,.;:!?()-]|$)/gi, '$1 ')
+    .replace(/\s+/g, ' ')
+    .trim()
+}
+
 export function resumeDisplayTitle(
   title: string | null | undefined,
   createdAt: string,
 ): string {
-  return title?.trim() || `Резюме от ${formatDate(createdAt)}`
+  return cleanResumeTitle(title) || `Резюме от ${formatDate(createdAt)}`
 }
 
 /** Короткий стабильный идентификатор для визуального различения карточек. */

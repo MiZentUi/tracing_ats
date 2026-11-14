@@ -1,0 +1,7 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64" role="img" aria-label="Tracing ATS">
+  <rect width="64" height="64" rx="14" fill="#0f172a"/>
+  <path d="M17 21h30M32 21v21" stroke="#f8fafc" stroke-width="6" stroke-linecap="round"/>
+  <circle cx="17" cy="47" r="5" fill="#818cf8"/>
+  <circle cx="47" cy="47" r="5" fill="#34d399"/>
+  <path d="M22 47h8M34 47h8" stroke="#818cf8" stroke-width="4" stroke-linecap="round"/>
+</svg>

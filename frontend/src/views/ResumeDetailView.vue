@@ -19,7 +19,12 @@ import type {
 import { apiErrorMessage, resumeRankingApi, resumesApi } from '@/api'
 import RevealPiiDialog from '@/components/RevealPiiDialog.vue'
 import { useToast } from '@/composables/useToast'
-import { pluralizeRu, resumeDisplayTitle, shortId } from '@/lib/format'
+import {
+  cleanResumeTitle,
+  pluralizeRu,
+  resumeDisplayTitle,
+  shortId,
+} from '@/lib/format'
 import { educationLevelLabel, resumeStatusClass, resumeStatusLabel, uploadWarningLabel } from '@/lib/labels'
 
 const props = defineProps<{ id: string }>()
@@ -55,15 +60,19 @@ const GENERIC_RESUME_TITLES = new Set(['резюме кандидата', 'ре�
 
 const resumePageTitle = computed(() => {
   const current = resume.value
-  const title = current?.title?.trim() ?? ''
+  const vacancyTitle = cleanResumeTitle(current?.vacancyTitle)
+  if (vacancyTitle) {
+    return vacancyTitle
+  }
+  const title = cleanResumeTitle(current?.title)
   if (title && !GENERIC_RESUME_TITLES.has(title.toLowerCase())) {
     return title
   }
-  return current?.vacancyTitle?.trim() || resumeDisplayTitle(title, current?.createdAt ?? '')
+  return resumeDisplayTitle(title, current?.createdAt ?? '')
 })
 
 const resumeVacancyLine = computed(() => {
-  const vacancyTitle = resume.value?.vacancyTitle?.trim()
+  const vacancyTitle = cleanResumeTitle(resume.value?.vacancyTitle)
   return vacancyTitle && vacancyTitle !== resumePageTitle.value ? vacancyTitle : null
 })
 
