@@ -53,7 +53,7 @@ public class VacancyLlmProperties {
     @DecimalMin("1.0")
     private double multiplier = 2.0d;
 
-    @NotBlank private String promptVersion = "vacancy-template.v4";
+    @NotBlank private String promptVersion = "vacancy-template.v5";
 
     @Min(1)
     private int maxRequirements = 50;
