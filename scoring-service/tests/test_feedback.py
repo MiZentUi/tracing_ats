@@ -180,16 +180,16 @@ def _build(
     )
 
 
-def test_catalog_has_32_unique_templates() -> None:
-    assert FEEDBACK_TEMPLATE_VERSION == "feedback-templates.v2"
-    assert len(FEEDBACK_TEMPLATES) == 32
+def test_catalog_has_60_unique_templates() -> None:
+    assert FEEDBACK_TEMPLATE_VERSION == "feedback-templates.v3"
+    assert len(FEEDBACK_TEMPLATES) == 60
     ids = [template.id for template in FEEDBACK_TEMPLATES]
     assert len(ids) == len(set(ids))
     assert Counter(template.kind for template in FEEDBACK_TEMPLATES) == {
-        "strength": 6,
-        "risk": 8,
-        "question": 10,
-        "note": 6,
+        "strength": 12,
+        "risk": 14,
+        "question": 20,
+        "note": 12,
         "fallback": 2,
     }
 

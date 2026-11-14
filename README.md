@@ -407,7 +407,54 @@ HR редактирует шаблон через `PUT /api/v1/vacancies/{id}/te
 
 Ключевые переменные окружения. Полный список — в [`.env.example`](.env.example) и `ats-service/src/main/resources/application.yaml`.
 
-| Переменная | Назначение |
+### Публичный API (Java)
+
+Контракт — `contracts/openapi.yaml`. Из него генерируются Spring-интерфейсы (`ats.api`) и DTO (`ats.gateway.model`).
+
+| Метод и путь                                     | Назначение                                                                                        |
+|--------------------------------------------------|---------------------------------------------------------------------------------------------------|
+| `POST /api/v1/resumes`                           | Загрузка пачки PDF, DOCX, TXT, MD; ответ `202` со статусом по каждому файлу                       |
+| `GET /api/v1/resumes/{id}`                       | Метаданные резюме без PII                                                                         |
+| `POST /api/v1/vacancies/{id}/screen`             | Запустить предварительный скрининг пачки, ответ `202` и `batchId`                                 |
+| `GET /api/v1/screening-batches/{id}`             | Статус асинхронного пакета: `PENDING`, `RUNNING`, `COMPLETED`, `FAILED`                            |
+| `GET /api/v1/vacancies/{id}/ranking`             | Рейтинг с явной пометкой `PRELIMINARY` или `FINAL`                                                |
+| `GET /api/v1/applications/{id}/report`           | Отчёт «требование → доказательство → пробел» без PII                                              |
+| `POST /api/v1/applications/{id}/reveal`          | Раскрыть PII, тело содержит `reason`; пишется аудит                                               |
+| `POST /api/v1/vacancies`                         | План: создать вакансию из текста и получить черновик шаблона                                      |
+| `PUT /api/v1/vacancies/{id}/template`            | План: HR сохраняет правки требований и весов (новая версия)                                       |
+| `POST /api/v1/vacancies/{id}/import/hh`          | План: импорт откликов с hh                                                                        |
+| `GET /api/v1/applications/{id}/report.pdf`       | План: PDF для нанимающего менеджера                                                               |
+| `GET /api/v1/applications/{id}/rejection-letter` | План: черновик письма для проверки HR                                                             |
+
+### Внутренний API ML (gRPC, только из сети Java)
+
+Рабочая версия gRPC-контракта — `contracts/proto/scoring_service/v1/scoring.proto`; она закоммичена, но до фиксации модели считается черновиком. Java вызывает Python через Spring gRPC client.
+
+| RPC | Вход | Выход |
+|---|---|---|
+| `ExtractResume` | обезличенный текст резюме, `reference_date` | `ParsedResume`, `warnings`, `dropped`; вызывает LLM |
+| `EvaluateResumeMatch` | `ParsedResume`, исходный текст, одна вакансия, `reference_date` | `GeneralResumeScore`, `FeatureMatch` по требованиям, `Gap`, объяснения; LLM не вызывает |
+| `EvaluateResumeMatches` | `ParsedResume`, исходный текст, несколько вакансий, `reference_date` | результаты по каждой вакансии; ошибка одной не отменяет остальные; LLM не вызывает |
+| `ScoreResume` | обезличенный текст, одна вакансия, `reference_date` | одношаговый legacy-вызов: `GeneralResumeScore` + `FeatureAssessment`; вызывает LLM |
+
+Требования вакансии передаются как `FeatureRequirement`: структурированные `skill`/`education`/`experience` или `TextRequirement` для soft/other. Результат по каждому требованию — `FeatureMatch`, пробелы — `Gap` с причиной.
+
+`EvaluateResumeMatch` и `EvaluateResumeMatches` используют одну и ту же математику; различие — в количестве вакансий. Передача внешних `q_i^l` и отдельные `Score_pre`/`Score_final` пока не зафиксированы в контракте: это следующий шаг после RFC по модели.
+
+`EvaluateResumeMatch` и `EvaluateResumeMatches` дополнительно возвращают `strengths`, `risks`, `questions` и `recruiter_note`. Эти поля собираются детерминированно по каталогу `feedback-templates.v3`, без вызова LLM; правила и каталог — `docs/rfc/rfc-feedback-generation.md`. Java сохраняет объяснения в `score_run.parsed`, а REST-отчёт и HTML-страница отчёта отдают их вместе с требованиями, подтверждениями и пробелами.
+
+### Контракт обучения весов (Python, офлайн)
+
+Кроме онлайн-ML, у Python есть офлайн-обучение. Его контракт — два артефакта в MinIO, описанные `contracts/training-artifact.schema.json`:
+
+| Артефакт | Кто пишет | Кто читает | Содержимое |
+|---|---|---|---|
+| `dataset.jsonl` | Java | `ml-trainer` | обезличенные пары «резюме — вакансия», оценки рекрутёров, версии формулы и справочника |
+| `weight-profile.json` | `ml-trainer` | Java | `level`, `lambda_ext`, `w_m`, `w_n`, `w_f`, `dataset_hash`, `metrics`, `trained_at` |
+
+Админские эндпоинты Java:
+
+| Метод и путь | Назначение |
 |---|---|
 | `SPRING_DATASOURCE_URL/USERNAME/PASSWORD` | PostgreSQL |
 | `ATS_SERVICE_PORT`, `ATS_GRPC_PORT` | Порты `ats-service` |

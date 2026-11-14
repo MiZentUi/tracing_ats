@@ -23,7 +23,7 @@ from scoring_service.v1.models.features import common_pb2
 from .dates import end_date, start_date, total_experience_years
 from .model import GeneralScore, RequirementScore
 
-FEEDBACK_TEMPLATE_VERSION = "feedback-templates.v2"
+FEEDBACK_TEMPLATE_VERSION = "feedback-templates.v3"
 
 MAX_STRENGTHS = 5
 MAX_RISKS = 5
@@ -319,6 +319,250 @@ FEEDBACK_TEMPLATES: tuple[FeedbackTemplate, ...] = (
         kind="fallback",
         condition="no_data",
         text="Недостаточно данных резюме для содержательных выводов.",
+    ),
+    # v3: второй вариант для каждого условия, кроме required_gap и fallback.
+    FeedbackTemplate(
+        id="strength.critical_full.v2",
+        kind="strength",
+        condition="critical_full",
+        text=(
+            "Критичное требование «{label}» полностью закрыто: {evidence}.{tenure_note} "
+            "Это ключевое подтверждение для вакансии."
+        ),
+    ),
+    FeedbackTemplate(
+        id="strength.skill_full.v2",
+        kind="strength",
+        condition="skill_full",
+        text="Навык «{label}» подтверждён цитатой из резюме: {evidence}.{tenure_note}",
+    ),
+    FeedbackTemplate(
+        id="strength.experience_full.v2",
+        kind="strength",
+        condition="experience_full",
+        text=(
+            "Опыт в категории «{label}» подтверждён: {evidence}.{tenure_note} "
+            "Его можно учитывать при оценке глубины."
+        ),
+    ),
+    FeedbackTemplate(
+        id="strength.qualification_full.v2",
+        kind="strength",
+        condition="qualification_full",
+        text=(
+            "Квалификация «{label}» подтверждена: {evidence}. "
+            "Документ или запись в резюме можно проверить на интервью."
+        ),
+    ),
+    FeedbackTemplate(
+        id="strength.education_full.v2",
+        kind="strength",
+        condition="education_full",
+        text=(
+            "Образование по направлению «{label}» подтверждено: {evidence}. "
+            "Профиль подготовки соответствует требованию."
+        ),
+    ),
+    FeedbackTemplate(
+        id="strength.text_full.v2",
+        kind="strength",
+        condition="text_full",
+        text=(
+            "Требование «{label}» подтверждено текстом резюме: {evidence}. "
+            "Формулировка требования и цитата согласованы."
+        ),
+    ),
+    FeedbackTemplate(
+        id="risk.critical_gap.v2",
+        kind="risk",
+        condition="critical_gap",
+        text="Критичное требование «{label}» {status_phrase}. Это ключевой риск для вакансии.",
+    ),
+    FeedbackTemplate(
+        id="risk.insufficient_tenure.v2",
+        kind="risk",
+        condition="insufficient_tenure",
+        text=(
+            "По требованию «{label}» подтверждён стаж {found_years}, "
+            "а требуется {required_years}. Стоит уточнить периоды и глубину опыта."
+        ),
+    ),
+    FeedbackTemplate(
+        id="risk.date_issue.v2",
+        kind="risk",
+        condition="date_issue",
+        text=(
+            "В датах опыта есть пробел или расхождение: {detail}. "
+            "Проверьте хронологию до интервью."
+        ),
+    ),
+    FeedbackTemplate(
+        id="risk.overclaim.v2",
+        kind="risk",
+        condition="overclaim",
+        text=(
+            "Заявленный стаж по навыку «{label}» ({found_years}) превышает "
+            "общий стаж по резюме ({total_years}). Это стоит уточнить."
+        ),
+    ),
+    FeedbackTemplate(
+        id="risk.wide_interval.v2",
+        kind="risk",
+        condition="wide_interval",
+        text=(
+            "Доля требований без сведений в резюме — {not_stated_count} из {total_count}; "
+            "вилка оценки широкая из-за неполных данных."
+        ),
+    ),
+    FeedbackTemplate(
+        id="risk.missing_data.v2",
+        kind="risk",
+        condition="missing_data",
+        text="В резюме нет раздела «{section}»; связанные требования подтверждены неполно.",
+    ),
+    FeedbackTemplate(
+        id="question.skill_not_stated.v2",
+        kind="question",
+        condition="skill_not_stated",
+        text=(
+            "В резюме не указан навык «{label}». "
+            "В каких задачах или проектах вы его применяли?"
+        ),
+    ),
+    FeedbackTemplate(
+        id="question.experience_not_stated.v2",
+        kind="question",
+        condition="experience_not_stated",
+        text=(
+            "В резюме не указан опыт в категории «{label}». "
+            "Опишите релевантные проекты, свою роль и результат."
+        ),
+    ),
+    FeedbackTemplate(
+        id="question.qualification_not_stated.v2",
+        kind="question",
+        condition="qualification_not_stated",
+        text=(
+            "В резюме не указана квалификация «{label}». "
+            "Есть ли она у вас и можете ли вы подтвердить её документом?"
+        ),
+    ),
+    FeedbackTemplate(
+        id="question.education_not_stated.v2",
+        kind="question",
+        condition="education_not_stated",
+        text=(
+            "В резюме не указано образование по направлению «{label}». "
+            "Уточните профиль обучения и релевантные курсы."
+        ),
+    ),
+    FeedbackTemplate(
+        id="question.text_not_stated.v2",
+        kind="question",
+        condition="text_not_stated",
+        text=(
+            "В резюме не указано подтверждение требования «{label}». "
+            "Приведите пример задачи, где это проявлялось."
+        ),
+    ),
+    FeedbackTemplate(
+        id="question.skill_insufficient_tenure.v2",
+        kind="question",
+        condition="skill_insufficient_tenure",
+        text=(
+            "По навыку «{label}» подтверждено {found_years}, требуется {required_years}. "
+            "Какие проекты дают недостающий опыт?"
+        ),
+    ),
+    FeedbackTemplate(
+        id="question.experience_insufficient_tenure.v2",
+        kind="question",
+        condition="experience_insufficient_tenure",
+        text=(
+            "По опыту в категории «{label}» подтверждено {found_years}, "
+            "требуется {required_years}. Уточните периоды и сложность задач."
+        ),
+    ),
+    FeedbackTemplate(
+        id="question.partial.v2",
+        kind="question",
+        condition="partial",
+        text=(
+            "Требование «{label}» подтверждено частично. "
+            "Что именно вы делали самостоятельно и какой был результат?"
+        ),
+    ),
+    FeedbackTemplate(
+        id="question.absent.v2",
+        kind="question",
+        condition="absent",
+        text=(
+            "В резюме есть близкий опыт, но требование «{label}» не подтверждено. "
+            "Какие похожие инструменты вы использовали?"
+        ),
+    ),
+    FeedbackTemplate(
+        id="question.date_issue.v2",
+        kind="question",
+        condition="date_issue",
+        text=(
+            "В датах опыта есть пробел или расхождение: {detail}. "
+            "Уточните фактические периоды работы."
+        ),
+    ),
+    FeedbackTemplate(
+        id="note.opener_high.v2",
+        kind="note",
+        condition="opener_high",
+        text=(
+            "Высокое соответствие: {full_count} из {total_count} требований закрыты "
+            "полностью, оценка {score} (вилка {score_low}–{score_high})."
+        ),
+    ),
+    FeedbackTemplate(
+        id="note.opener_mid.v2",
+        kind="note",
+        condition="opener_mid",
+        text=(
+            "Соответствие частичное: {full_count} из {total_count} требований закрыты "
+            "полностью, оценка {score} (вилка {score_low}–{score_high})."
+        ),
+    ),
+    FeedbackTemplate(
+        id="note.opener_low.v2",
+        kind="note",
+        condition="opener_low",
+        text=(
+            "Соответствие низкое: {full_count} из {total_count} требований закрыты "
+            "полностью, оценка {score} (вилка {score_low}–{score_high})."
+        ),
+    ),
+    FeedbackTemplate(
+        id="note.next_clarify.v2",
+        kind="note",
+        condition="next_clarify",
+        text=(
+            "На скрининге уточните в первую очередь: {top_topics}. "
+            "Это поможет закрыть оставшиеся пробелы."
+        ),
+    ),
+    FeedbackTemplate(
+        id="note.next_interview.v2",
+        kind="note",
+        condition="next_interview",
+        text=(
+            "Рекомендую техническое интервью: основные требования закрыты, "
+            "детали и спорные данные можно проверить на встрече."
+        ),
+    ),
+    FeedbackTemplate(
+        id="note.next_review.v2",
+        kind="note",
+        condition="next_review",
+        text=(
+            "Рекомендую ручную проверку отчёта: финальное решение "
+            "остаётся за рекрутёром."
+        ),
     ),
 )
 

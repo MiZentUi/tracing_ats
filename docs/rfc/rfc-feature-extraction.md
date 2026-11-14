@@ -329,7 +329,7 @@ class ExtractionPort(Protocol):
 заменяемые политики.
 
 Объяснения (`strengths`, `risks`, `questions`, `recruiter_note`) собираются
-детерминированно по каталогу `feedback-templates.v2`; LLM для них не
+детерминированно по каталогу `feedback-templates.v3`; LLM для них не
 вызывается. Правила — `docs/rfc/rfc-feedback-generation.md`.
 
 Провайдер по умолчанию — `mock` (детерминированный, без сети); реальный
