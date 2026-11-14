@@ -42,6 +42,7 @@ let zoomBehavior: d3.ZoomBehavior<SVGSVGElement, unknown> | null = null
 
 const GRAPH_WIDTH = 900
 const GRAPH_HEIGHT = 560
+const GRAPH_MARGIN = 48
 
 const kindLabels: Record<string, string> = {
   SAME_GROUP: 'Одна группа',
@@ -258,7 +259,15 @@ function renderGraph() {
     .attr('class', 'fill-slate-700 text-[11px] font-medium')
     .text((item) => shortLabel(item.label))
 
+  const clampPositions = () => {
+    for (const item of graphNodes) {
+      item.x = Math.max(GRAPH_MARGIN, Math.min(GRAPH_WIDTH - GRAPH_MARGIN, item.x ?? 0))
+      item.y = Math.max(GRAPH_MARGIN, Math.min(GRAPH_HEIGHT - GRAPH_MARGIN, item.y ?? 0))
+    }
+  }
+
   const tick = () => {
+    clampPositions()
     link
       .attr('x1', (edge) => (edge.source as GraphNode).x ?? 0)
       .attr('y1', (edge) => (edge.source as GraphNode).y ?? 0)
@@ -277,14 +286,17 @@ function renderGraph() {
         .distance(130)
         .strength(0.55),
     )
-    .force('charge', d3.forceManyBody<GraphNode>().strength(-420))
+    .force('charge', d3.forceManyBody<GraphNode>().strength(-200).distanceMax(300))
     .force('center', d3.forceCenter(GRAPH_WIDTH / 2, GRAPH_HEIGHT / 2))
-    .force('collide', d3.forceCollide<GraphNode>().radius(48))
+    .force('x', d3.forceX<GraphNode>(GRAPH_WIDTH / 2).strength(0.03))
+    .force('y', d3.forceY<GraphNode>(GRAPH_HEIGHT / 2).strength(0.03))
+    .force('collide', d3.forceCollide<GraphNode>().radius(44))
     .on('tick', tick)
 
   simulation.stop()
   for (let index = 0; index < 80; index += 1) {
     simulation.tick()
+    clampPositions()
   }
   tick()
   fitGraph()
@@ -294,7 +306,7 @@ function renderGraph() {
       .drag<SVGGElement, GraphNode>()
       .on('start', (event, item) => {
         if (!event.active) {
-          simulation?.alphaTarget(0.3).restart()
+          simulation?.alphaTarget(0.1).restart()
         }
         item.fx = item.x
         item.fy = item.y
