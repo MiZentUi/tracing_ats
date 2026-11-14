@@ -26,6 +26,7 @@ import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import scoring_service.v1.models.Messages;
 import scoring_service.v1.models.features.Common;
+import scoring_service.v1.models.features.Education;
 
 class GrpcScoringClientTest {
 
@@ -229,6 +230,43 @@ class GrpcScoringClientTest {
                 .isEqualTo("stub-v1");
         assertThat(fake.evaluateRequest.getQualificationCatalog().getAliasesCount())
                 .isGreaterThan(0);
+    }
+
+    @Test
+    void mapsEducationRequirement() {
+        Requirement education =
+                new Requirement(
+                        UUID.randomUUID(),
+                        "Высшее образование",
+                        "Прикладная математика",
+                        RequirementKind.MUST,
+                        3,
+                        false,
+                        0,
+                        0,
+                        false,
+                        "MASTER");
+        VacancyTemplate withEducation = withVacancy(template, UUID.randomUUID(), education);
+        fake.match = matchResponse();
+
+        client.score(
+                new ScoringRequest(
+                        UUID.randomUUID(),
+                        "МГУ, прикладная математика, магистратура.",
+                        withEducation,
+                        parsed()));
+
+        FeatureRequirement requirement =
+                fake.evaluateRequest
+                        .getVacancy()
+                        .getRequirementsMap()
+                        .get(education.id().toString());
+        assertThat(requirement.hasEducation()).isTrue();
+        assertThat(requirement.getEducation().getMaster()).isEqualTo("Прикладная математика");
+        assertThat(requirement.getEducation().getLevel())
+                .isEqualTo(Education.EducationLevel.EDUCATION_LEVEL_MASTER);
+        assertThat(requirement.hasSkill()).isFalse();
+        assertThat(requirement.hasQualification()).isFalse();
     }
 
     @Test

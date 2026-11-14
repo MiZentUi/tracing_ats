@@ -44,6 +44,9 @@ public class VacancyStore {
 
     private static final String HIDDEN_LEVEL = "none";
 
+    private static final Set<String> EDUCATION_LEVELS =
+            Set.of("SECONDARY", "SECONDARY_SPECIALIZED", "BACHELOR", "MASTER", "DOCTOR", "COURSES");
+
     private final VacancyRepository vacancyRepository;
     private final TemplateVersionRepository versionRepository;
     private final RequirementRepository requirementRepository;
@@ -200,6 +203,7 @@ public class VacancyStore {
                             .llmKind(item.llmKind() == null ? null : item.llmKind().name())
                             .critical(false)
                             .qualification(item.qualification())
+                            .educationLevel(item.educationLevel())
                             .yearsRequired(item.yearsRequired())
                             .clarityWarning(item.clarityWarning())
                             .build();
@@ -224,26 +228,38 @@ public class VacancyStore {
             if (command == null || command.kind() == null) {
                 throw ApiException.unprocessable("INVALID_REQUIREMENT", "kind is required");
             }
-            String rawSkill = command.skill() == null ? null : command.skill().strip();
-            if (rawSkill != null && rawSkill.isEmpty()) {
-                rawSkill = null;
-            }
+            String rawSkill = trimToNull(command.skill());
             if (rawSkill != null && rawSkill.length() > 128) {
                 throw ApiException.unprocessable(
                         "SKILL_TOO_LONG", "Skill name is longer than 128 characters");
             }
-            String quote =
-                    command.quote() == null || command.quote().isBlank()
-                            ? null
-                            : command.quote().strip();
-            String clarity =
-                    command.clarityWarning() == null || command.clarityWarning().isBlank()
-                            ? null
-                            : command.clarityWarning().strip();
+            String quote = trimToNull(command.quote());
+            String clarity = trimToNull(command.clarityWarning());
+            String educationLevel = normalizeEducationLevel(command.educationLevel());
+            String educationSpecialty = trimToNull(command.educationSpecialty());
+            if (educationLevel == null && educationSpecialty != null) {
+                throw ApiException.unprocessable(
+                        "INVALID_EDUCATION_LEVEL", "Education level is required");
+            }
+            boolean education = educationLevel != null;
+            if (education) {
+                if (educationSpecialty == null) {
+                    educationSpecialty = rawSkill;
+                }
+                if (educationSpecialty == null && quote == null) {
+                    throw ApiException.unprocessable(
+                            "INVALID_REQUIREMENT",
+                            "Education requirement must have a specialty or quote");
+                }
+                if (educationSpecialty != null && educationSpecialty.length() > 128) {
+                    throw ApiException.unprocessable(
+                            "SKILL_TOO_LONG", "Education specialty is longer than 128 characters");
+                }
+            }
 
             RequirementEntity previous =
                     command.id() == null ? null : previousById.get(parseId(command.id()));
-            boolean qualification = previous != null && previous.isQualification();
+            boolean qualification = !education && previous != null && previous.isQualification();
             if (qualification && rawSkill == null) {
                 rawSkill = previous.getSkillText() == null ? null : previous.getSkillText().strip();
             }
@@ -251,14 +267,23 @@ public class VacancyStore {
                 throw ApiException.unprocessable(
                         "INVALID_REQUIREMENT", "Qualification label is required");
             }
-            if (rawSkill == null && quote == null) {
+            if (!education && rawSkill == null && quote == null) {
                 // Ограничение БД требует skill_id, skill_text или raw_text.
                 throw ApiException.unprocessable(
                         "INVALID_REQUIREMENT", "Requirement must have a skill or quote");
             }
 
             ResolvedSkill resolved;
-            if (qualification) {
+            if (education) {
+                String subject = educationSpecialty == null ? "education" : educationSpecialty;
+                resolved =
+                        new ResolvedSkill(
+                                SkillNormalizer.normalizeKey(subject),
+                                ats.vacancy.template.NormalizationStatus.NEW,
+                                null,
+                                educationSpecialty,
+                                quote);
+            } else if (qualification) {
                 resolved =
                         new ResolvedSkill(
                                 SkillNormalizer.normalizeKey(rawSkill),
@@ -285,7 +310,7 @@ public class VacancyStore {
             }
 
             BigDecimal years = command.yearsRequired();
-            if (years == null) {
+            if (education || years == null) {
                 years = BigDecimal.ZERO;
             }
             if (years.compareTo(BigDecimal.ZERO) < 0
@@ -308,8 +333,13 @@ public class VacancyStore {
                                 : KindSource.HR;
             }
 
-            String displaySkill =
-                    qualification || resolved.skillId() == null ? rawSkill : resolved.name();
+            String displaySkill;
+            if (education) {
+                displaySkill = educationSpecialty;
+            } else {
+                displaySkill =
+                        qualification || resolved.skillId() == null ? rawSkill : resolved.name();
+            }
             prepared.add(
                     new PreparedRequirement(
                             resolved,
@@ -320,7 +350,8 @@ public class VacancyStore {
                             years,
                             quote,
                             clarity,
-                            qualification));
+                            qualification,
+                            educationLevel));
         }
         return prepared;
     }
@@ -339,7 +370,9 @@ public class VacancyStore {
         for (int index = 0; index < prepared.size(); index++) {
             PreparedRequirement item = prepared.get(index);
             String key;
-            if (item.qualification()) {
+            if (item.educationLevel() != null) {
+                key = "E:" + item.educationLevel() + ":" + item.resolved().normalizedKey();
+            } else if (item.qualification()) {
                 key = "QUAL:" + item.resolved().normalizedKey();
             } else if (item.resolved().skillId() != null) {
                 key = "S:" + item.resolved().skillId();
@@ -389,7 +422,9 @@ public class VacancyStore {
         Map<StatKey, Integer> contribution = new LinkedHashMap<>();
         for (RequirementEntity requirement :
                 requirementRepository.findByTemplateVersionIdOrderByPosition(version.getId())) {
-            if (!requirement.isQualification() && requirement.getSkillId() != null) {
+            if (!requirement.isQualification()
+                    && requirement.getEducationLevel() == null
+                    && requirement.getSkillId() != null) {
                 contribution.put(
                         new StatKey(
                                 version.getSpecializationId(),
@@ -413,7 +448,9 @@ public class VacancyStore {
 
         Map<StatKey, Integer> newContribution = new LinkedHashMap<>();
         for (PreparedRequirement item : prepared) {
-            if (!item.qualification() && item.resolved().skillId() != null) {
+            if (!item.qualification()
+                    && item.educationLevel() == null
+                    && item.resolved().skillId() != null) {
                 newContribution.put(
                         new StatKey(
                                 specializationId,
@@ -524,6 +561,26 @@ public class VacancyStore {
                                         "UNKNOWN_LEVEL", "Unknown level: " + code));
     }
 
+    private static String trimToNull(String value) {
+        if (value == null || value.isBlank()) {
+            return null;
+        }
+        return value.strip();
+    }
+
+    private static String normalizeEducationLevel(String raw) {
+        String value = trimToNull(raw);
+        if (value == null) {
+            return null;
+        }
+        String normalized = value.toUpperCase(java.util.Locale.ROOT);
+        if (!EDUCATION_LEVELS.contains(normalized)) {
+            throw ApiException.unprocessable(
+                    "INVALID_EDUCATION_LEVEL", "Unknown education level: " + value);
+        }
+        return normalized;
+    }
+
     private static String trimTitle(String title) {
         String value = title == null ? "" : title.strip();
         if (value.isEmpty()) {
@@ -543,5 +600,6 @@ public class VacancyStore {
             BigDecimal yearsRequired,
             String quote,
             String clarityWarning,
-            boolean qualification) {}
+            boolean qualification,
+            String educationLevel) {}
 }

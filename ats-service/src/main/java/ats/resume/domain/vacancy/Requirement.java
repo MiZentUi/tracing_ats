@@ -12,4 +12,29 @@ public record Requirement(
         boolean critical,
         double yearsRequired,
         double halfLifeYears,
-        boolean qualification) {}
+        boolean qualification,
+        String educationLevel) {
+
+    public Requirement(
+            UUID id,
+            String text,
+            String skill,
+            RequirementKind kind,
+            int weight,
+            boolean critical,
+            double yearsRequired,
+            double halfLifeYears,
+            boolean qualification) {
+        this(
+                id,
+                text,
+                skill,
+                kind,
+                weight,
+                critical,
+                yearsRequired,
+                halfLifeYears,
+                qualification,
+                null);
+    }
+}

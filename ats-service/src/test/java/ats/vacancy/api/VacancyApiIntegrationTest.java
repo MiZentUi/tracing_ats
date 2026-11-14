@@ -345,6 +345,63 @@ class VacancyApiIntegrationTest {
     }
 
     @Test
+    void savesEducationRequirement() throws Exception {
+        JsonNode created = createVacancy();
+        UUID vacancyId = UUID.fromString(created.path("vacancy_id").asText());
+
+        Map<String, Object> education =
+                new java.util.HashMap<>(
+                        requirement(
+                                null,
+                                null,
+                                "MUST",
+                                null,
+                                "Высшее образование, прикладная математика",
+                                null));
+        education.put("education_level", "MASTER");
+        education.put("education_specialty", "Прикладная математика");
+
+        Map<String, Object> updateBody =
+                Map.of("base_version", 1, "requirements", List.of(education));
+
+        MvcResult saved =
+                mockMvc.perform(
+                                put("/api/v1/vacancies/{id}/template", vacancyId)
+                                        .contentType(MediaType.APPLICATION_JSON)
+                                        .content(objectMapper.writeValueAsString(updateBody)))
+                        .andExpect(status().isOk())
+                        .andReturn();
+        JsonNode savedJson = objectMapper.readTree(saved.getResponse().getContentAsString());
+        JsonNode requirement = savedJson.path("template").path("requirements").get(0);
+
+        assertThat(requirement.path("education_level").asText()).isEqualTo("MASTER");
+        assertThat(requirement.path("education_specialty").asText())
+                .isEqualTo("Прикладная математика");
+        assertThat(requirement.path("qualification").asBoolean()).isFalse();
+
+        assertThat(
+                        jdbcTemplate.queryForObject(
+                                "SELECT education_level FROM vacancy_requirement r "
+                                        + "JOIN vacancy_template_version v "
+                                        + "ON v.id = r.template_version_id "
+                                        + "WHERE v.vacancy_id = ? ORDER BY v.version_no DESC LIMIT 1",
+                                String.class,
+                                vacancyId))
+                .isEqualTo("MASTER");
+        assertThat(
+                        jdbcTemplate.queryForObject(
+                                "SELECT count(*) FROM vacancy_requirement r "
+                                        + "WHERE r.template_version_id = ("
+                                        + "SELECT v.id FROM vacancy_template_version v "
+                                        + "WHERE v.vacancy_id = ? "
+                                        + "ORDER BY v.version_no DESC LIMIT 1) "
+                                        + "AND r.skill_id IS NOT NULL",
+                                Integer.class,
+                                vacancyId))
+                .isZero();
+    }
+
+    @Test
     void rejectsDuplicateSkills() throws Exception {
         JsonNode created = createVacancy();
         String vacancyId = created.path("vacancy_id").asText();

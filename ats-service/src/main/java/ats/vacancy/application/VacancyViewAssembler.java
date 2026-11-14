@@ -79,6 +79,7 @@ public class VacancyViewAssembler {
             if (history != null && history.isEmpty()) {
                 history = null;
             }
+            boolean education = requirement.getEducationLevel() != null;
             mapped.add(
                     new RequirementView(
                             requirement.getId(),
@@ -96,7 +97,9 @@ public class VacancyViewAssembler {
                             requirement.getRawText(),
                             requirement.getClarityWarning(),
                             history,
-                            requirement.isQualification()));
+                            requirement.isQualification(),
+                            education ? requirement.getEducationLevel() : null,
+                            education ? requirement.getSkillText() : null));
         }
 
         return new VacancyView(

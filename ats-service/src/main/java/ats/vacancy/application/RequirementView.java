@@ -19,4 +19,6 @@ public record RequirementView(
         String quote,
         String clarityWarning,
         SkillKindHistory history,
-        boolean qualification) {}
+        boolean qualification,
+        String educationLevel,
+        String educationSpecialty) {}

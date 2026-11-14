@@ -34,5 +34,6 @@ public record VacancyTemplateData(
             boolean critical,
             double yearsRequired,
             double halfLifeYears,
-            boolean qualification) {}
+            boolean qualification,
+            String educationLevel) {}
 }

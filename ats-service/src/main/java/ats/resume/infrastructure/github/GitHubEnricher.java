@@ -54,7 +54,9 @@ public class GitHubEnricher {
 
         List<ExternalSkillEvidence> evidence = new ArrayList<>();
         for (Requirement requirement : requirements) {
-            if (requirement.skill() == null || requirement.skill().isBlank()) {
+            if (requirement.educationLevel() != null
+                    || requirement.skill() == null
+                    || requirement.skill().isBlank()) {
                 continue;
             }
             List<GitHubProfile.GitHubRepository> matched =
