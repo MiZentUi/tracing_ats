@@ -83,6 +83,26 @@ public class ResumeQueryService {
                                                         Comparator.comparing(
                                                                 SkillView::normalizedName))
                                                 .toList();
+                                List<QualificationView> qualifications =
+                                        parsed.getQualificationsMap().values().stream()
+                                                .map(
+                                                        qualification ->
+                                                                new QualificationView(
+                                                                        nullToNull(
+                                                                                qualification
+                                                                                        .getLabel()),
+                                                                        qualification.hasEvidence()
+                                                                                ? qualification
+                                                                                        .getEvidence()
+                                                                                        .getText()
+                                                                                : null))
+                                                .sorted(
+                                                        Comparator.comparing(
+                                                                QualificationView::label,
+                                                                Comparator.nullsLast(
+                                                                        String
+                                                                                ::compareToIgnoreCase)))
+                                                .toList();
                                 List<EducationView> education =
                                         parsed.getEducationMap().values().stream()
                                                 .map(
@@ -107,7 +127,9 @@ public class ResumeQueryService {
                                                                                         .getText()
                                                                                 : null))
                                                 .toList();
-                                return Optional.of(new ExtractionView(resumeId, skills, education));
+                                return Optional.of(
+                                        new ExtractionView(
+                                                resumeId, skills, qualifications, education));
                             } catch (InvalidProtocolBufferException | IllegalArgumentException e) {
                                 return Optional.empty();
                             }
@@ -174,7 +196,10 @@ public class ResumeQueryService {
     }
 
     public record ExtractionView(
-            UUID resumeId, List<SkillView> skills, List<EducationView> education) {}
+            UUID resumeId,
+            List<SkillView> skills,
+            List<QualificationView> qualifications,
+            List<EducationView> education) {}
 
     public record SkillView(
             String name,
@@ -182,6 +207,8 @@ public class ResumeQueryService {
             Integer tenure,
             Integer recency,
             String evidenceQuote) {}
+
+    public record QualificationView(String label, String evidenceQuote) {}
 
     public record EducationView(
             String institution,

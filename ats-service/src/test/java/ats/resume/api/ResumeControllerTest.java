@@ -91,7 +91,7 @@ class ResumeControllerTest {
     }
 
     @Test
-    void returnsExtractedEducationWithoutPii() {
+    void returnsExtractedEducationAndQualificationsWithoutPii() {
         ResumeIngestionService ingestion = mock(ResumeIngestionService.class);
         ResumeQueryService query = mock(ResumeQueryService.class);
         UUID resumeId = UUID.randomUUID();
@@ -101,6 +101,10 @@ class ResumeControllerTest {
                                 new ResumeQueryService.ExtractionView(
                                         resumeId,
                                         List.of(),
+                                        List.of(
+                                                new ResumeQueryService.QualificationView(
+                                                        "III группа по электробезопасности",
+                                                        "III группа по электробезопасности")),
                                         List.of(
                                                 new ResumeQueryService.EducationView(
                                                         "[PII_UNIVERSITY_1]",
@@ -121,6 +125,11 @@ class ResumeControllerTest {
         assertThat(response.getStatusCode().value()).isEqualTo(200);
         assertThat(response.getBody()).isNotNull();
         assertThat(response.getBody().getSkills()).isEmpty();
+        assertThat(response.getBody().getQualifications()).hasSize(1);
+        assertThat(response.getBody().getQualifications().getFirst().getLabel())
+                .isEqualTo("III группа по электробезопасности");
+        assertThat(response.getBody().getQualifications().getFirst().getEvidenceQuote())
+                .isEqualTo("III группа по электробезопасности");
         assertThat(response.getBody().getEducation()).hasSize(1);
         assertThat(response.getBody().getEducation().getFirst().getLevel()).isEqualTo("MASTER");
         assertThat(response.getBody().getEducation().getFirst().getSpecialty())

@@ -1702,6 +1702,7 @@ components:
       required:
         - resumeId
         - skills
+        - qualifications
         - education
       properties:
         resumeId:
@@ -1711,10 +1712,26 @@ components:
           type: array
           items:
             $ref: "#/components/schemas/ResumeExtractedSkill"
+        qualifications:
+          type: array
+          items:
+            $ref: "#/components/schemas/ResumeExtractedQualification"
         education:
           type: array
           items:
             $ref: "#/components/schemas/ResumeExtractedEducation"
+
+    ResumeExtractedQualification:
+      type: object
+      required:
+        - label
+      properties:
+        label:
+          type: string
+          description: Название квалификации в формулировке резюме.
+        evidenceQuote:
+          type: string
+          nullable: true
 
     ResumeExtractedEducation:
       type: object

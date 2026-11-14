@@ -3,6 +3,7 @@ package ats.resume.api;
 import ats.api.ResumesApi;
 import ats.gateway.model.ResumeBatchUploadResponse;
 import ats.gateway.model.ResumeExtractedEducation;
+import ats.gateway.model.ResumeExtractedQualification;
 import ats.gateway.model.ResumeExtractedSkill;
 import ats.gateway.model.ResumeExtraction;
 import ats.gateway.model.ResumeFullText;
@@ -136,6 +137,18 @@ public class ResumeController implements ResumesApi {
                                                                                                         .recency())
                                                                                         .evidenceQuote(
                                                                                                 skill
+                                                                                                        .evidenceQuote()))
+                                                                .toList())
+                                                .qualifications(
+                                                        view.qualifications().stream()
+                                                                .map(
+                                                                        qualification ->
+                                                                                new ResumeExtractedQualification()
+                                                                                        .label(
+                                                                                                qualification
+                                                                                                        .label())
+                                                                                        .evidenceQuote(
+                                                                                                qualification
                                                                                                         .evidenceQuote()))
                                                                 .toList())
                                                 .education(
