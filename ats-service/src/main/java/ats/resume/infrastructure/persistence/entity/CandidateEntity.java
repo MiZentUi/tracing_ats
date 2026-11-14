@@ -25,6 +25,12 @@ public class CandidateEntity {
     @GeneratedValue(strategy = GenerationType.UUID)
     private UUID id;
 
+    @Column(nullable = false, length = 16)
+    private String source = "MANUAL";
+
+    @Column(name = "external_ref", length = 128)
+    private String externalRef;
+
     @CreationTimestamp
     @Column(name = "created_at", nullable = false, updatable = false)
     private Instant createdAt;

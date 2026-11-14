@@ -100,6 +100,34 @@ ats:
     base-url: ${ATS_GITHUB_BASE_URL:https://api.github.com}
     max-repos: ${ATS_GITHUB_MAX_REPOS:5}
     timeout: 5s
+  hh:
+    # Публикация через HH API и приём вебхуков NEW_NEGOTIATION_VACANCY.
+    enabled: ${ATS_HH_ENABLED:false}
+    api-base-url: ${ATS_HH_API_BASE_URL:https://api.hh.ru}
+    token: ${ATS_HH_TOKEN:}
+    employer-id: ${ATS_HH_EMPLOYER_ID:}
+    webhook-token: ${ATS_HH_WEBHOOK_TOKEN:}
+    webhook-public-url: ${ATS_HH_WEBHOOK_PUBLIC_URL:}
+    subscription-id: ${ATS_HH_SUBSCRIPTION_ID:}
+    user-agent: ${ATS_HH_USER_AGENT:tracing-ats/0.1 (ats@example.com)}
+    default-area: ${ATS_HH_DEFAULT_AREA:1}
+    default-experience: ${ATS_HH_DEFAULT_EXPERIENCE:between1And3}
+    default-employment-form: ${ATS_HH_DEFAULT_EMPLOYMENT_FORM:FULL}
+    default-schedule: ${ATS_HH_DEFAULT_SCHEDULE:fullDay}
+    default-professional-role: ${ATS_HH_DEFAULT_PROFESSIONAL_ROLE:96}
+    timeout: ${ATS_HH_TIMEOUT:10s}
+    max-attempts: ${ATS_HH_MAX_ATTEMPTS:3}
+    retry-delay: ${ATS_HH_RETRY_DELAY:2s}
+  telegram:
+    enabled: ${ATS_TELEGRAM_ENABLED:false}
+    bot-token: ${ATS_TELEGRAM_BOT_TOKEN:}
+    chat-id: ${ATS_TELEGRAM_CHAT_ID:}
+    base-url: ${ATS_TELEGRAM_BASE_URL:https://api.telegram.org}
+    timeout: ${ATS_TELEGRAM_TIMEOUT:10s}
+    max-attempts: ${ATS_TELEGRAM_MAX_ATTEMPTS:3}
+    retry-delay: ${ATS_TELEGRAM_RETRY_DELAY:30s}
+    frontend-base-url: ${ATS_FRONTEND_BASE_URL:http://localhost:3000}
+    poll-interval: ${ATS_TELEGRAM_POLL_INTERVAL:5s}
   screening:
     worker-threads: ${ATS_SCREENING_WORKERS:2}
     # Сколько ждать скоринг при загрузке, прежде чем пометить отклик FAILED.

@@ -142,6 +142,23 @@ services:
       - "${MOCK_LLM_PORT:-8089}:8089"
     restart: unless-stopped
 
+  # Заглушка hh.ru на Rust/Axum: публикация, подписка, резюме и вебхук.
+  mock-hh:
+    profiles: ["mock-hh"]
+    build:
+      context: ./infra/mock-hh
+    environment:
+      MOCK_HH_PORT: 8090
+      MOCK_HH_WEBHOOK_URL: http://ats-service:8080/api/v1/integrations/hh/webhook?token=${ATS_HH_WEBHOOK_TOKEN:-mock-hh-token}
+      MOCK_HH_EMPLOYER_ID: ${ATS_HH_EMPLOYER_ID:-999}
+      MOCK_HH_PUBLIC_URL: ${MOCK_HH_PUBLIC_URL:-http://localhost:8090}
+      MOCK_HH_STATE_FILE: /data/state.json
+    volumes:
+      - mock-hh-data:/data
+    ports:
+      - "${MOCK_HH_PORT:-8090}:8090"
+    restart: unless-stopped
+
   # Один Java-сервис: вакансии, шаблон, резюме, PII, скрининг, рейтинг, отчёт.
   ats-service:
     build:
@@ -176,6 +193,20 @@ services:
       ATS_RESUME_MATCH_BATCH_SIZE: ${ATS_RESUME_MATCH_BATCH_SIZE:-3}
       ATS_GITHUB_ENABLED: ${ATS_GITHUB_ENABLED:-false}
       ATS_GITHUB_TOKEN: ${ATS_GITHUB_TOKEN:-}
+      # hh.ru: публикация через API и вебхук NEW_NEGOTIATION_VACANCY.
+      ATS_HH_ENABLED: ${ATS_HH_ENABLED:-false}
+      ATS_HH_API_BASE_URL: ${ATS_HH_API_BASE_URL:-https://api.hh.ru}
+      ATS_HH_TOKEN: ${ATS_HH_TOKEN:-}
+      ATS_HH_EMPLOYER_ID: ${ATS_HH_EMPLOYER_ID:-}
+      ATS_HH_WEBHOOK_TOKEN: ${ATS_HH_WEBHOOK_TOKEN:-}
+      ATS_HH_WEBHOOK_PUBLIC_URL: ${ATS_HH_WEBHOOK_PUBLIC_URL:-}
+      ATS_HH_SUBSCRIPTION_ID: ${ATS_HH_SUBSCRIPTION_ID:-}
+      # Telegram-алерты: только вакансия и Score_pre, без PII.
+      ATS_TELEGRAM_ENABLED: ${ATS_TELEGRAM_ENABLED:-false}
+      ATS_TELEGRAM_BOT_TOKEN: ${ATS_TELEGRAM_BOT_TOKEN:-}
+      ATS_TELEGRAM_CHAT_ID: ${ATS_TELEGRAM_CHAT_ID:-}
+      ATS_TELEGRAM_BASE_URL: ${ATS_TELEGRAM_BASE_URL:-https://api.telegram.org}
+      ATS_FRONTEND_BASE_URL: ${ATS_FRONTEND_BASE_URL:-http://localhost:3000}
       # Для запуска без ключа: ATS_PROFILES=mock-llm
       SPRING_PROFILES_ACTIVE: ${ATS_PROFILES:-}
       # Compose подставляет значение из корневого .env или окружения хоста.
@@ -221,3 +252,4 @@ services:
 volumes:
   ats-pgdata:
   ats-minio:
+  mock-hh-data:

@@ -40,6 +40,12 @@ public class ApplicationEntity {
     @Column(nullable = false, length = 32)
     private String status;
 
+    @Column(nullable = false, length = 16)
+    private String source = "MANUAL";
+
+    @Column(name = "external_ref", length = 128)
+    private String externalRef;
+
     @Column(name = "screening_decision", length = 16)
     private String screeningDecision;
 

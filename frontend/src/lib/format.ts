@@ -26,6 +26,11 @@ export function resumeDisplayTitle(
   return title?.trim() || `Резюме от ${formatDate(createdAt)}`
 }
 
+/** Короткий стабильный идентификатор для визуального различения карточек. */
+export function shortId(value: string): string {
+  return value.replace(/-/g, '').slice(0, 4).toUpperCase()
+}
+
 export function pluralizeRu(
   count: number,
   one: string,

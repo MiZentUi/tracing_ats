@@ -42,6 +42,11 @@ class ResumeControllerTest {
                                                 "TEXT",
                                                 1024,
                                                 Instant.parse("2026-11-12T19:11:18Z"),
+                                                false,
+                                                null,
+                                                null,
+                                                "Middle DevOps Engineer",
+                                                "MANUAL",
                                                 List.of())),
                                 1));
 
@@ -60,6 +65,8 @@ class ResumeControllerTest {
         assertThat(response.getBody().getItems()).hasSize(1);
         assertThat(response.getBody().getItems().getFirst().getResumeId()).isEqualTo(resumeId);
         assertThat(response.getBody().getItems().getFirst().getStatus()).isEqualTo("MATCHED");
+        assertThat(response.getBody().getItems().getFirst().getVacancyTitle())
+                .isEqualTo("Middle DevOps Engineer");
     }
 
     @Test
@@ -171,6 +178,11 @@ class ResumeControllerTest {
                                 "TEXT",
                                 1024,
                                 Instant.parse("2026-11-12T19:11:18Z"),
+                                false,
+                                null,
+                                null,
+                                null,
+                                "MANUAL",
                                 List.of()));
 
         ResponseEntity<ats.gateway.model.ResumeSummary> response =
