@@ -49,6 +49,7 @@ class Store(Protocol):
     def get_snapshot(self, resolver_version: str) -> dict | None: ...
 
     def seed(self, seed: tuple) -> None: ...
+    def seed_missing(self, seed: tuple) -> None: ...
     def lookup(self, key: str) -> AliasRef | None: ...
     def get_skill(self, skill_id: str) -> Skill | None: ...
     def get_skills(self, skill_ids: list[str]) -> dict[str, Skill]: ...
@@ -85,6 +86,7 @@ class Store(Protocol):
     def qualifications_empty(self) -> bool: ...
     def relations_empty(self) -> bool: ...
     def seed_qualifications(self, seed: tuple[SeedQualification, ...]) -> None: ...
+    def seed_qualifications_missing(self, seed: tuple[SeedQualification, ...]) -> None: ...
     def seed_relations(self, seed: tuple[SeedRelation, ...]) -> None: ...
     def lookup_qualification(self, key: str) -> QualificationAliasRef | None: ...
     def get_relations(self, pairs: list[tuple[str, str]]) -> tuple[SkillRelation, ...]: ...
@@ -232,6 +234,40 @@ class InMemoryStore:
             for alias_raw in item.raw_only:
                 self.add_alias(skill.id, alias_raw, "ru", "RAW_ONLY", "SEED", "seed")
 
+    def seed_missing(self, seed: tuple) -> None:
+        inserted = False
+        for item in seed:
+            key = normalize_base(item.canonical)
+            if not key or key in self._alias_keys:
+                continue
+            if any(
+                alias_key in self._alias_keys for alias_key in alias_keys(item.canonical).values()
+            ):
+                continue
+            try:
+                skill = self.create_skill(
+                    item.canonical,
+                    item.skill_type,
+                    actor="seed",
+                    source="SEED",
+                    skill_id=stable_id(item.canonical),
+                )
+            except AliasConflict:
+                continue
+            inserted = True
+            for alias_raw in item.aliases:
+                try:
+                    self.add_alias(skill.id, alias_raw, "mixed", "AUTO", "SEED", "seed")
+                except AliasConflict:
+                    continue
+            for alias_raw in item.raw_only:
+                try:
+                    self.add_alias(skill.id, alias_raw, "ru", "RAW_ONLY", "SEED", "seed")
+                except AliasConflict:
+                    continue
+        if inserted:
+            self.bump_version()
+
     def qualifications_empty(self) -> bool:
         return not self._qualifications
 
@@ -276,6 +312,37 @@ class InMemoryStore:
             self._meta.qualification_version + 1,
             self._meta.relation_version,
         )
+
+    def seed_qualifications_missing(self, seed: tuple[SeedQualification, ...]) -> None:
+        inserted = False
+        for item in seed:
+            key = normalize_base(item.canonical)
+            if not key or key in self._qualification_keys:
+                continue
+            if any(
+                alias_key in self._qualification_keys
+                for alias_key in alias_keys(item.canonical).values()
+            ):
+                continue
+            try:
+                qualification = self.create_qualification(
+                    item.canonical,
+                    item.qualification_type,
+                    actor="seed",
+                    source="SEED",
+                )
+            except AliasConflict:
+                continue
+            inserted = True
+            for alias_raw in item.aliases:
+                try:
+                    self.add_qualification_alias(
+                        qualification.id, alias_raw, "mixed", "AUTO", "SEED", "seed"
+                    )
+                except AliasConflict:
+                    continue
+        if inserted:
+            self.bump_qualification_version()
 
     def seed_relations(self, seed: tuple[SeedRelation, ...]) -> None:
         if self._relations:

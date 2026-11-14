@@ -3,7 +3,12 @@ from __future__ import annotations
 import pytest
 
 from dictionary_service.domain import AliasConflict, CanonicalRequired
-from dictionary_service.seed import SEED
+from dictionary_service.seed import (
+    BASE_SEED,
+    OPEN_SEED,
+    OPEN_SEED_QUALIFICATIONS,
+    SEED,
+)
 from dictionary_service.service import (
     ApplyAliasInput,
     ApplySkillInput,
@@ -26,6 +31,31 @@ def service() -> DictionaryService:
 def resolve(service: DictionaryService, raw: str, as_of: str = ""):
     _, items = service.resolve([ResolveInput("k", raw, "mixed", "RESUME")], as_of=as_of)
     return items[0]
+
+
+def test_open_seed_covers_multiple_domains() -> None:
+    canonicals = {item.canonical for item in SEED}
+    assert {"AutoCAD", "МСФО", "Подбор персонала", "Figma"} <= canonicals
+    qualifications = {item.canonical for item in OPEN_SEED_QUALIFICATIONS}
+    assert "PMP" in qualifications
+    assert len(OPEN_SEED) >= 100
+    assert len(OPEN_SEED_QUALIFICATIONS) >= 20
+
+
+def test_seed_if_empty_adds_open_seed_to_existing_dictionary() -> None:
+    store = InMemoryStore()
+    store.seed(BASE_SEED)
+    service = DictionaryService(store, config_hash="test")
+
+    service.seed_if_empty()
+    assert resolve(service, "AutoCAD").skill_id is not None
+    assert resolve(service, "МСФО").skill_id is not None
+    pmp = service.resolve_qualifications([ResolveQualificationInput("k", "PMP", "RESUME")])[1][0]
+    assert pmp.qualification_id is not None
+
+    version = service.version()
+    service.seed_if_empty()
+    assert service.version() == version
 
 
 def test_js_and_javascript_are_one_skill(service: DictionaryService) -> None:

@@ -85,7 +85,7 @@
 | P1 | Нет CI job для `dictionary-service` | `.github/workflows/ci.yml` | Тесты и ruff словаря не проверяются в CI |
 | P1 | `mock-llm` не запускается в CI | `.github/workflows/ci.yml` | Заглушка проверяется только в compose/демо |
 | P2 | У `dictionary-service` нет `uv.lock` | `dictionary-service/` | Зависимости не зафиксированы |
-| P2 | Два источника seed словаря | `migrations/changes/021`, `dictionary_service/seed.py` | Нет автоматической проверки совпадения |
+| P2 | Три источника seed словаря | `migrations/changes/021`, `dictionary_service/seed.py`, `data/open_seed.json` | Нет автоматической проверки совпадения; открытый seed применяется при старте идемпотентно |
 | P2 | `Embedding`/`fuzzy` зарезервированы в proto, но не реализованы | `dictionary.proto` | `RESOLVE_METHOD_EMBEDDING` не выдаётся |
 | P2 | Нет OCR | `text-extraction` | PDF без текстового слоя даёт `TEXT_EMPTY` |
 | P2 | `.doc` не поддерживается | `text-extraction` | Нужно сохранить как DOCX |

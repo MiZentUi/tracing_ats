@@ -20,7 +20,13 @@ from .domain import (
     SkillRelation,
 )
 from .normalization import alias_keys, normalize_base, pymorphy_version
-from .seed import SEED, SEED_QUALIFICATIONS, SEED_RELATIONS
+from .seed import (
+    OPEN_SEED,
+    OPEN_SEED_QUALIFICATIONS,
+    SEED,
+    SEED_QUALIFICATIONS,
+    SEED_RELATIONS,
+)
 from .store import InMemoryStore, Store, raw_keys
 
 _METHOD_BY_KIND = {
@@ -81,8 +87,12 @@ class DictionaryService:
         if self._seed_on_start:
             if self._store.list_skills("", "", "", 1, 0)[1] == 0:
                 self._store.seed(SEED)
+            else:
+                self._store.seed_missing(OPEN_SEED)
             if self._store.qualifications_empty():
                 self._store.seed_qualifications(SEED_QUALIFICATIONS)
+            else:
+                self._store.seed_qualifications_missing(OPEN_SEED_QUALIFICATIONS)
             if self._store.relations_empty():
                 self._store.seed_relations(SEED_RELATIONS)
         meta = self.version()
