@@ -6,9 +6,9 @@
 ## 1. Что должно быть на VPS
 
 - Docker Engine и Docker Compose plugin (`docker compose version`).
-- Git и `curl`.
-- Открыты только `22` (SSH) и `80`/`443` для сайта. Внутренние сервисы в
-  `compose.prod.yaml` не публикуют порты на хост.
+- Git, `curl` и `tar`.
+- Открыты `22` (SSH), `80`/`443` для сайта и `8090` для UI `mock-hh`. Внутренние
+  сервисы в `compose.prod.yaml` не публикуют порты на хост, кроме `mock-hh`.
 - Клон репозитория, например `/opt/tracing-ats`:
 
 ```bash
@@ -64,6 +64,7 @@ docker compose \
 | `ATS_S3_ACCESS_KEY` | да | доступ к MinIO/S3 |
 | `ATS_S3_SECRET_KEY` | да | секрет MinIO/S3 |
 | `DICTIONARY_SERVICE_TOKEN` | нет | зарезервирован; сейчас загружается, но не проверяется |
+| `NER_MODEL_URL` | нет | URL tar-архива NER-модели, если её нет в `models/ner` |
 
 Для `GHCR_TOKEN` достаточно classic PAT с правом `read:packages`. Если пакеты
 GHCR публичные, секрет не нужен. Также можно один раз выполнить `docker login
@@ -83,6 +84,9 @@ ghcr.io` на VPS вручную.
 | `CLOUDFLARE_AI_MODEL` | `@cf/qwen/qwen3.8-27b` | модель fallback |
 | `CLOUDFLARE_AI_REASONING_EFFORT` | `low` | reasoning effort |
 | `FRONTEND_PORT` | `80` | порт сайта на VPS |
+| `MOCK_HH_ENABLED` | `true` | запускать hh-заглушку в production; `false` отключает её |
+| `MOCK_HH_PORT` | `8090` | порт mock-hh на VPS |
+| `MOCK_HH_PUBLIC_URL` | `http://<VPS_HOST>:8090` | публичный адрес mock-hh для ссылки «Открыть на hh.ru»; если пусто, собирается из `VPS_HOST` |
 
 Если `SCORING_SERVICE_LLM_PROVIDER` не задан, остаётся значение из
 `.env.example` (`mock`). Для реальной модели задай `openai`.
@@ -102,6 +106,9 @@ ATS_PII_ENCRYPTION_KEY=<base64-ключ>
 ATS_S3_ACCESS_KEY=<minio-user>
 ATS_S3_SECRET_KEY=<minio-password>
 FRONTEND_PORT=80
+MOCK_HH_ENABLED=true
+MOCK_HH_PORT=8090
+MOCK_HH_PUBLIC_URL=http://<VPS_HOST>:8090
 ```
 
 `VACANCY_LLM_API_KEY` и `SCORING_SERVICE_LLM_API_KEY` необязательны: если пусты,
@@ -119,17 +126,53 @@ FRONTEND_PORT=80
    - `scoring-service`
    - `ats-service`
    - `frontend`
+   - `mock-hh`
 3. Заходит на VPS по SSH.
 4. Переключает клон на точный SHA, для которого собраны образы.
 5. Создаёт `.env.production` из GitHub Secrets/Variables с правами `600`.
 6. Делает `docker compose pull` и `docker compose up -d --no-build`.
-7. Проверяет, что сайт отвечает на `http://127.0.0.1:80`.
+7. Проверяет, что сайт отвечает на `http://127.0.0.1:80`, а `mock-hh` — на
+   `http://127.0.0.1:8090` при `MOCK_HH_ENABLED=true`.
 
 Используются `compose.yaml` + `compose.prod.yaml`. Production-override:
 
 - подставляет GHCR-образы;
 - убирает публикацию портов Postgres, MinIO, dictionary, scoring и ats-service;
-- оставляет наружу только frontend на `FRONTEND_PORT` (по умолчанию `80`).
+- оставляет наружу frontend на `FRONTEND_PORT` (по умолчанию `80`) и `mock-hh`
+  на `MOCK_HH_PORT` (по умолчанию `8090`);
+- при `MOCK_HH_ENABLED=false` mock-hh не запускается, а `ats-service` получает
+  `ATS_HH_ENABLED=false`.
+
+`mock-hh` — демонстрационная заглушка без авторизации. Не оставляй её открытой
+в интернет для реального production; отключи `MOCK_HH_ENABLED` или закрой порт
+`8090` файрволом.
+
+### NER-модель
+
+Модель не коммитится в git: `models/` исключён из репозитория и Docker-контекста.
+Deploy поддерживает два способа доставить её на VPS:
+
+1. Положить tar-архив в `/opt/tracing-ats/models/ner` (внутри архива должны быть
+   `model.onnx`, `tokenizer.json`, `config.json` и остальные файлы).
+2. Задать GitHub Secret `NER_MODEL_URL` на URL этого tar-архива.
+
+Deploy распакует архив в `models/ner/` и автоматически выставит:
+
+```dotenv
+ATS_PII_NER_PROVIDER=onnx
+ATS_PII_NER_MODEL_PATH=/models/ner/model.onnx
+ATS_PII_NER_TOKENIZER_PATH=/models/ner/tokenizer.json
+ATS_PII_NER_CONFIG_PATH=/models/ner/config.json
+ATS_PII_NER_FAIL_CLOSED=true
+```
+
+Если файлов модели нет, deploy оставляет `ATS_PII_NER_PROVIDER=fake` и пишет
+`NER model not found; using fake provider`. Для локальной подготовки архива
+используй `scripts/download-ner.sh`.
+
+Модель большая (около 544 МБ), распаковка и загрузка ONNX требуют свободного
+места и RAM на VPS. Если `ATS_PII_NER_FAIL_CLOSED=true` и модель повреждена,
+`ats-service` не стартует — это защита от отправки немаскированного текста.
 
 ## 5. Ручной запуск
 
@@ -141,7 +184,7 @@ FRONTEND_PORT=80
 ```bash
 export IMAGE_PREFIX=ghcr.io/<owner>/tracing-ats
 export IMAGE_TAG=<полный-sha>
-docker compose \
+docker compose --profile mock-hh \
   --env-file .env.example \
   --env-file .env.production \
   -f compose.yaml -f compose.prod.yaml up -d --no-build
@@ -168,6 +211,8 @@ Workflow не настраивает TLS. Для production поставь пе�
 - Если `GHCR_TOKEN` не задан и пакеты приватные, `docker compose pull` упадёт.
 - `.env.example` не хранит реальные секреты: только локальные значения по
   умолчанию и пустые placeholders.
+- NER-модель не входит в git. Без `models/ner` и без `NER_MODEL_URL` deploy
+  работает с `fake`-провайдером, то есть имена не маскируются.
 
 ## 8. Если `migrations` завершился с ошибкой
 

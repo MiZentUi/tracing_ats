@@ -10,8 +10,8 @@
 
 | Приоритет | Проблема | Где | Следствие |
 |---|---|---|---|
-| P0 | По умолчанию NER-провайдер `fake` | `ats-service/src/main/resources/application.yaml`, `compose.yaml` | Имена и локации не маскируются; удаляются только regex-PII. Для реальных данных нужен `ATS_PII_NER_PROVIDER=onnx` и модель в `models/ner` |
-| P1 | ONNX-модель не входит в репозиторий | `models/` пуст, `scripts/download-ner.sh` | CI и демо работают только с fake-NER |
+| P0 | По умолчанию NER-провайдер `fake` | `ats-service/src/main/resources/application.yaml`, `compose.yaml` | Имена и локации не маскируются, пока deploy не найдёт модель в `models/ner` или не скачает её по `NER_MODEL_URL`; тогда включается `onnx` |
+| P1 | ONNX-модель не входит в репозиторий | `models/` (gitignored), `scripts/download-ner.sh` | CI работает с fake-NER; deploy распаковывает архив из `models/ner` или скачивает `NER_MODEL_URL` |
 | P1 | `DICTIONARY_SERVICE_TOKEN` загружается, но не проверяется | `dictionary-service/src/dictionary_service/config.py` | Админские gRPC-методы словаря не защищены |
 | P1 | Нет авторизации и ролей | `SecurityConfiguration`, все контроллеры | Любой клиент может читать и менять вакансии, резюме, словарь, раскрывать PII |
 | P2 | `actor` в аудите всегда `"hr"` | `AuditEvent` writers | Нельзя различить пользователей |

@@ -55,6 +55,9 @@ jobs:
           - name: frontend
             context: .
             file: frontend/Dockerfile
+          - name: mock-hh
+            context: ./infra/mock-hh
+            file: ./infra/mock-hh/Dockerfile
     steps:
       - name: Checkout
         uses: actions/checkout@v6
@@ -116,6 +119,11 @@ jobs:
           CLOUDFLARE_AI_MODEL: ${{ vars.CLOUDFLARE_AI_MODEL }}
           CLOUDFLARE_AI_REASONING_EFFORT: ${{ vars.CLOUDFLARE_AI_REASONING_EFFORT }}
           FRONTEND_PORT: ${{ vars.FRONTEND_PORT }}
+          PUBLIC_HOST: ${{ secrets.VPS_HOST }}
+          MOCK_HH_ENABLED: ${{ vars.MOCK_HH_ENABLED }}
+          MOCK_HH_PORT: ${{ vars.MOCK_HH_PORT }}
+          MOCK_HH_PUBLIC_URL: ${{ vars.MOCK_HH_PUBLIC_URL }}
+          NER_MODEL_URL: ${{ secrets.NER_MODEL_URL }}
         with:
           host: ${{ secrets.VPS_HOST }}
           username: ${{ secrets.VPS_USER }}
@@ -130,7 +138,9 @@ jobs:
             SCORING_SERVICE_LLM_PROVIDER,SCORING_SERVICE_LLM_BASE_URL,
             SCORING_SERVICE_LLM_MODEL,CLOUDFLARE_AI_ENABLED,
             CLOUDFLARE_AI_BASE_URL,CLOUDFLARE_AI_MODEL,
-            CLOUDFLARE_AI_REASONING_EFFORT,FRONTEND_PORT
+            CLOUDFLARE_AI_REASONING_EFFORT,FRONTEND_PORT,
+            PUBLIC_HOST,MOCK_HH_ENABLED,MOCK_HH_PORT,MOCK_HH_PUBLIC_URL,
+            NER_MODEL_URL
           script_stop: true
           script: |
             set -euo pipefail
@@ -186,6 +196,57 @@ jobs:
             FRONTEND_PORT="${FRONTEND_PORT:-80}"
             export FRONTEND_PORT
             put FRONTEND_PORT "$FRONTEND_PORT"
+
+            MOCK_HH_ENABLED="${MOCK_HH_ENABLED:-true}"
+            MOCK_HH_PORT="${MOCK_HH_PORT:-8090}"
+            MOCK_HH_PUBLIC_URL="${MOCK_HH_PUBLIC_URL:-http://${PUBLIC_HOST}:${MOCK_HH_PORT}}"
+            export MOCK_HH_ENABLED MOCK_HH_PORT MOCK_HH_PUBLIC_URL
+            if [ "$MOCK_HH_ENABLED" = "true" ]; then
+              put ATS_HH_ENABLED "true"
+              put ATS_HH_API_BASE_URL "http://mock-hh:8090"
+              put ATS_HH_TOKEN "mock-token"
+              put ATS_HH_EMPLOYER_ID "999"
+              put ATS_HH_WEBHOOK_TOKEN "mock-hh-token"
+              put ATS_HH_WEBHOOK_PUBLIC_URL "http://ats-service:8080/api/v1/integrations/hh/webhook?token=mock-hh-token"
+              put MOCK_HH_PORT "$MOCK_HH_PORT"
+              put MOCK_HH_PUBLIC_URL "$MOCK_HH_PUBLIC_URL"
+              MOCK_HH_PROFILE_ARGS="--profile mock-hh"
+              MOCK_HH_SERVICES="mock-hh"
+            else
+              put ATS_HH_ENABLED "false"
+              MOCK_HH_PROFILE_ARGS=""
+              MOCK_HH_SERVICES=""
+            fi
+
+            # NER-модель не коммитится в git. На VPS можно положить tar в
+            # models/ner или задать NER_MODEL_URL на такой архив.
+            NER_DIR="$PWD/models/ner"
+            NER_ARCHIVE="$PWD/models/ner.tar"
+            if [ -f "$PWD/models/ner" ]; then
+              mv -f "$PWD/models/ner" "$NER_ARCHIVE"
+            fi
+            if [ ! -f "$NER_ARCHIVE" ] && [ -n "${NER_MODEL_URL:-}" ]; then
+              mkdir -p "$PWD/models"
+              echo "Downloading NER model archive"
+              curl -fsSL "$NER_MODEL_URL" -o "$NER_ARCHIVE"
+            fi
+            if [ ! -f "$NER_DIR/model.onnx" ] && [ -f "$NER_ARCHIVE" ]; then
+              mkdir -p "$NER_DIR"
+              tar -xf "$NER_ARCHIVE" -C "$NER_DIR"
+            fi
+            if [ -s "$NER_DIR/model.onnx" ] \
+              && [ -s "$NER_DIR/tokenizer.json" ] \
+              && [ -s "$NER_DIR/config.json" ]; then
+              put ATS_PII_NER_PROVIDER "onnx"
+              put ATS_PII_NER_MODEL_PATH "/models/ner/model.onnx"
+              put ATS_PII_NER_TOKENIZER_PATH "/models/ner/tokenizer.json"
+              put ATS_PII_NER_CONFIG_PATH "/models/ner/config.json"
+              put ATS_PII_NER_FAIL_CLOSED "true"
+              echo "NER model enabled"
+            else
+              put ATS_PII_NER_PROVIDER "fake"
+              echo "NER model not found; using fake provider"
+            fi
             chmod 600 .env.production
 
             if [ -n "${GHCR_TOKEN:-}" ]; then
@@ -194,19 +255,21 @@ jobs:
 
             export IMAGE_PREFIX IMAGE_TAG
 
-            docker compose \
+            docker compose $MOCK_HH_PROFILE_ARGS \
               --env-file .env.example \
               --env-file .env.production \
               -f compose.yaml -f compose.prod.yaml pull \
               postgres minio minio-init migrations \
-              dictionary-service scoring-service ats-service frontend
+              dictionary-service scoring-service ats-service frontend \
+              $MOCK_HH_SERVICES
 
-            if ! docker compose \
+            if ! docker compose $MOCK_HH_PROFILE_ARGS \
               --env-file .env.example \
               --env-file .env.production \
               -f compose.yaml -f compose.prod.yaml up -d --no-build --remove-orphans \
               migrations postgres minio minio-init \
-              dictionary-service scoring-service ats-service frontend; then
+              dictionary-service scoring-service ats-service frontend \
+              $MOCK_HH_SERVICES; then
               echo "Deployment failed; collecting service logs" >&2
               docker compose \
                 --env-file .env.example \
@@ -232,5 +295,10 @@ jobs:
             export FRONTEND_PORT="${FRONTEND_PORT:-80}"
             curl -fsS --retry 12 --retry-delay 5 --retry-connrefused \
               "http://127.0.0.1:${FRONTEND_PORT}/" >/dev/null
+
+            if [ "$MOCK_HH_ENABLED" = "true" ]; then
+              curl -fsS --retry 12 --retry-delay 5 --retry-connrefused \
+                "http://127.0.0.1:${MOCK_HH_PORT}/" >/dev/null
+            fi
 
             docker image prune -f
