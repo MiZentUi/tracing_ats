@@ -168,9 +168,7 @@ class TemporalPolicy:
         required: float,
         recency: float | None,
     ) -> tuple[float, float, float]:
-        tenure_point, tenure_low, tenure_high = self._tenure_bounds(
-            years, required
-        )
+        tenure_point, tenure_low, tenure_high = self._tenure_bounds(years, required)
         recency_point, recency_low, recency_high = self._recency_bounds(recency)
         return (
             _clamp01(tenure_point * recency_point),
@@ -211,8 +209,8 @@ class StatusPolicy:
     """Пороги статусов требований.
 
     `coverage` участвует в выборе `FULL`: наличие точного названия навыка
-    само по себе не означает, что требование закрыто. Для навыков порог ниже
-    остальных, потому что `t_i` для навыка ограничен 0.8.
+    само по себе не означает, что требование закрыто. Порог навыка ниже
+    остальных, потому что навык может быть подтверждён только перечислением.
     """
 
     skill_full_coverage: float = 0.70

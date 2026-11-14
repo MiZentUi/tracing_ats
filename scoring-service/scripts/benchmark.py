@@ -213,9 +213,7 @@ def parse_vacancy_text(path: Path, text: str) -> messages_pb2.Vacancy:
             )
         elif key == "qualification":
             if len(parts) != 2:
-                raise ValueError(
-                    f"строка {line_no}: qualification: criticality | label"
-                )
+                raise ValueError(f"строка {line_no}: qualification: criticality | label")
             requirement = features_pb2.FeatureRequirement(
                 criticality=criticality(parts[0], line_no)
             )
@@ -224,9 +222,7 @@ def parse_vacancy_text(path: Path, text: str) -> messages_pb2.Vacancy:
             )
         elif key == "education":
             if len(parts) != 3:
-                raise ValueError(
-                    f"строка {line_no}: education: criticality | level | specialty"
-                )
+                raise ValueError(f"строка {line_no}: education: criticality | level | specialty")
             level = parts[1].lower()
             if level not in EDUCATION_LEVEL:
                 raise ValueError(f"строка {line_no}: неизвестный уровень «{parts[1]}»")
@@ -241,9 +237,7 @@ def parse_vacancy_text(path: Path, text: str) -> messages_pb2.Vacancy:
             )
         elif key == "experience":
             if len(parts) < 2 or len(parts) > 3:
-                raise ValueError(
-                    f"строка {line_no}: experience: criticality | category [| tenure]"
-                )
+                raise ValueError(f"строка {line_no}: experience: criticality | category [| tenure]")
             years = int(parts[2]) if len(parts) == 3 else 0
             requirement = features_pb2.FeatureRequirement(
                 criticality=criticality(parts[0], line_no)
@@ -256,9 +250,7 @@ def parse_vacancy_text(path: Path, text: str) -> messages_pb2.Vacancy:
             )
         elif key == "text":
             if len(parts) != 3:
-                raise ValueError(
-                    f"строка {line_no}: text: criticality | soft|other | text"
-                )
+                raise ValueError(f"строка {line_no}: text: criticality | soft|other | text")
             category = parts[1].lower()
             if category not in TEXT_CATEGORY:
                 raise ValueError(f"строка {line_no}: неизвестная категория «{parts[1]}»")
@@ -560,9 +552,7 @@ def main(argv: list[str] | None = None) -> int:
                     args.timeout,
                 )
             except grpc.RpcError as exc:
-                resume_report[key]["match_error"] = (
-                    exc.code().name if exc.code() else "UNKNOWN"
-                )
+                resume_report[key]["match_error"] = exc.code().name if exc.code() else "UNKNOWN"
                 LOGGER.error("resume_match_failed key=%s", key)
                 continue
 

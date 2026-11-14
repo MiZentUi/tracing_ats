@@ -39,10 +39,7 @@ class ScoringCalculator:
     ) -> GeneralScore:
         matches = list(matches)
         counts = Counter(match.criticality for match in matches)
-        weights = {
-            criticality: self._weights.weight(criticality, counts)
-            for criticality in counts
-        }
+        weights = {criticality: self._weights.weight(criticality, counts) for criticality in counts}
         total_weight = 0.0
         relevance_sum = 0.0
         coverage_sum = 0.0

@@ -126,6 +126,8 @@ def test_relation_policy_maps_classes_to_score() -> None:
     from api.scoring.policies import RelationPolicy
 
     policy = RelationPolicy()
-    assert policy.score("SAME_GROUP") == 0.5
-    assert policy.score("RELATED") == 0.5
+    assert policy.score("SAME_GROUP") == 0.7
+    assert policy.score("RELATED") == 0.7
+    assert policy.score("PARENT") == 0.6
+    assert policy.score("CHILD") == 0.5
     assert policy.score(None) == 0.0

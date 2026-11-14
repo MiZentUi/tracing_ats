@@ -90,9 +90,9 @@ def test_zero_required_tenure_keeps_tenure_factor_neutral() -> None:
 def test_claim_confidence_distinguishes_listing_duty_and_result() -> None:
     policy = HeuristicClaimConfidence()
 
-    assert policy.confidence("Python") == 0.3
-    assert policy.confidence("Разработал сервис на Python") == 0.5
-    assert policy.confidence("Снизил задержку до 20 ms") == 0.8
+    assert policy.confidence("Python") == 0.5
+    assert policy.confidence("Разработал сервис на Python") == 0.75
+    assert policy.confidence("Снизил задержку до 20 ms") == 1.0
     assert policy.confidence("   ") == 0.0
 
 
