@@ -12,7 +12,7 @@ import AppModal from '@/components/AppModal.vue'
 import RevealPiiDialog from '@/components/RevealPiiDialog.vue'
 import TextComparison from '@/components/TextComparison.vue'
 import { useToast } from '@/composables/useToast'
-import { requirementsCount } from '@/lib/format'
+import { pluralizeRu, requirementsCount } from '@/lib/format'
 import { kindLabel } from '@/lib/labels'
 
 const route = useRoute()
@@ -88,6 +88,24 @@ const statusClass: Record<string, string> = {
   GAP: 'bg-rose-50 text-rose-700 border-rose-200',
   NOT_STATED: 'bg-slate-100 text-slate-600 border-slate-200',
   ABSENT: 'bg-rose-50 text-rose-700 border-rose-200',
+}
+
+const statusLegend = [
+  { status: 'COVERED', description: 'Требование подтверждено цитатой из резюме.' },
+  { status: 'PARTIAL', description: 'Требование подтверждено частично.' },
+  { status: 'GAP', description: 'Подтверждение не найдено или цитата не прошла проверку.' },
+  {
+    status: 'NOT_STATED',
+    description: 'В резюме нет сведений. Это не означает, что навыка или опыта нет.',
+  },
+  { status: 'ABSENT', description: 'Резюме указывает на несоответствие требованию.' },
+]
+
+function tenureText(tenure: number | null | undefined): string {
+  if (tenure === null || tenure === undefined || tenure <= 0) {
+    return '—'
+  }
+  return `${tenure} ${pluralizeRu(tenure, 'год', 'года', 'лет')}`
 }
 
 async function load() {
@@ -367,12 +385,31 @@ onMounted(load)
         </dl>
       </div>
 
-      <div class="overflow-hidden rounded-xl border border-slate-200 bg-white shadow-sm">
-        <table class="w-full text-left text-sm">
+      <div class="card p-4">
+        <div class="flex flex-wrap items-center justify-between gap-2">
+          <p class="text-sm font-semibold text-slate-900">Как читать статусы</p>
+          <span class="text-xs text-slate-400">«Не указано» ≠ «отсутствует»</span>
+        </div>
+        <ul class="mt-3 grid gap-2 text-xs sm:grid-cols-2">
+          <li v-for="item in statusLegend" :key="item.status" class="flex items-start gap-2">
+            <span
+              class="shrink-0 rounded-md border px-2 py-0.5 font-medium"
+              :class="statusClass[item.status]"
+            >
+              {{ statusLabel[item.status] }}
+            </span>
+            <span class="text-slate-600">{{ item.description }}</span>
+          </li>
+        </ul>
+      </div>
+
+      <div class="overflow-x-auto rounded-xl border border-slate-200 bg-white shadow-sm">
+        <table class="w-full min-w-[760px] text-left text-sm">
           <thead class="bg-slate-50 text-xs uppercase tracking-wide text-slate-500">
             <tr>
               <th class="px-4 py-3">Требование</th>
               <th class="px-4 py-3">Тип</th>
+              <th class="px-4 py-3">Опыт</th>
               <th class="px-4 py-3">Статус</th>
               <th class="px-4 py-3">Подтверждение</th>
               <th class="px-4 py-3">Комментарий</th>
@@ -382,6 +419,9 @@ onMounted(load)
             <tr v-for="item in report.requirements" :key="item.requirementId">
               <td class="px-4 py-3 font-medium text-slate-900">{{ item.text }}</td>
               <td class="px-4 py-3 text-slate-500">{{ kindLabel(item.kind) }}</td>
+              <td class="whitespace-nowrap px-4 py-3 text-slate-600">
+                {{ tenureText(item.tenure) }}
+              </td>
               <td class="px-4 py-3">
                 <span
                   class="rounded-md border px-2 py-1 text-xs font-medium"

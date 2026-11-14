@@ -56,6 +56,24 @@ const inProgress = computed(() => {
 const vacancies = computed(() => ranking.value?.items ?? [])
 const displayText = computed(() => revealed.value?.text ?? resumeText.value?.maskedText ?? '')
 
+function experiencePeriod(item: {
+  beginYear?: number | null
+  endYear?: number | null
+}): string {
+  const start = item.beginYear ?? null
+  const end = item.endYear ?? null
+  if (start && end) {
+    return `${start} — ${end}`
+  }
+  if (start) {
+    return `с ${start}`
+  }
+  if (end) {
+    return `до ${end}`
+  }
+  return 'Период не указан'
+}
+
 function resizeEdit() {
   const element = editTextarea.value
   if (!element) {
@@ -316,6 +334,55 @@ onBeforeUnmount(stopPolling)
                 Редактировать
               </button>
             </div>
+          </article>
+
+          <article v-if="extraction" class="card p-5">
+            <div class="flex items-center justify-between gap-3">
+              <h2 class="text-base font-semibold text-slate-900">Опыт работы</h2>
+              <span class="badge-neutral">
+                {{ extraction.experience.length }}
+                {{ pluralizeRu(extraction.experience.length, 'место', 'места', 'мест') }}
+              </span>
+            </div>
+            <div v-if="extraction.experience.length" class="mt-4 space-y-2">
+              <div
+                v-for="(item, index) in extraction.experience"
+                :key="`${item.company ?? 'experience'}-${index}`"
+                class="rounded-lg border border-slate-200 bg-slate-50/60 p-3"
+              >
+                <div class="flex flex-wrap items-start justify-between gap-2">
+                  <div class="min-w-0">
+                    <p class="font-medium text-slate-900">
+                      {{ item.position || item.category || 'Опыт работы' }}
+                    </p>
+                    <p v-if="item.company" class="mt-0.5 text-sm text-slate-500">
+                      {{ item.company }}
+                    </p>
+                  </div>
+                  <span class="badge-neutral shrink-0">{{ experiencePeriod(item) }}</span>
+                </div>
+                <p v-if="item.category" class="mt-1 text-xs text-slate-500">
+                  {{ item.category }}
+                </p>
+                <blockquote
+                  v-if="item.evidenceQuote"
+                  class="mt-2 rounded-md bg-white px-3 py-2 text-sm leading-6 text-slate-600"
+                >
+                  {{ item.evidenceQuote }}
+                </blockquote>
+                <ul v-if="item.metrics.length" class="mt-2 space-y-1 text-sm text-slate-600">
+                  <li
+                    v-for="(metric, metricIndex) in item.metrics"
+                    :key="`${index}-${metricIndex}`"
+                    class="flex gap-2"
+                  >
+                    <span class="mt-2 h-1.5 w-1.5 shrink-0 rounded-full bg-indigo-400" />
+                    <span>{{ metric }}</span>
+                  </li>
+                </ul>
+              </div>
+            </div>
+            <p v-else class="mt-3 text-sm text-slate-500">Опыт не извлечён.</p>
           </article>
 
           <article v-if="extraction" class="card p-5">
