@@ -22,9 +22,3 @@ CREATE TABLE candidate_message (
 CREATE INDEX ix_candidate_message_run
     ON candidate_message (score_run_id, kind, created_at DESC);
 --rollback DROP TABLE candidate_message;
-
---changeset tracing-ats:resume-025-candidate-message-immutable splitStatements:false
-CREATE TRIGGER trg_candidate_message_immutable
-    BEFORE UPDATE ON candidate_message
-    FOR EACH ROW EXECUTE FUNCTION forbid_update();
---rollback DROP TRIGGER IF EXISTS trg_candidate_message_immutable ON candidate_message;
