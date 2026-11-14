@@ -1,5 +1,13 @@
 # RFC-002: Шаблон навыков вакансии: LLM-разметка MUST / NICE / OPTIONAL, счётчики по специализации и уровню, UI
 
+> [!WARNING]
+> Исторический дизайн-документ. Он описывает раннюю версию шаблона и местами
+> устарел: актуальны prompt `vacancy-template.v4`, `schema_version = 3`, поддержка
+> не-IT специализаций, `dictionary-service` и текущая схема из `migrations/`.
+> Не используй RFC-002 как текущую спецификацию; актуальные документы —
+> [`../../README.md`](../../README.md), [`../service-overview.md`](../service-overview.md),
+> [`../data-model.md`](../data-model.md), [`rfc-feature-extraction.md`](rfc-feature-extraction.md).
+
 | | |
 |---|---|
 | Дата | 2026-11-09 |

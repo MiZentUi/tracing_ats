@@ -1,10 +1,10 @@
 | | |
 |---|---|
-| **Статус** | Draft |
+| **Статус** | Реализовано v1; каталог `feedback-templates.v2` |
 | **Автор** | DeepSeek |
 | **Дата** | 2026-11-13 |
 | **Контур** | Python, `scoring-service/` |
-| **Ветка** | `feature/scoring-service` |
+| **Ветка** | `main` |
 | **Модуль** | `scoring-service/src/api/scoring/feedback.py` |
 | **Связанные документы** | `docs/rfc/rfc-feature-extraction.md`, `docs/rfc/rfc-scoring-model.md`, `contracts/proto/scoring_service/v1/models/messages.proto` |
 
@@ -379,7 +379,7 @@ evaluate resume match requirements=5 matches=5 gaps=2 strengths=3 risks=2 questi
 
 `scoring-service/tests/test_feedback.py`:
 
-- каталог: 30 уникальных ID и состав 5/8/9/6/2;
+- каталог: 32 уникальных ID и состав 6/8/10/6/2;
 - сильные стороны: критичное требование первым, цитата и стаж в тексте;
 - `NOT_STATED`: «не указан», без «не знает», «не владеет», «нет навыка»;
 - `ABSENT`: «есть близкий опыт»;
@@ -405,22 +405,21 @@ evaluate resume match requirements=5 matches=5 gaps=2 strengths=3 risks=2 questi
 
 1. **Версия каталога в контракте.** Сейчас `feedback-templates.v2` есть только
    в коде и логах. Для воспроизводимости сохранённых запусков нужно поле в
-   `EvaluateResumeMatchResponse` и `score_run`.
-2. **Отображение в UI.** `ReportService`, OpenAPI и `ReportView.vue` пока не
-   отдают `strengths`, `risks`, `questions`, `recruiter_note`. Это отдельная
-   задача Java/frontend.
-3. **Отдельные слабые стороны.** В v1 их нет: пробелы и частичные
+   `EvaluateResumeMatchResponse` и `score_run`. `ApplicationReport` и
+   `ReportView.vue` уже отдают `strengths`, `risks`, `questions` и
+   `recruiter_note`.
+2. **Отдельные слабые стороны.** В v1 их нет: пробелы и частичные
    соответствия остаются в `gaps` и `matches`. Если UI потребует отдельную
    секцию, добавим `weaknesses` отдельным изменением контракта.
-4. **Источник требования.** `RequirementSource` (`REQUIREMENT`/`DUTY`) в v1 не
+3. **Источник требования.** `RequirementSource` (`REQUIREMENT`/`DUTY`) в v1 не
    используется: все формулировки говорят «требование». Если понадобится
    различать требования и обязанности, добавим слот `source_label`.
-5. **Локализация.** Каталог v1 — русский. Для других языков понадобится
+4. **Локализация.** Каталог v1 — русский. Для других языков понадобится
    отдельный каталог и версия.
-6. **Доменные follow-up вопросы.** Детерминированный слой не строит глубокие
+5. **Доменные follow-up вопросы.** Детерминированный слой не строит глубокие
    вопросы по конкретной технологии; это задача будущего LLM-перефразировщика
    или расширения каталога.
-7. **Разнообразие формулировок.** В v1 большинство условий имеет один вариант.
+6. **Разнообразие формулировок.** В v1 большинство условий имеет один вариант.
    Если тексты окажутся слишком однообразными, добавим варианты и сохраним
    детерминированный выбор по `fact_id`.
 
