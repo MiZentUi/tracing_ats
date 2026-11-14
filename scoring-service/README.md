@@ -218,6 +218,24 @@ uv run sh protoc.sh
 - Тела запросов и ответов не логируются.
 - При ошибке пишется класс исключения, но не его сообщение.
 
+## Пакетный прогон
+
+Для ручной проверки на локальных `txt`-файлах есть
+`scripts/benchmark.py`:
+
+```bash
+cd scoring-service
+uv run python scripts/benchmark.py \
+  --resumes-dir scripts/benchmark/examples/resumes \
+  --vacancies-dir scripts/benchmark/examples/vacancies
+```
+
+Резюме один раз разбираются через `ExtractResume`, вакансии — из
+структурированного txt в `Vacancy`. Результаты разбора кэшируются по SHA-256,
+поэтому повторный запуск не вызывает LLM для неизменившихся резюме. Полные
+результаты матчинга сохраняются в `scripts/benchmark/results/<run>/` в JSON.
+Формат вакансии и структура каталогов — в `scripts/benchmark/README.md`.
+
 ## Проверки
 
 ```bash
