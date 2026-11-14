@@ -526,6 +526,39 @@ def test_evaluate_resume_match_logs_no_resume_text(caplog) -> None:
     assert "feedback=feedback-templates.v3" in caplog.text
 
 
+def test_evaluate_resume_match_explains_missing_skill_tenure() -> None:
+    resume = _parsed_resume()
+    resume.skills["skill:0"].ClearField("tenure")
+
+    with _running(ResumeExtractor(FakeLlm(PAYLOAD))) as stub:
+        response = stub.EvaluateResumeMatch(
+            _evaluate_request(resume=resume),
+            timeout=2,
+        )
+
+    match = response.matches["python"]
+    assert match.status == common_pb2.CORRESPONDENCE_PARTIAL
+    assert match.relevance == 1.0
+    assert not match.HasField("years_found")
+    assert match.comment == "Навык подтверждён, но стаж по нему не указан."
+
+
+def test_evaluate_resume_match_explains_missing_experience_tenure() -> None:
+    resume = _parsed_resume()
+    resume.experience["experience:0"].ClearField("begin")
+
+    with _running(ResumeExtractor(FakeLlm(PAYLOAD))) as stub:
+        response = stub.EvaluateResumeMatch(
+            _evaluate_request(resume=resume),
+            timeout=2,
+        )
+
+    match = response.matches["experience"]
+    assert match.status == common_pb2.CORRESPONDENCE_PARTIAL
+    assert not match.HasField("years_found")
+    assert match.comment == "Опыт подтверждён, но стаж по нему не указан."
+
+
 def test_evaluate_resume_match_marks_insufficient_tenure() -> None:
     resume = _parsed_resume()
     experience = resume.experience["experience:0"]

@@ -202,8 +202,7 @@ class RequirementMatcher:
                 if evidence is None:
                     continue
                 if not any(
-                    self._similarity.text_score(name, evidence.text) >= 1.0
-                    for name in candidates
+                    self._similarity.text_score(name, evidence.text) >= 1.0 for name in candidates
                 ):
                     continue
                 confidence = self._confidence.confidence(evidence.text)
@@ -553,6 +552,8 @@ def _skill_comment(status: int, gap_reason: int | None, name: str) -> str:
         return "Навык подтверждён в резюме."
     if gap_reason == common_pb2.GAP_REASON_INSUFFICIENT_TENURE:
         return "Навык есть, но подтверждённого стажа меньше требуемого."
+    if status == common_pb2.CORRESPONDENCE_PARTIAL and gap_reason is None:
+        return "Навык подтверждён, но стаж по нему не указан."
     if status == common_pb2.CORRESPONDENCE_PARTIAL:
         return "Найден близкий навык, соответствие частичное."
     return f"Навык «{name}» не найден в резюме."
@@ -571,6 +572,8 @@ def _experience_comment(status: int, gap_reason: int | None, category: str) -> s
         return "Опыт в требуемой категории подтверждён."
     if gap_reason == common_pb2.GAP_REASON_INSUFFICIENT_TENURE:
         return "Опыт в категории есть, но его меньше требуемого."
+    if status == common_pb2.CORRESPONDENCE_PARTIAL and gap_reason is None:
+        return "Опыт подтверждён, но стаж по нему не указан."
     if status == common_pb2.CORRESPONDENCE_PARTIAL:
         return "Опыт подтверждён частично."
     return f"Опыт в категории «{category}» не найден."
