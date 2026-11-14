@@ -53,6 +53,9 @@ describe('RelationGraphPanel', () => {
     expect(wrapper.findAll('line[data-edge]')).toHaveLength(1)
     expect(wrapper.text()).toContain('JavaScript')
     expect(wrapper.text()).toContain('TypeScript')
+    expect(wrapper.text()).toContain('Уместить')
+
+    await wrapper.get('[data-testid="fit-graph"]').trigger('click')
 
     wrapper.unmount()
   })

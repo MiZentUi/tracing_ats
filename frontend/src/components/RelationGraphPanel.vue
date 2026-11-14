@@ -1,7 +1,7 @@
 <script setup lang="ts">
 import { computed, nextTick, onBeforeUnmount, onMounted, ref, watch } from 'vue'
 import * as d3 from 'd3'
-import { Link2, Loader2, Plus, RefreshCw, Trash2 } from '@lucide/vue'
+import { Link2, Loader2, Maximize2, Plus, RefreshCw, Trash2 } from '@lucide/vue'
 import {
   createRelation,
   deleteRelation,
@@ -38,6 +38,10 @@ const kind = ref('RELATED')
 const saving = ref(false)
 const svgRef = ref<SVGSVGElement | null>(null)
 let simulation: d3.Simulation<GraphNode, GraphEdge> | null = null
+let zoomBehavior: d3.ZoomBehavior<SVGSVGElement, unknown> | null = null
+
+const GRAPH_WIDTH = 900
+const GRAPH_HEIGHT = 560
 
 const kindLabels: Record<string, string> = {
   SAME_GROUP: 'Одна группа',
@@ -155,6 +159,36 @@ function updateSelection() {
     })
 }
 
+function fitGraph() {
+  const element = svgRef.value
+  if (!element || !simulation || !zoomBehavior) {
+    return
+  }
+  const points = simulation.nodes()
+  if (points.length === 0) {
+    return
+  }
+  const xs = points.map((point) => point.x ?? 0)
+  const ys = points.map((point) => point.y ?? 0)
+  const minX = Math.min(...xs)
+  const maxX = Math.max(...xs)
+  const minY = Math.min(...ys)
+  const maxY = Math.max(...ys)
+  const padding = 64
+  const graphWidth = Math.max(maxX - minX, 1) + padding * 2
+  const graphHeight = Math.max(maxY - minY, 1) + padding * 2
+  const scale = Math.max(
+    0.2,
+    Math.min(2.5, Math.min(GRAPH_WIDTH / graphWidth, GRAPH_HEIGHT / graphHeight)),
+  )
+  const centerX = (minX + maxX) / 2
+  const centerY = (minY + maxY) / 2
+  const transform = d3.zoomIdentity
+    .translate(GRAPH_WIDTH / 2 - centerX * scale, GRAPH_HEIGHT / 2 - centerY * scale)
+    .scale(scale)
+  d3.select(element).call(zoomBehavior.transform, transform)
+}
+
 function renderGraph() {
   simulation?.stop()
   const element = svgRef.value
@@ -168,14 +202,24 @@ function renderGraph() {
     return
   }
 
-  const width = 900
-  const height = 560
   const svg = d3.select(element)
   svg.selectAll('*').remove()
   svg.on('click', () => {
     selectedId.value = ''
   })
   const root = svg.append('g')
+
+  zoomBehavior = d3
+    .zoom<SVGSVGElement, unknown>()
+    .scaleExtent([0.2, 4])
+    .extent([
+      [0, 0],
+      [GRAPH_WIDTH, GRAPH_HEIGHT],
+    ])
+    .on('zoom', (event) => {
+      root.attr('transform', event.transform.toString())
+    })
+  svg.call(zoomBehavior)
 
   const link = root
     .append('g')
@@ -214,6 +258,15 @@ function renderGraph() {
     .attr('class', 'fill-slate-700 text-[11px] font-medium')
     .text((item) => shortLabel(item.label))
 
+  const tick = () => {
+    link
+      .attr('x1', (edge) => (edge.source as GraphNode).x ?? 0)
+      .attr('y1', (edge) => (edge.source as GraphNode).y ?? 0)
+      .attr('x2', (edge) => (edge.target as GraphNode).x ?? 0)
+      .attr('y2', (edge) => (edge.target as GraphNode).y ?? 0)
+    node.attr('transform', (item) => `translate(${item.x ?? 0},${item.y ?? 0})`)
+  }
+
   simulation = d3
     .forceSimulation<GraphNode>(graphNodes)
     .force(
@@ -225,19 +278,16 @@ function renderGraph() {
         .strength(0.55),
     )
     .force('charge', d3.forceManyBody<GraphNode>().strength(-420))
-    .force('center', d3.forceCenter(width / 2, height / 2))
+    .force('center', d3.forceCenter(GRAPH_WIDTH / 2, GRAPH_HEIGHT / 2))
     .force('collide', d3.forceCollide<GraphNode>().radius(48))
-    .on('tick', () => {
-      link
-        .attr('x1', (edge) => (edge.source as GraphNode).x ?? 0)
-        .attr('y1', (edge) => (edge.source as GraphNode).y ?? 0)
-        .attr('x2', (edge) => (edge.target as GraphNode).x ?? 0)
-        .attr('y2', (edge) => (edge.target as GraphNode).y ?? 0)
-      node.attr(
-        'transform',
-        (item) => `translate(${item.x ?? 0},${item.y ?? 0})`,
-      )
-    })
+    .on('tick', tick)
+
+  simulation.stop()
+  for (let index = 0; index < 80; index += 1) {
+    simulation.tick()
+  }
+  tick()
+  fitGraph()
 
   node.call(
     d3
@@ -353,10 +403,21 @@ onBeforeUnmount(() => simulation?.stop())
                 Нажмите на навык, чтобы подсветить его связи. Узлы можно перетаскивать.
               </p>
             </div>
-            <button class="btn-secondary" @click="load">
-              <RefreshCw :size="14" />
-              Обновить
-            </button>
+            <div class="flex items-center gap-2">
+              <button
+                type="button"
+                class="btn-secondary"
+                data-testid="fit-graph"
+                @click="fitGraph"
+              >
+                <Maximize2 :size="14" />
+                Уместить
+              </button>
+              <button class="btn-secondary" @click="load">
+                <RefreshCw :size="14" />
+                Обновить
+              </button>
+            </div>
           </div>
 
           <div
@@ -377,7 +438,7 @@ onBeforeUnmount(() => simulation?.stop())
             <svg
               ref="svgRef"
               viewBox="0 0 900 560"
-              class="h-auto w-full"
+              class="h-auto w-full cursor-grab touch-none active:cursor-grabbing"
               role="img"
               aria-label="Граф связей навыков"
             />
