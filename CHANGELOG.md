@@ -37,6 +37,25 @@
   `600` и не коммитится. `.env.example` содержит только безопасные значения по
   умолчанию.
 
+### Ветка `feature/ui-feedback` — образование в резюме и вакансии
+
+#### Added
+
+- **Образование кандидата.** `GET /api/v1/resumes/{resumeId}/extraction`
+  возвращает извлечённые записи об образовании; на странице резюме появилась
+  отдельная карточка с уровнем, специальностью, учебным заведением, годом
+  выпуска и цитатой.
+- **Требования к образованию в вакансии.** В редакторе вакансии появилась
+  отдельная секция на доске и в списке: уровень образования, специальность и
+  тип требования. Требование сохраняется в `vacancy_requirement.education_level`
+  и уходит в scoring как `EducationRequirement`.
+
+#### Changed
+
+- **OpenAPI.** Добавлены `ResumeExtractedEducation`, `ResumeExtraction.education`,
+  `Requirement.education_level`, `Requirement.education_specialty` и те же поля
+  в `UpdateRequirement`.
+
 ### Ветка `feature/frontend-dictionary-dark-theme` — словарь и тёмная тема
 
 #### Added

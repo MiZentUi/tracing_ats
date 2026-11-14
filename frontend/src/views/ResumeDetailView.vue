@@ -19,7 +19,7 @@ import { apiErrorMessage, resumeRankingApi, resumesApi } from '@/api'
 import RevealPiiDialog from '@/components/RevealPiiDialog.vue'
 import { useToast } from '@/composables/useToast'
 import { pluralizeRu, resumeDisplayTitle } from '@/lib/format'
-import { resumeStatusClass, resumeStatusLabel } from '@/lib/labels'
+import { educationLevelLabel, resumeStatusClass, resumeStatusLabel } from '@/lib/labels'
 
 const props = defineProps<{ id: string }>()
 const { success, error: toastError } = useToast()
@@ -340,6 +340,53 @@ onBeforeUnmount(stopPolling)
             </div>
             <p v-else class="mt-3 text-sm text-slate-500">
               Навыки пока не извлечены.
+            </p>
+          </article>
+
+          <article v-if="extraction" class="card p-5">
+            <div class="flex items-center justify-between gap-3">
+              <h2 class="text-base font-semibold text-slate-900">Образование</h2>
+              <span class="badge-neutral">
+                {{ extraction.education.length }}
+                {{ pluralizeRu(extraction.education.length, 'запись', 'записи', 'записей') }}
+              </span>
+            </div>
+            <div v-if="extraction.education.length" class="mt-4 space-y-2">
+              <div
+                v-for="(item, index) in extraction.education"
+                :key="`${item.institution ?? 'education'}-${index}`"
+                class="rounded-lg border border-slate-200 bg-slate-50/60 p-3"
+              >
+                <div class="flex flex-wrap items-start justify-between gap-2">
+                  <div class="min-w-0">
+                    <p class="font-medium text-slate-900">
+                      {{ item.specialty || item.institution || 'Образование' }}
+                    </p>
+                    <p
+                      v-if="item.institution && item.institution !== item.specialty"
+                      class="mt-0.5 text-sm text-slate-500"
+                    >
+                      {{ item.institution }}
+                    </p>
+                  </div>
+                  <span class="badge-info shrink-0">{{ educationLevelLabel(item.level) }}</span>
+                </div>
+                <p
+                  v-if="item.graduationYear"
+                  class="mt-1 text-xs text-slate-500"
+                >
+                  Год выпуска: {{ item.graduationYear }}
+                </p>
+                <blockquote
+                  v-if="item.evidenceQuote"
+                  class="mt-2 rounded-md bg-white px-3 py-2 text-sm leading-6 text-slate-600"
+                >
+                  {{ item.evidenceQuote }}
+                </blockquote>
+              </div>
+            </div>
+            <p v-else class="mt-3 text-sm text-slate-500">
+              Образование не извлечено.
             </p>
           </article>
 

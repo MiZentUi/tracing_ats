@@ -3,7 +3,7 @@ import { computed, ref } from 'vue'
 import { ChevronDown, ChevronUp, GripVertical, Plus, Trash2 } from '@lucide/vue'
 import type { SkillKind } from '@/api/generated'
 import type { EditableRequirement } from '@/types'
-import { kindLabels } from '@/lib/labels'
+import { educationLevelOptions, educationLevelLabel, kindLabels } from '@/lib/labels'
 import RequirementDetails from './RequirementDetails.vue'
 
 const props = defineProps<{
@@ -16,6 +16,7 @@ const emit = defineEmits<{
   update: [key: string, patch: Partial<EditableRequirement>]
   remove: [key: string]
   add: [kind: SkillKind]
+  addEducation: []
 }>()
 
 const columns: Array<{ kind: SkillKind; title: string; hint: string; accent: string; dot: string }> = [
@@ -56,14 +57,20 @@ function normalizedSkill(skill: string | null): string {
 }
 
 function isDuplicate(item: EditableRequirement): boolean {
+  if (item.educationLevel) {
+    return false
+  }
   return props.duplicateKeys?.has(normalizedSkill(item.skill)) ?? false
 }
 
 const skillRequirements = computed(() =>
-  props.requirements.filter((item) => !item.qualification),
+  props.requirements.filter((item) => !item.qualification && !item.educationLevel),
 )
 const qualificationRequirements = computed(() =>
   props.requirements.filter((item) => item.qualification),
+)
+const educationRequirements = computed(() =>
+  props.requirements.filter((item) => item.educationLevel),
 )
 
 function requirementsFor(kind: SkillKind): EditableRequirement[] {
@@ -71,7 +78,12 @@ function requirementsFor(kind: SkillKind): EditableRequirement[] {
 }
 
 function displayName(item: EditableRequirement): string {
-  return item.skill?.trim() || item.quote?.slice(0, 48) || 'Без названия'
+  return (
+    item.educationSpecialty?.trim() ||
+    item.skill?.trim() ||
+    item.quote?.slice(0, 48) ||
+    'Без названия'
+  )
 }
 
 function hasDetails(item: EditableRequirement): boolean {
@@ -95,6 +107,17 @@ function toggleDetails(item: EditableRequirement) {
 function updateSkill(event: Event, item: EditableRequirement) {
   const value = (event.target as HTMLInputElement).value
   emit('update', item.key, { skill: value.trim() === '' ? null : value })
+}
+
+function updateEducationSpecialty(event: Event, item: EditableRequirement) {
+  const value = (event.target as HTMLInputElement).value
+  emit('update', item.key, { educationSpecialty: value.trim() === '' ? null : value })
+}
+
+function updateEducationLevel(event: Event, item: EditableRequirement) {
+  emit('update', item.key, {
+    educationLevel: (event.target as HTMLSelectElement).value || null,
+  })
 }
 
 function updateYears(event: Event, item: EditableRequirement) {
@@ -333,6 +356,104 @@ function onMove(event: Event, item: EditableRequirement) {
           </div>
         </article>
       </div>
+    </section>
+
+    <section class="space-y-3 border-t border-slate-200 pt-5">
+      <div class="flex items-end justify-between gap-3">
+        <div>
+          <h3 class="text-sm font-semibold text-slate-900">Образование</h3>
+          <p class="mt-0.5 text-xs text-slate-500">
+            Уровень и специальность. Требования к образованию не смешиваются с навыками.
+          </p>
+        </div>
+        <div class="flex items-center gap-2">
+          <span class="badge-neutral">{{ educationRequirements.length }}</span>
+          <button
+            type="button"
+            class="btn-secondary px-2.5 py-1 text-xs"
+            data-testid="add-education-board"
+            @click="emit('addEducation')"
+          >
+            <Plus :size="13" />
+            Добавить
+          </button>
+        </div>
+      </div>
+
+      <div v-if="educationRequirements.length" class="grid gap-3 sm:grid-cols-2 xl:grid-cols-3">
+        <article
+          v-for="item in educationRequirements"
+          :key="item.key"
+          data-testid="education-card"
+          class="rounded-xl border border-slate-200 bg-white p-3 shadow-sm"
+        >
+          <div class="flex items-center gap-1.5">
+            <span class="badge-info shrink-0">Образование</span>
+          </div>
+          <input
+            :value="item.educationSpecialty ?? ''"
+            class="mt-2 w-full rounded-md border border-transparent bg-transparent px-1 py-0.5 text-sm font-semibold text-slate-900 outline-none transition placeholder:font-normal placeholder:text-slate-400 hover:border-slate-200 focus:border-indigo-300 focus:bg-white"
+            aria-label="Специальность"
+            placeholder="Специальность или направление"
+            @input="updateEducationSpecialty($event, item)"
+          />
+
+          <div class="mt-2 flex flex-wrap items-center gap-2">
+            <select
+              :value="item.educationLevel ?? ''"
+              class="input min-w-0 flex-1 py-1 text-xs"
+              aria-label="Уровень образования"
+              @change="updateEducationLevel($event, item)"
+            >
+              <option v-for="level in educationLevelOptions" :key="level.value" :value="level.value">
+                {{ level.label }}
+              </option>
+            </select>
+            <select
+              :value="item.kind"
+              class="input min-w-0 flex-1 py-1 text-xs"
+              :aria-label="`Тип требования: ${displayName(item)}`"
+              @change="onMove($event, item)"
+            >
+              <option v-for="option in kindOptions" :key="option.value" :value="option.value">
+                {{ option.label }}
+              </option>
+            </select>
+            <button
+              v-if="hasDetails(item)"
+              type="button"
+              class="icon-btn h-7 w-7 shrink-0 text-slate-400 hover:bg-slate-100 hover:text-slate-700"
+              :title="isExpanded(item) ? 'Скрыть подробности' : 'Показать подробности'"
+              @click="toggleDetails(item)"
+            >
+              <ChevronUp v-if="isExpanded(item)" :size="14" />
+              <ChevronDown v-else :size="14" />
+            </button>
+            <button
+              type="button"
+              class="icon-btn h-7 w-7 shrink-0 text-slate-400 hover:bg-rose-50 hover:text-rose-600"
+              title="Удалить требование к образованию"
+              @click="emit('remove', item.key)"
+            >
+              <Trash2 :size="14" />
+            </button>
+          </div>
+
+          <p class="mt-2 text-[11px] text-slate-400">
+            {{ educationLevelLabel(item.educationLevel) }}
+          </p>
+
+          <div v-if="isExpanded(item)" class="mt-2">
+            <RequirementDetails :requirement="item" />
+          </div>
+        </article>
+      </div>
+      <p
+        v-else
+        class="rounded-xl border border-dashed border-slate-300 bg-slate-50/60 px-4 py-6 text-center text-xs text-slate-400"
+      >
+        Пока нет требований к образованию. Добавьте уровень и специальность.
+      </p>
     </section>
   </div>
 </template>

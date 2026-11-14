@@ -57,6 +57,26 @@ export const kindLabels: Record<SkillKind, string> = {
   OPTIONAL: 'Научим',
 }
 
+export const educationLevelLabels: Record<string, string> = {
+  SECONDARY: 'Среднее',
+  SECONDARY_SPECIALIZED: 'Среднее специальное',
+  BACHELOR: 'Бакалавриат',
+  MASTER: 'Магистратура',
+  DOCTOR: 'Аспирантура или докторантура',
+  COURSES: 'Курсы',
+}
+
+export const educationLevelOptions = Object.entries(educationLevelLabels).map(
+  ([value, label]) => ({ value, label }),
+)
+
+export function educationLevelLabel(level: string | null | undefined): string {
+  if (!level) {
+    return 'Уровень не указан'
+  }
+  return educationLevelLabels[level] ?? level
+}
+
 export function kindLabel(kind: SkillKind): string {
   return kindLabels[kind]
 }

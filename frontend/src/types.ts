@@ -14,6 +14,8 @@ export interface EditableRequirement {
   clarityWarning: string | null
   history: SkillKindHistory | null
   qualification: boolean
+  educationLevel: string | null
+  educationSpecialty: string | null
 }
 
 export function toEditable(requirement: Requirement, index: number): EditableRequirement {
@@ -31,6 +33,8 @@ export function toEditable(requirement: Requirement, index: number): EditableReq
     clarityWarning: requirement.clarity_warning ?? null,
     history: requirement.history ?? null,
     qualification: requirement.qualification ?? false,
+    educationLevel: requirement.education_level ?? null,
+    educationSpecialty: requirement.education_specialty ?? null,
   }
 }
 
