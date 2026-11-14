@@ -23,6 +23,8 @@ from .normalization import alias_keys, normalize_base, pymorphy_version
 from .seed import (
     OPEN_SEED,
     OPEN_SEED_QUALIFICATIONS,
+    PROVIDED_SEED,
+    PROVIDED_SEED_QUALIFICATIONS,
     SEED,
     SEED_QUALIFICATIONS,
     SEED_RELATIONS,
@@ -89,12 +91,13 @@ class DictionaryService:
                 self._store.seed(SEED)
             else:
                 self._store.seed_missing(OPEN_SEED)
+                self._store.seed_missing(PROVIDED_SEED)
             if self._store.qualifications_empty():
                 self._store.seed_qualifications(SEED_QUALIFICATIONS)
             else:
                 self._store.seed_qualifications_missing(OPEN_SEED_QUALIFICATIONS)
-            if self._store.relations_empty():
-                self._store.seed_relations(SEED_RELATIONS)
+                self._store.seed_qualifications_missing(PROVIDED_SEED_QUALIFICATIONS)
+            self._store.seed_relations(SEED_RELATIONS)
         meta = self.version()
         if self._store.get_snapshot(meta.resolver_version) is not None:
             return

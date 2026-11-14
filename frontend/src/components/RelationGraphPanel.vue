@@ -40,9 +40,16 @@ const svgRef = ref<SVGSVGElement | null>(null)
 let simulation: d3.Simulation<GraphNode, GraphEdge> | null = null
 let zoomBehavior: d3.ZoomBehavior<SVGSVGElement, unknown> | null = null
 
-const GRAPH_WIDTH = 900
-const GRAPH_HEIGHT = 560
-const GRAPH_MARGIN = 48
+// GRAPH_* — видимое окно SVG (viewBox). Область перетаскивания шире окна:
+// узлы можно разнести далеко, а затем вернуть их кнопкой «Уместить».
+const GRAPH_WIDTH = 2400
+const GRAPH_HEIGHT = 1600
+const DRAG_AREA_SCALE = 3
+const DRAG_AREA_WIDTH = GRAPH_WIDTH * DRAG_AREA_SCALE
+const DRAG_AREA_HEIGHT = GRAPH_HEIGHT * DRAG_AREA_SCALE
+const DRAG_AREA_CENTER_X = DRAG_AREA_WIDTH / 2
+const DRAG_AREA_CENTER_Y = DRAG_AREA_HEIGHT / 2
+const GRAPH_MARGIN = 240
 
 const kindLabels: Record<string, string> = {
   SAME_GROUP: 'Одна группа',
@@ -180,7 +187,7 @@ function shortLabel(label: string): string {
 }
 
 function nodeRadius(id: string): number {
-  return selectedId.value === id ? 11 : 9
+  return selectedId.value === id ? 24 : 20
 }
 
 function updateSelection() {
@@ -205,9 +212,9 @@ function updateSelection() {
     })
     .attr('stroke-width', (edge) => {
       if (!selected) {
-        return 1.5
+        return 3
       }
-      return edge.leftSkillId === selected || edge.rightSkillId === selected ? 2.5 : 1
+      return edge.leftSkillId === selected || edge.rightSkillId === selected ? 4.5 : 2
     })
 }
 
@@ -226,12 +233,12 @@ function fitGraph() {
   const maxX = Math.max(...xs)
   const minY = Math.min(...ys)
   const maxY = Math.max(...ys)
-  const padding = 64
+  const padding = 120
   const graphWidth = Math.max(maxX - minX, 1) + padding * 2
   const graphHeight = Math.max(maxY - minY, 1) + padding * 2
   const scale = Math.max(
     0.2,
-    Math.min(2.5, Math.min(GRAPH_WIDTH / graphWidth, GRAPH_HEIGHT / graphHeight)),
+    Math.min(1.5, Math.min(GRAPH_WIDTH / graphWidth, GRAPH_HEIGHT / graphHeight)),
   )
   const centerX = (minX + maxX) / 2
   const centerY = (minY + maxY) / 2
@@ -280,7 +287,7 @@ function renderGraph() {
     .join('line')
     .attr('data-edge', '')
     .attr('stroke', 'currentColor')
-    .attr('stroke-width', 1.5)
+    .attr('stroke-width', 3)
     .attr('opacity', 0.55)
     .attr('class', (edge) => kindClass(edge.kind))
 
@@ -299,21 +306,32 @@ function renderGraph() {
   node
     .append('circle')
     .attr('data-node', (item) => item.id)
-    .attr('r', 9)
-    .attr('stroke-width', 2)
+    .attr('r', 20)
+    .attr('stroke-width', 4)
     .attr('class', (item) => nodeClass(item.id))
 
   node
     .append('text')
-    .attr('y', -15)
+    .attr('y', -28)
     .attr('text-anchor', 'middle')
-    .attr('class', 'fill-slate-700 text-[11px] font-medium')
+    .attr('class', 'fill-slate-700 text-[26px] font-medium')
     .text((item) => shortLabel(item.label))
+
+  const clampX = (value: number) =>
+    Math.max(GRAPH_MARGIN, Math.min(DRAG_AREA_WIDTH - GRAPH_MARGIN, value))
+  const clampY = (value: number) =>
+    Math.max(GRAPH_MARGIN, Math.min(DRAG_AREA_HEIGHT - GRAPH_MARGIN, value))
 
   const clampPositions = () => {
     for (const item of graphNodes) {
-      item.x = Math.max(GRAPH_MARGIN, Math.min(GRAPH_WIDTH - GRAPH_MARGIN, item.x ?? 0))
-      item.y = Math.max(GRAPH_MARGIN, Math.min(GRAPH_HEIGHT - GRAPH_MARGIN, item.y ?? 0))
+      item.x = clampX(item.x ?? DRAG_AREA_CENTER_X)
+      item.y = clampY(item.y ?? DRAG_AREA_CENTER_Y)
+      if (item.fx != null) {
+        item.fx = clampX(item.fx)
+      }
+      if (item.fy != null) {
+        item.fy = clampY(item.fy)
+      }
     }
   }
 
@@ -334,14 +352,14 @@ function renderGraph() {
       d3
         .forceLink<GraphNode, GraphEdge>(graphEdges)
         .id((item) => item.id)
-        .distance(130)
+        .distance(340)
         .strength(0.55),
     )
-    .force('charge', d3.forceManyBody<GraphNode>().strength(-200).distanceMax(300))
-    .force('center', d3.forceCenter(GRAPH_WIDTH / 2, GRAPH_HEIGHT / 2))
-    .force('x', d3.forceX<GraphNode>(GRAPH_WIDTH / 2).strength(0.03))
-    .force('y', d3.forceY<GraphNode>(GRAPH_HEIGHT / 2).strength(0.03))
-    .force('collide', d3.forceCollide<GraphNode>().radius(44))
+    .force('charge', d3.forceManyBody<GraphNode>().strength(-600).distanceMax(1100))
+    .force('center', d3.forceCenter(DRAG_AREA_CENTER_X, DRAG_AREA_CENTER_Y))
+    .force('x', d3.forceX<GraphNode>(DRAG_AREA_CENTER_X).strength(0.03))
+    .force('y', d3.forceY<GraphNode>(DRAG_AREA_CENTER_Y).strength(0.03))
+    .force('collide', d3.forceCollide<GraphNode>().radius(110))
     .on('tick', tick)
 
   simulation.stop()
@@ -359,19 +377,23 @@ function renderGraph() {
         if (!event.active) {
           simulation?.alphaTarget(0.1).restart()
         }
-        item.fx = item.x
-        item.fy = item.y
+        item.fx = clampX(item.x ?? DRAG_AREA_CENTER_X)
+        item.fy = clampY(item.y ?? DRAG_AREA_CENTER_Y)
       })
       .on('drag', (event, item) => {
-        item.fx = event.x
-        item.fy = event.y
+        item.fx = clampX(event.x)
+        item.fy = clampY(event.y)
       })
       .on('end', (event, item) => {
         if (!event.active) {
           simulation?.alphaTarget(0)
         }
-        item.fx = null
-        item.fy = null
+        // Оставляем узел там, где его отпустили: иначе центрирующие силы
+        // возвращают его обратно и широкая область перетаскивания не нужна.
+        item.x = clampX(item.x ?? DRAG_AREA_CENTER_X)
+        item.y = clampY(item.y ?? DRAG_AREA_CENTER_Y)
+        item.fx = item.x
+        item.fy = item.y
       }),
   )
 
@@ -463,7 +485,8 @@ onBeforeUnmount(() => simulation?.stop())
             <div>
               <h2 class="text-base font-semibold text-slate-900">Граф связей</h2>
               <p class="mt-0.5 text-xs text-slate-500">
-                Нажмите на навык, чтобы подсветить его связи. Узлы можно перетаскивать.
+                Нажмите на навык, чтобы подсветить его связи. Узлы можно перетаскивать;
+                колесо мыши меняет масштаб, перетаскивание фона — панорама.
               </p>
             </div>
             <div class="flex items-center gap-2">
@@ -500,7 +523,9 @@ onBeforeUnmount(() => simulation?.stop())
           <div v-else class="mt-3 overflow-hidden rounded-lg border border-slate-100 bg-slate-50/40">
             <svg
               ref="svgRef"
-              viewBox="0 0 900 560"
+              :viewBox="`0 0 ${GRAPH_WIDTH} ${GRAPH_HEIGHT}`"
+              :data-drag-width="DRAG_AREA_WIDTH"
+              :data-drag-height="DRAG_AREA_HEIGHT"
               class="h-auto w-full cursor-grab touch-none active:cursor-grabbing"
               role="img"
               aria-label="Граф связей навыков"

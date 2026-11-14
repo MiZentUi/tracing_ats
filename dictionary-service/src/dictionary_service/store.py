@@ -345,15 +345,19 @@ class InMemoryStore:
             self.bump_qualification_version()
 
     def seed_relations(self, seed: tuple[SeedRelation, ...]) -> None:
-        if self._relations:
-            return
+        inserted = False
         for item in seed:
             left = stable_id(item.left)
             right = stable_id(item.right)
             if left == right:
                 continue
             key = (left, right) if left < right else (right, left)
+            if key in self._relations:
+                continue
             self._relations[key] = item.kind
+            inserted = True
+        if not inserted:
+            return
         self._meta = Meta(
             self._meta.dictionary_version,
             self._meta.embedding_model_id,

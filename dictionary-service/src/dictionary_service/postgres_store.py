@@ -532,8 +532,7 @@ class PostgresStore:
             )
 
     def seed_relations(self, seed: tuple[SeedRelation, ...]) -> None:
-        if not self.relations_empty():
-            return
+        inserted = False
         with self._pool.connection() as conn, conn.transaction():
             for item in seed:
                 left = stable_id(item.left)
@@ -542,14 +541,17 @@ class PostgresStore:
                     continue
                 if left > right:
                     left, right = right, left
-                conn.execute(
+                result = conn.execute(
                     "INSERT INTO skill_relation (left_skill_id, right_skill_id, relation_kind) "
                     "VALUES (%s, %s, %s) ON CONFLICT DO NOTHING",
                     (left, right, item.kind),
                 )
-            conn.execute(
-                "UPDATE dictionary_meta SET relation_version = relation_version + 1 WHERE id = 1"
-            )
+                inserted = inserted or result.rowcount > 0
+            if inserted:
+                conn.execute(
+                    "UPDATE dictionary_meta "
+                    "SET relation_version = relation_version + 1 WHERE id = 1"
+                )
 
     def lookup_qualification(self, key: str) -> QualificationAliasRef | None:
         with self._pool.connection() as conn:
