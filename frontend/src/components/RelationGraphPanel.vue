@@ -58,6 +58,57 @@ const kindClasses: Record<string, string> = {
   CHILD: 'text-sky-600',
 }
 
+const kindOptions = [
+  { value: 'SAME_GROUP', label: 'Одна группа' },
+  { value: 'RELATED', label: 'Похожий' },
+  { value: 'PARENT', label: 'Родитель → дочерний' },
+  { value: 'CHILD', label: 'Дочерний → родительский' },
+]
+
+const relationForm = computed(() => {
+  switch (kind.value) {
+    case 'PARENT':
+      return {
+        leftLabel: 'Родительский навык',
+        rightLabel: 'Дочерний навык',
+        hint: 'Первый навык — более общий, второй — более узкий.',
+      }
+    case 'CHILD':
+      return {
+        leftLabel: 'Дочерний навык',
+        rightLabel: 'Родительский навык',
+        hint: 'Первый навык — более узкий, второй — более общий.',
+      }
+    case 'SAME_GROUP':
+      return {
+        leftLabel: 'Первый навык',
+        rightLabel: 'Второй навык',
+        hint: 'Навыки входят в одну группу и не подчиняются друг другу.',
+      }
+    default:
+      return {
+        leftLabel: 'Первый навык',
+        rightLabel: 'Второй навык',
+        hint: 'Навыки близки по смыслу, но не являются родителем и ребёнком.',
+      }
+  }
+})
+
+const relationPreview = computed(() => {
+  if (!leftId.value || !rightId.value) {
+    return ''
+  }
+  const left = skillNames.value.get(leftId.value) ?? 'Первый навык'
+  const right = skillNames.value.get(rightId.value) ?? 'Второй навык'
+  if (kind.value === 'PARENT') {
+    return `«${left}» — родительский навык, «${right}» — дочерний.`
+  }
+  if (kind.value === 'CHILD') {
+    return `«${left}» — дочерний навык, «${right}» — родительский.`
+  }
+  return ''
+})
+
 const skillNames = computed(() => {
   const result = new Map<string, string>()
   for (const skill of skills.value) {
@@ -475,25 +526,32 @@ onBeforeUnmount(() => simulation?.stop())
             <SkillCombobox
               v-model="leftId"
               input-id="relation-left"
-              label="Первый навык"
-              input-label="Первый навык"
+              :label="relationForm.leftLabel"
+              :input-label="relationForm.leftLabel"
               :skills="skills"
             />
             <SkillCombobox
               v-model="rightId"
               input-id="relation-right"
-              label="Второй навык"
-              input-label="Второй навык"
+              :label="relationForm.rightLabel"
+              :input-label="relationForm.rightLabel"
               :skills="skills"
             />
             <div>
               <label class="label" for="relation-kind">Тип связи</label>
               <select id="relation-kind" v-model="kind" class="input">
-                <option v-for="(label, value) in kindLabels" :key="value" :value="value">
-                  {{ label }}
+                <option v-for="option in kindOptions" :key="option.value" :value="option.value">
+                  {{ option.label }}
                 </option>
               </select>
+              <p class="hint">{{ relationForm.hint }}</p>
             </div>
+            <p
+              v-if="relationPreview"
+              class="rounded-lg bg-slate-50 px-3 py-2 text-xs leading-5 text-slate-600"
+            >
+              {{ relationPreview }}
+            </p>
             <button type="submit" class="btn-primary w-full" :disabled="!canCreate">
               <Loader2 v-if="saving" :size="16" class="animate-spin" />
               <Plus v-else :size="16" />

@@ -312,3 +312,44 @@ body {
 .dark .btn-success:hover {
   background-color: #064e3b;
 }
+
+/* Markdown: цитаты, код и таблицы не должны оставаться светлыми в тёмной теме. */
+html.dark .markdown-body {
+  color: #cbd5e1;
+}
+
+html.dark .markdown-body h1,
+html.dark .markdown-body h2,
+html.dark .markdown-body h3,
+html.dark .markdown-body h4,
+html.dark .markdown-body strong {
+  color: #f8fafc;
+}
+
+html.dark .markdown-body code {
+  background-color: #1e293b;
+  color: #e2e8f0;
+}
+
+html.dark .markdown-body pre {
+  background-color: #0f172a;
+}
+
+html.dark .markdown-body blockquote {
+  border-left-color: #818cf8;
+  background-color: rgba(30, 41, 59, 0.55);
+  color: #cbd5e1;
+}
+
+html.dark .markdown-body hr {
+  border-top-color: #334155;
+}
+
+html.dark .markdown-body th,
+html.dark .markdown-body td {
+  border-color: #334155;
+}
+
+html.dark .markdown-body th {
+  background-color: #1e293b;
+}
