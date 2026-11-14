@@ -48,6 +48,9 @@
 - **Квалификации кандидата.** Тот же endpoint возвращает извлечённые
   квалификации; на странице резюме они показываются отдельными карточками с
   цитатой-основанием.
+- **Опыт кандидата.** `GET /api/v1/resumes/{resumeId}/extraction` возвращает
+  компании, должности, категории, годы начала и окончания, метрики и цитату;
+  на странице резюме появилась карточка «Опыт работы».
 - **Требования к образованию в вакансии.** В редакторе вакансии появилась
   отдельная секция на доске и в списке: уровень образования, специальность и
   тип требования. Требование сохраняется в `vacancy_requirement.education_level`
@@ -56,9 +59,15 @@
 #### Changed
 
 - **OpenAPI.** Добавлены `ResumeExtractedQualification`,
-  `ResumeExtractedEducation`, `ResumeExtraction.qualifications`,
-  `ResumeExtraction.education`, `Requirement.education_level`,
+  `ResumeExtractedEducation`, `ResumeExtractedExperience`,
+  `ResumeExtraction.qualifications`, `ResumeExtraction.education`,
+  `ResumeExtraction.experience`, `Requirement.education_level`,
   `Requirement.education_specialty` и те же поля в `UpdateRequirement`.
+- **HTML-отчёт.** В таблицу требований добавлена колонка подтверждённого стажа,
+  а перед таблицей — легенда статусов, которая явно разделяет «не указано» и
+  «отсутствует».
+- **Границы UI-этапа.** ADR 0007 фиксирует приоритет `TASK.md`: без GitHub,
+  финальных весов, импорта с HH и PDF; UI показывает факты, статусы и цитаты.
 - **Связи навыков.** Выбор навыка объединён с текстовым полем в combobox с
   поиском по названию и алиасам; граф связей переведён на `d3.js` с
   force-layout, перетаскиванием узлов и подсветкой выбранного навыка.
