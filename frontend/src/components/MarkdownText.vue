@@ -139,4 +139,5 @@ const rendered = computed(() => (props.source.trim() ? markdown.render(props.sou
   background: #f8fafc;
   font-weight: 600;
 }
+
 </style>

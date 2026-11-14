@@ -91,6 +91,14 @@ const specializationName = computed(
     '—',
 )
 
+const experienceLabel = computed(() => {
+  const years = vacancy.value?.experience_years
+  if (years == null) {
+    return 'стаж не указан'
+  }
+  return `${years} ${pluralizeRu(years, 'год', 'года', 'лет')}`
+})
+
 function candidateTitle(item: RankingItem): string {
   if (item.resumeTitle?.trim()) {
     return item.resumeTitle
@@ -239,17 +247,11 @@ onMounted(() => load())
                 <dd class="mt-1 font-medium text-slate-900">{{ specializationName }}</dd>
               </div>
               <div>
-                <dt class="text-xs uppercase tracking-wide text-slate-400">Уровень</dt>
-                <dd class="mt-1 font-medium text-slate-900">{{ levelLabel(vacancy.level) }}</dd>
-              </div>
-              <div>
-                <dt class="text-xs uppercase tracking-wide text-slate-400">Требуемый стаж</dt>
+                <dt class="text-xs uppercase tracking-wide text-slate-400">Уровень и стаж</dt>
                 <dd class="mt-1 font-medium text-slate-900">
-                  {{
-                    vacancy.experience_years == null
-                      ? 'Не указан'
-                      : `${vacancy.experience_years} ${pluralizeRu(vacancy.experience_years, 'год', 'года', 'лет')}`
-                  }}
+                  {{ levelLabel(vacancy.level) }}
+                  <span class="text-slate-400">·</span>
+                  {{ experienceLabel }}
                 </dd>
               </div>
               <div>

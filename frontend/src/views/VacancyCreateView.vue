@@ -321,17 +321,33 @@ async function submit() {
           </div>
 
           <div class="mt-5 space-y-4">
-            <div>
-              <label class="label" for="title">
-                Название вакансии <span class="font-normal text-slate-400">(необязательно)</span>
-              </label>
-              <input
-                id="title"
-                v-model="title"
-                class="input"
-                placeholder="Например, Backend-разработчик"
-              />
-              <p class="hint">Если не заполнить, карточка будет называться «Без названия».</p>
+            <div class="grid gap-3 sm:grid-cols-[minmax(0,1fr)_7rem]">
+              <div>
+                <label class="label" for="title">
+                  Название вакансии <span class="font-normal text-slate-400">(необязательно)</span>
+                </label>
+                <input
+                  id="title"
+                  v-model="title"
+                  class="input"
+                  placeholder="Например, Backend-разработчик"
+                />
+                <p class="hint">Если не заполнить, карточка будет называться «Без названия».</p>
+              </div>
+              <div>
+                <label class="label" for="experience-years">Стаж, лет</label>
+                <input
+                  id="experience-years"
+                  :value="experienceYears ?? ''"
+                  class="input w-full"
+                  type="number"
+                  min="0"
+                  max="50"
+                  step="1"
+                  placeholder="3"
+                  @input="updateExperienceYears"
+                />
+              </div>
             </div>
 
             <div class="grid gap-4 sm:grid-cols-2">
@@ -376,25 +392,6 @@ async function submit() {
                   {{ needsLevel ? 'Для IT-специализации грейд обязателен.' : 'Грейд запрашивается только у IT-специализаций.' }}
                 </p>
               </div>
-            </div>
-
-            <div>
-              <label class="label" for="experience-years">
-                Требуемый стаж, лет
-                <span class="font-normal text-slate-400">(необязательно)</span>
-              </label>
-              <input
-                id="experience-years"
-                :value="experienceYears ?? ''"
-                class="input"
-                type="number"
-                min="0"
-                max="50"
-                step="1"
-                placeholder="Например, 3"
-                @input="updateExperienceYears"
-              />
-              <p class="hint">Общий стаж вакансии. На скоринг пока не влияет.</p>
             </div>
           </div>
         </div>

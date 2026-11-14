@@ -19,7 +19,10 @@ function page() {
     items: [
       {
         resumeId: 'resume-1',
-        title: 'Java Engineer',
+        title: 'ЧД Java Engineer',
+        vacancyTitle: 'Backend-разработчик',
+        source: 'HH',
+        warnings: ['TEXT_EMPTY'],
         status: 'MATCHED',
         fileType: 'PDF',
         sizeBytes: 1024,
@@ -48,14 +51,17 @@ describe('ResumeListView', () => {
     deleteResume.mockResolvedValue({ data: undefined })
   })
 
-  it('показывает название и теги резюме', async () => {
+  it('показывает специализацию и полезные теги резюме', async () => {
     const wrapper = mountList()
     await flushPromises()
 
-    expect(wrapper.text()).toContain('Java Engineer')
+    expect(wrapper.text()).toContain('Backend-разработчик')
+    expect(wrapper.text()).not.toContain('ЧД')
     expect(wrapper.text()).toContain('PDF')
-    expect(wrapper.text()).toContain('1.0 КБ')
+    expect(wrapper.text()).toContain('hh.ru')
+    expect(wrapper.text()).toContain('1 предупреждение')
     expect(wrapper.text()).toContain('Готово')
+    expect(wrapper.text()).not.toContain('1.0 КБ')
   })
 
   it('удаляет резюме', async () => {

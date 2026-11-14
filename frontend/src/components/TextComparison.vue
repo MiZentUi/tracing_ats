@@ -17,20 +17,36 @@ const emit = defineEmits<{
   hide: []
 }>()
 
-const matched = computed(() =>
-  props.requirements.filter(
-    (item) => item.status === 'COVERED' || item.status === 'PARTIAL',
-  ),
+interface Term {
+  text: string
+  status: string
+}
+
+const statusMarkClasses: Record<string, string> = {
+  COVERED: 'bg-emerald-100 text-emerald-900',
+  PARTIAL: 'bg-amber-100 text-amber-900',
+  GAP: 'bg-rose-100 text-rose-900',
+  NOT_STATED: 'bg-slate-200 text-slate-800',
+  ABSENT: 'bg-rose-100 text-rose-900',
+}
+
+const vacancyTerms = computed<Term[]>(() =>
+  props.requirements
+    .filter((item) => !!item.text)
+    .map((item) => ({ text: item.text as string, status: item.status })),
 )
 
-const vacancyTerms = computed(() =>
-  matched.value.map((item) => item.text).filter((text): text is string => !!text),
-)
-
-const resumeTerms = computed(() =>
-  matched.value
-    .flatMap((item) => [item.evidenceQuote, item.text])
-    .filter((text): text is string => !!text),
+const resumeTerms = computed<Term[]>(() =>
+  props.requirements.flatMap((item) => {
+    const terms: Term[] = []
+    if (item.evidenceQuote) {
+      terms.push({ text: item.evidenceQuote, status: item.status })
+    }
+    if (item.text) {
+      terms.push({ text: item.text, status: item.status })
+    }
+    return terms
+  }),
 )
 
 const vacancySegments = computed(() => segments(props.vacancyText, vacancyTerms.value))
@@ -40,39 +56,55 @@ function escapeRegex(value: string): string {
   return value.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')
 }
 
-interface Segment {
-  text: string
-  match: boolean
+function normalizeTerm(value: string): string {
+  return value.toLowerCase().replace(/\s+/g, ' ').trim()
 }
 
-function segments(text: string, terms: string[]): Segment[] {
+function markClass(status: string | undefined): string {
+  return statusMarkClasses[status ?? ''] ?? 'bg-slate-200 text-slate-800'
+}
+
+interface Segment {
+  text: string
+  status?: string
+}
+
+function segments(text: string, terms: Term[]): Segment[] {
   if (!text) {
     return []
   }
   const lower = text.toLowerCase()
-  const effective: string[] = []
+  const effective: Term[] = []
   for (const term of terms) {
-    const trimmed = term.trim()
+    const trimmed = term.text.trim()
     if (trimmed.length < 3) {
       continue
     }
     if (lower.includes(trimmed.toLowerCase())) {
-      effective.push(trimmed)
+      effective.push({ text: trimmed, status: term.status })
       continue
     }
     for (const token of trimmed.split(/[^\p{L}\p{N}+#.]+/u)) {
       if (token.length >= 4) {
-        effective.push(token)
+        effective.push({ text: token, status: term.status })
       }
     }
   }
-  const unique = [...new Set(effective)]
-  if (!unique.length) {
-    return [{ text, match: false }]
+  const unique = new Map<string, Term>()
+  for (const term of effective) {
+    const key = normalizeTerm(term.text)
+    if (!unique.has(key)) {
+      unique.set(key, term)
+    }
   }
-  const pattern = unique
-    .sort((left, right) => right.length - left.length)
-    .map((term) => escapeRegex(term).replace(/\s+/g, '\\s+'))
+  if (!unique.size) {
+    return [{ text }]
+  }
+  const ordered = [...unique.values()].sort(
+    (left, right) => right.text.length - left.text.length,
+  )
+  const pattern = ordered
+    .map((term) => escapeRegex(term.text).replace(/\s+/g, '\\s+'))
     .join('|')
   const regex = new RegExp(pattern, 'gi')
   const result: Segment[] = []
@@ -80,13 +112,17 @@ function segments(text: string, terms: string[]): Segment[] {
   for (const match of text.matchAll(regex)) {
     const index = match.index ?? 0
     if (index > last) {
-      result.push({ text: text.slice(last, index), match: false })
+      result.push({ text: text.slice(last, index) })
     }
-    result.push({ text: match[0], match: true })
-    last = index + match[0].length
+    const matched = match[0]
+    result.push({
+      text: matched,
+      status: unique.get(normalizeTerm(matched))?.status,
+    })
+    last = index + matched.length
   }
   if (last < text.length) {
-    result.push({ text: text.slice(last), match: false })
+    result.push({ text: text.slice(last) })
   }
   return result
 }
@@ -105,8 +141,9 @@ function segments(text: string, terms: string[]): Segment[] {
             v-if="vacancyText"
             class="whitespace-pre-wrap font-mono text-sm leading-6 text-slate-800"
           ><template v-for="(segment, index) in vacancySegments" :key="index"><mark
-                v-if="segment.match"
-                class="rounded bg-emerald-200/80 px-0.5 text-slate-900"
+                v-if="segment.status"
+                class="rounded px-0.5"
+                :class="markClass(segment.status)"
               >{{ segment.text }}</mark><span v-else>{{ segment.text }}</span></template></pre>
           <p v-else class="text-sm text-slate-500">Текст вакансии недоступен.</p>
         </div>
@@ -141,8 +178,9 @@ function segments(text: string, terms: string[]): Segment[] {
             v-if="resumeText"
             class="whitespace-pre-wrap font-mono text-sm leading-6 text-slate-800"
           ><template v-for="(segment, index) in resumeSegments" :key="index"><mark
-                v-if="segment.match"
-                class="rounded bg-emerald-200/80 px-0.5 text-slate-900"
+                v-if="segment.status"
+                class="rounded px-0.5"
+                :class="markClass(segment.status)"
               >{{ segment.text }}</mark><span v-else>{{ segment.text }}</span></template></pre>
           <p v-else class="text-sm text-slate-500">Текст резюме недоступен.</p>
         </div>

@@ -16,8 +16,14 @@ import type { ResumeSummary } from '@/api/generated'
 import { apiErrorMessage, resumesApi } from '@/api'
 import ConfirmDialog from '@/components/ConfirmDialog.vue'
 import { useToast } from '@/composables/useToast'
-import { formatBytes, formatDate, resumeDisplayTitle, shortId } from '@/lib/format'
-import { resumeStatusClass, resumeStatusLabel } from '@/lib/labels'
+import {
+  cleanResumeTitle,
+  formatDate,
+  pluralizeRu,
+  resumeDisplayTitle,
+  shortId,
+} from '@/lib/format'
+import { resumeSourceLabel, resumeStatusClass, resumeStatusLabel } from '@/lib/labels'
 
 const { error: toastError } = useToast()
 
@@ -65,19 +71,27 @@ const filteredItems = computed(() =>
 const GENERIC_RESUME_TITLES = new Set(['резюме кандидата', 'резюме'])
 
 function resumeCardTitle(item: ResumeSummary): string {
-  const title = item.title?.trim() ?? ''
+  const vacancyTitle = cleanResumeTitle(item.vacancyTitle)
+  if (vacancyTitle) {
+    return vacancyTitle
+  }
+  const title = cleanResumeTitle(item.title)
   if (title && !GENERIC_RESUME_TITLES.has(title.toLowerCase())) {
     return title
   }
-  return item.vacancyTitle?.trim() || resumeDisplayTitle(title, item.createdAt)
+  return resumeDisplayTitle(title, item.createdAt)
 }
 
 function resumeVacancySubtitle(item: ResumeSummary): string | null {
-  const vacancyTitle = item.vacancyTitle?.trim()
+  const vacancyTitle = cleanResumeTitle(item.vacancyTitle)
   if (!vacancyTitle || vacancyTitle === resumeCardTitle(item)) {
     return null
   }
   return vacancyTitle
+}
+
+function warningsLabel(count: number): string {
+  return `${count} ${pluralizeRu(count, 'предупреждение', 'предупреждения', 'предупреждений')}`
 }
 
 function resumeShortId(resumeId: string): string {
@@ -334,7 +348,13 @@ onBeforeUnmount(stopPolling)
 
           <div class="mt-3 flex flex-wrap gap-1.5">
             <span class="badge-neutral">{{ item.fileType.toUpperCase() }}</span>
-            <span class="badge-neutral">{{ formatBytes(item.sizeBytes) }}</span>
+            <span :class="item.source === 'HH' ? 'badge-info' : 'badge-neutral'">
+              {{ resumeSourceLabel(item.source) }}
+            </span>
+            <span v-if="item.applicationId" class="badge-success">Отклик</span>
+            <span v-if="item.warnings?.length" class="badge-warning">
+              {{ warningsLabel(item.warnings.length) }}
+            </span>
             <span class="badge-neutral">{{ formatDate(item.createdAt) }}</span>
           </div>
 

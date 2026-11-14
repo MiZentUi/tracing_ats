@@ -55,6 +55,11 @@ describe('RelationGraphPanel', () => {
     expect(wrapper.text()).toContain('TypeScript')
     expect(wrapper.text()).toContain('Уместить')
 
+    await wrapper.get('#relation-kind').setValue('PARENT')
+    await nextTick()
+    expect(wrapper.text()).toContain('Родительский навык')
+    expect(wrapper.text()).toContain('Дочерний навык')
+
     await wrapper.get('[data-testid="fit-graph"]').trigger('click')
 
     wrapper.unmount()
