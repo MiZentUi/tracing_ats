@@ -111,7 +111,16 @@ class ResumeControllerTest {
                                                         "Прикладная математика",
                                                         "MASTER",
                                                         2019,
-                                                        "[PII_UNIVERSITY_1], 2019")))));
+                                                        "[PII_UNIVERSITY_1], 2019")),
+                                        List.of(
+                                                new ResumeQueryService.ExperienceView(
+                                                        "ООО Ромашка",
+                                                        "Backend-разработчик",
+                                                        "backend",
+                                                        2020,
+                                                        2023,
+                                                        "ООО Ромашка, 2020–2023",
+                                                        List.of("Ускорил API в 2 раза"))))));
 
         ResponseEntity<ats.gateway.model.ResumeExtraction> response =
                 new ResumeController(
@@ -136,6 +145,15 @@ class ResumeControllerTest {
                 .isEqualTo("Прикладная математика");
         assertThat(response.getBody().getEducation().getFirst().getInstitution())
                 .isEqualTo("[PII_UNIVERSITY_1]");
+        assertThat(response.getBody().getExperience()).hasSize(1);
+        assertThat(response.getBody().getExperience().getFirst().getCompany())
+                .isEqualTo("ООО Ромашка");
+        assertThat(response.getBody().getExperience().getFirst().getBeginYear()).isEqualTo(2020);
+        assertThat(response.getBody().getExperience().getFirst().getEndYear()).isEqualTo(2023);
+        assertThat(response.getBody().getExperience().getFirst().getEvidenceQuote())
+                .isEqualTo("ООО Ромашка, 2020–2023");
+        assertThat(response.getBody().getExperience().getFirst().getMetrics())
+                .containsExactly("Ускорил API в 2 раза");
     }
 
     @Test

@@ -1704,6 +1704,7 @@ components:
         - skills
         - qualifications
         - education
+        - experience
       properties:
         resumeId:
           type: string
@@ -1720,6 +1721,42 @@ components:
           type: array
           items:
             $ref: "#/components/schemas/ResumeExtractedEducation"
+        experience:
+          type: array
+          items:
+            $ref: "#/components/schemas/ResumeExtractedExperience"
+
+    ResumeExtractedExperience:
+      type: object
+      required:
+        - metrics
+      properties:
+        company:
+          type: string
+          nullable: true
+        position:
+          type: string
+          nullable: true
+        category:
+          type: string
+          nullable: true
+        beginYear:
+          type: integer
+          format: int32
+          nullable: true
+        endYear:
+          type: integer
+          format: int32
+          nullable: true
+        evidenceQuote:
+          type: string
+          nullable: true
+          description: Основная цитата, подтверждающая опыт.
+        metrics:
+          type: array
+          description: Дополнительные факты и метрики из описания опыта.
+          items:
+            type: string
 
     ResumeExtractedQualification:
       type: object

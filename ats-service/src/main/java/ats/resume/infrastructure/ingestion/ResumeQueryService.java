@@ -7,6 +7,7 @@ import ats.resume.infrastructure.persistence.repository.ResumeExtractionReposito
 import ats.resume.infrastructure.persistence.repository.ResumeRepository;
 import com.fasterxml.jackson.core.type.TypeReference;
 import com.google.protobuf.InvalidProtocolBufferException;
+import com.google.type.Date;
 import java.time.Instant;
 import java.util.Base64;
 import java.util.Comparator;
@@ -127,9 +128,62 @@ public class ResumeQueryService {
                                                                                         .getText()
                                                                                 : null))
                                                 .toList();
+                                List<ExperienceView> experience =
+                                        parsed.getExperienceMap().values().stream()
+                                                .map(
+                                                        item -> {
+                                                            List<String> metricTexts =
+                                                                    item.getMetricsList().stream()
+                                                                            .map(
+                                                                                    metric ->
+                                                                                            nullToNull(
+                                                                                                    metric
+                                                                                                            .getText()))
+                                                                            .filter(
+                                                                                    text ->
+                                                                                            text
+                                                                                                    != null)
+                                                                            .toList();
+                                                            String evidenceQuote =
+                                                                    metricTexts.isEmpty()
+                                                                            ? null
+                                                                            : metricTexts
+                                                                                    .getFirst();
+                                                            List<String> metrics =
+                                                                    metricTexts.size() > 1
+                                                                            ? List.copyOf(
+                                                                                    metricTexts
+                                                                                            .subList(
+                                                                                                    1,
+                                                                                                    metricTexts
+                                                                                                            .size()))
+                                                                            : List.of();
+                                                            return new ExperienceView(
+                                                                    nullToNull(item.getCompany()),
+                                                                    nullToNull(item.getPosition()),
+                                                                    nullToNull(item.getCategory()),
+                                                                    year(
+                                                                            item.hasBegin(),
+                                                                            item.getBegin()),
+                                                                    year(
+                                                                            item.hasEnd(),
+                                                                            item.getEnd()),
+                                                                    evidenceQuote,
+                                                                    metrics);
+                                                        })
+                                                .sorted(
+                                                        Comparator.comparing(
+                                                                ExperienceView::beginYear,
+                                                                Comparator.nullsLast(
+                                                                        Comparator.reverseOrder())))
+                                                .toList();
                                 return Optional.of(
                                         new ExtractionView(
-                                                resumeId, skills, qualifications, education));
+                                                resumeId,
+                                                skills,
+                                                qualifications,
+                                                education,
+                                                experience));
                             } catch (InvalidProtocolBufferException | IllegalArgumentException e) {
                                 return Optional.empty();
                             }
@@ -195,11 +249,16 @@ public class ResumeQueryService {
         return value == null || value.isBlank() ? null : value;
     }
 
+    private static Integer year(boolean present, Date date) {
+        return present && date.getYear() > 0 ? date.getYear() : null;
+    }
+
     public record ExtractionView(
             UUID resumeId,
             List<SkillView> skills,
             List<QualificationView> qualifications,
-            List<EducationView> education) {}
+            List<EducationView> education,
+            List<ExperienceView> experience) {}
 
     public record SkillView(
             String name,
@@ -216,4 +275,13 @@ public class ResumeQueryService {
             String level,
             Integer graduationYear,
             String evidenceQuote) {}
+
+    public record ExperienceView(
+            String company,
+            String position,
+            String category,
+            Integer beginYear,
+            Integer endYear,
+            String evidenceQuote,
+            List<String> metrics) {}
 }

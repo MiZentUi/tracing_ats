@@ -3,6 +3,7 @@ package ats.resume.api;
 import ats.api.ResumesApi;
 import ats.gateway.model.ResumeBatchUploadResponse;
 import ats.gateway.model.ResumeExtractedEducation;
+import ats.gateway.model.ResumeExtractedExperience;
 import ats.gateway.model.ResumeExtractedQualification;
 import ats.gateway.model.ResumeExtractedSkill;
 import ats.gateway.model.ResumeExtraction;
@@ -171,6 +172,33 @@ public class ResumeController implements ResumesApi {
                                                                                         .evidenceQuote(
                                                                                                 education
                                                                                                         .evidenceQuote()))
+                                                                .toList())
+                                                .experience(
+                                                        view.experience().stream()
+                                                                .map(
+                                                                        experience ->
+                                                                                new ResumeExtractedExperience()
+                                                                                        .company(
+                                                                                                experience
+                                                                                                        .company())
+                                                                                        .position(
+                                                                                                experience
+                                                                                                        .position())
+                                                                                        .category(
+                                                                                                experience
+                                                                                                        .category())
+                                                                                        .beginYear(
+                                                                                                experience
+                                                                                                        .beginYear())
+                                                                                        .endYear(
+                                                                                                experience
+                                                                                                        .endYear())
+                                                                                        .evidenceQuote(
+                                                                                                experience
+                                                                                                        .evidenceQuote())
+                                                                                        .metrics(
+                                                                                                experience
+                                                                                                        .metrics()))
                                                                 .toList())))
                 .orElseGet(() -> ResponseEntity.notFound().build());
     }
