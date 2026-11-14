@@ -63,7 +63,7 @@ docker compose \
 | `ATS_PII_ENCRYPTION_KEY` | да | base64-ключ AES-256-GCM |
 | `ATS_S3_ACCESS_KEY` | да | доступ к MinIO/S3 |
 | `ATS_S3_SECRET_KEY` | да | секрет MinIO/S3 |
-| `DICTIONARY_SERVICE_TOKEN` | нет | токен dictionary-service |
+| `DICTIONARY_SERVICE_TOKEN` | нет | зарезервирован; сейчас загружается, но не проверяется |
 
 Для `GHCR_TOKEN` достаточно classic PAT с правом `read:packages`. Если пакеты
 GHCR публичные, секрет не нужен. Также можно один раз выполнить `docker login

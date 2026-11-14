@@ -7,7 +7,7 @@
 ## Запуск
 
 ```bash
-# Без ключа LLM: ats использует mock-llm, scoring — детерминированную заглушку.
+# Без ключа LLM: ats использует mock-llm, scoring-service — mock-провайдера.
 export ATS_PROFILES=mock-llm
 export SCORING_SERVICE_LLM_PROVIDER=mock
 docker compose up -d --build
@@ -20,7 +20,7 @@ docker compose up -d --build
 - UI: <http://localhost:3000>
 - Словарь: <http://localhost:3000/dictionary>
 - REST: <http://localhost:8080/api/v1>
-- Swagger UI: <http://localhost:8080/swagger-ui.html>
+- Swagger UI: <http://localhost:8080/swagger-ui/index.html>
 
 Скрипт создаёт вакансию с `JS`, `Tauri`, `PostgreSQL`, показывает очередь NEW,
 подтверждает подсказку для `Tauri`, загружает резюме и печатает рейтинг и отчёт.

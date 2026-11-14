@@ -31,3 +31,11 @@ Top-N нельзя решить по одному кандидату: нужно
 - Изменение политики не требует пересборки `resume-service`.
 - Позже ручной override и аудит решений добавляются в `vacancy-service`, а не в
   оркестратор.
+
+---
+
+## Postscript (2026-11-14)
+
+`resume-service` и `vacancy-service` объединены в один `ats-service`; политика
+шорт-листа живёт в пакете `ats.vacancy.screening`. Контракт внутреннего gRPC —
+`contracts/vacancy-internal.proto` (`GetTemplate`, `DecideScreening`).
