@@ -95,7 +95,8 @@ public class VacancyViewAssembler {
                             normalizeYears(requirement.getYearsRequired()),
                             requirement.getRawText(),
                             requirement.getClarityWarning(),
-                            history));
+                            history,
+                            requirement.isQualification()));
         }
 
         return new VacancyView(

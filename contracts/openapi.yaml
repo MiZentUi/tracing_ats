@@ -1405,6 +1405,9 @@ components:
           allOf:
             - $ref: "#/components/schemas/SkillKindHistory"
           nullable: true
+        qualification:
+          type: boolean
+          description: true — требование является квалификацией, а не навыком.
 
     TemplateMeta:
       type: object
