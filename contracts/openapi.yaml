@@ -438,6 +438,27 @@ paths:
         default:
           $ref: "#/components/responses/default"
 
+  /resumes/{resumeId}/extraction:
+    get:
+      tags:
+        - Resumes
+      summary: Извлечённые навыки резюме
+      description: Обезличенные признаки из последнего ExtractResume без текста резюме и PII.
+      operationId: getResumeExtraction
+      parameters:
+        - $ref: "#/components/parameters/ResumeId"
+      responses:
+        "200":
+          description: Извлечённые навыки
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ResumeExtraction"
+        "404":
+          description: Разбор ещё не готов
+        default:
+          $ref: "#/components/responses/default"
+
   /resumes/{resumeId}/reveal-text:
     post:
       tags:
@@ -1384,6 +1405,19 @@ components:
           allOf:
             - $ref: "#/components/schemas/SkillKindHistory"
           nullable: true
+        qualification:
+          type: boolean
+          description: true — требование является квалификацией, а не навыком.
+        education_level:
+          type: string
+          nullable: true
+          description: >-
+            Уровень образования: SECONDARY, SECONDARY_SPECIALIZED, BACHELOR,
+            MASTER, DOCTOR или COURSES. null — требование не об образовании.
+        education_specialty:
+          type: string
+          nullable: true
+          description: Специальность или направление подготовки для требования к образованию.
 
     TemplateMeta:
       type: object
@@ -1517,6 +1551,16 @@ components:
         clarity_warning:
           type: string
           nullable: true
+        education_level:
+          type: string
+          nullable: true
+          description: >-
+            Уровень образования: SECONDARY, SECONDARY_SPECIALIZED, BACHELOR,
+            MASTER, DOCTOR или COURSES. null — требование не об образовании.
+        education_specialty:
+          type: string
+          nullable: true
+          description: Специальность или направление подготовки для требования к образованию.
 
     UpdateTemplateRequest:
       type: object
@@ -1652,6 +1696,126 @@ components:
             type: string
         blind:
           type: boolean
+
+    ResumeExtraction:
+      type: object
+      required:
+        - resumeId
+        - skills
+        - qualifications
+        - education
+        - experience
+      properties:
+        resumeId:
+          type: string
+          format: uuid
+        skills:
+          type: array
+          items:
+            $ref: "#/components/schemas/ResumeExtractedSkill"
+        qualifications:
+          type: array
+          items:
+            $ref: "#/components/schemas/ResumeExtractedQualification"
+        education:
+          type: array
+          items:
+            $ref: "#/components/schemas/ResumeExtractedEducation"
+        experience:
+          type: array
+          items:
+            $ref: "#/components/schemas/ResumeExtractedExperience"
+
+    ResumeExtractedExperience:
+      type: object
+      required:
+        - metrics
+      properties:
+        company:
+          type: string
+          nullable: true
+        position:
+          type: string
+          nullable: true
+        category:
+          type: string
+          nullable: true
+        beginYear:
+          type: integer
+          format: int32
+          nullable: true
+        endYear:
+          type: integer
+          format: int32
+          nullable: true
+        evidenceQuote:
+          type: string
+          nullable: true
+          description: Основная цитата, подтверждающая опыт.
+        metrics:
+          type: array
+          description: Дополнительные факты и метрики из описания опыта.
+          items:
+            type: string
+
+    ResumeExtractedQualification:
+      type: object
+      required:
+        - label
+      properties:
+        label:
+          type: string
+          description: Название квалификации в формулировке резюме.
+        evidenceQuote:
+          type: string
+          nullable: true
+
+    ResumeExtractedEducation:
+      type: object
+      required:
+        - level
+      properties:
+        institution:
+          type: string
+          nullable: true
+          description: Учебное заведение после маскировки PII.
+        specialty:
+          type: string
+          nullable: true
+          description: Специальность или направление подготовки.
+        level:
+          type: string
+          nullable: true
+          description: >-
+            Уровень образования: SECONDARY, SECONDARY_SPECIALIZED, BACHELOR,
+            MASTER, DOCTOR или COURSES. null — уровень не определён.
+        graduationYear:
+          type: integer
+          format: int32
+          nullable: true
+        evidenceQuote:
+          type: string
+          nullable: true
+
+    ResumeExtractedSkill:
+      type: object
+      required:
+        - name
+        - normalizedName
+      properties:
+        name:
+          type: string
+        normalizedName:
+          type: string
+        tenure:
+          type: integer
+          nullable: true
+        recency:
+          type: integer
+          nullable: true
+        evidenceQuote:
+          type: string
+          nullable: true
 
     ResumeFullText:
       type: object
@@ -2013,6 +2177,39 @@ components:
             type: string
         blind:
           type: boolean
+        strengths:
+          type: array
+          items:
+            type: string
+        risks:
+          type: array
+          items:
+            type: string
+        questions:
+          type: array
+          items:
+            type: string
+        recruiterNote:
+          type: string
+          nullable: true
+        gaps:
+          type: array
+          items:
+            $ref: "#/components/schemas/ReportGap"
+
+    ReportGap:
+      type: object
+      required:
+        - requirementId
+        - reason
+      properties:
+        requirementId:
+          type: string
+        text:
+          type: string
+          nullable: true
+        reason:
+          type: string
 
     ReportDecisionRequest:
       type: object

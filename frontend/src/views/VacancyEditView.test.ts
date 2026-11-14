@@ -157,6 +157,25 @@ describe('VacancyEditView', () => {
     expect(wrapper.get('[data-column="NICE"]').findAll('[data-testid="board-card"]')).toHaveLength(2)
   })
 
+  it('добавляет и сохраняет требование к образованию', async () => {
+    updateVacancyTemplate.mockResolvedValue({ data: confirmedVacancy() })
+    const wrapper = await mountEditor()
+
+    await wrapper.get('[data-testid="add-education-board"]').trigger('click')
+    await flushPromises()
+
+    const card = wrapper.get('[data-testid="education-card"]')
+    await card.get('input[aria-label="Специальность"]').setValue('Прикладная математика')
+    await card.get('select[aria-label="Уровень образования"]').setValue('MASTER')
+    await buttonWithText(wrapper, 'Сохранить')?.trigger('click')
+    await flushPromises()
+
+    const sent = updateVacancyTemplate.mock.calls[0][0].updateTemplateRequest.requirements
+    const education = sent[sent.length - 1]
+    expect(education.education_level).toBe('MASTER')
+    expect(education.education_specialty).toBe('Прикладная математика')
+  })
+
   it('сохраняет изменения отдельной кнопкой', async () => {
     updateVacancyTemplate.mockResolvedValue({ data: confirmedVacancy() })
     const wrapper = await mountEditor()

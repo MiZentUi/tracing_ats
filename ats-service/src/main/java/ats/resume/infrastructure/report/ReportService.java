@@ -1,5 +1,6 @@
 package ats.resume.infrastructure.report;
 
+import ats.resume.domain.scoring.ScoringResult;
 import ats.resume.infrastructure.json.JsonCodec;
 import ats.resume.infrastructure.persistence.entity.ApplicationEntity;
 import ats.resume.infrastructure.persistence.entity.ExternalEvidenceEntity;
@@ -84,6 +85,28 @@ public class ReportService {
                         .toList();
         var hrDecision =
                 decisionRepository.findByResumeIdAndVacancyId(resumeId, vacancyId).orElse(null);
+        Explanations explanations = explanations(run);
+        Map<String, RequirementReportItem> requirementById =
+                requirements.stream()
+                        .collect(
+                                java.util.stream.Collectors.toMap(
+                                        RequirementReportItem::requirementId,
+                                        item -> item,
+                                        (left, right) -> left));
+        List<ReportGap> gaps =
+                explanations.gaps() == null
+                        ? List.of()
+                        : explanations.gaps().stream()
+                                .map(
+                                        gap -> {
+                                            RequirementReportItem item =
+                                                    requirementById.get(gap.requirementId());
+                                            return new ReportGap(
+                                                    gap.requirementId(),
+                                                    item == null ? null : item.text(),
+                                                    gap.reason());
+                                        })
+                                .toList();
         return new ReportView(
                 applicationId,
                 resumeId,
@@ -100,7 +123,26 @@ public class ReportService {
                 flags(run),
                 true,
                 hrDecision == null ? null : hrDecision.getDecision(),
-                hrDecision == null ? null : hrDecision.getComment());
+                hrDecision == null ? null : hrDecision.getComment(),
+                explanations.strengths() == null ? List.of() : explanations.strengths(),
+                explanations.risks() == null ? List.of() : explanations.risks(),
+                explanations.questions() == null ? List.of() : explanations.questions(),
+                explanations.note(),
+                gaps);
+    }
+
+    private Explanations explanations(ScoreRunEntity run) {
+        if (run.getParsed() == null || run.getParsed().isBlank()) {
+            return new Explanations(List.of(), List.of(), List.of(), List.of(), null);
+        }
+        try {
+            Explanations value = jsonCodec.read(run.getParsed(), Explanations.class);
+            return value == null
+                    ? new Explanations(List.of(), List.of(), List.of(), List.of(), null)
+                    : value;
+        } catch (RuntimeException e) {
+            return new Explanations(List.of(), List.of(), List.of(), List.of(), null);
+        }
     }
 
     private RequirementReportItem toRequirement(RequirementResultEntity entity) {
@@ -169,7 +211,21 @@ public class ReportService {
             List<String> flags,
             boolean blind,
             String hrDecision,
-            String hrComment) {}
+            String hrComment,
+            List<String> strengths,
+            List<String> risks,
+            List<String> questions,
+            String recruiterNote,
+            List<ReportGap> gaps) {}
+
+    public record ReportGap(String requirementId, String text, String reason) {}
+
+    private record Explanations(
+            List<ScoringResult.Gap> gaps,
+            List<String> strengths,
+            List<String> risks,
+            List<String> questions,
+            String note) {}
 
     public record RequirementReportItem(
             String requirementId,

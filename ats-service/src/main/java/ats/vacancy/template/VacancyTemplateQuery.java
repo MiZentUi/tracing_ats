@@ -32,11 +32,18 @@ public class VacancyTemplateQuery {
 
     private static final String REQUIREMENTS_SQL =
             """
-            SELECT r.id, COALESCE(s.name, r.skill_text, r.raw_text) AS requirement_text,
-                   COALESCE(s.name, r.skill_text, '') AS skill_name,
+            SELECT r.id,
+                   CASE WHEN r.education_level IS NULL
+                        THEN COALESCE(s.name, r.skill_text, r.raw_text)
+                        ELSE COALESCE(r.skill_text, '')
+                   END AS requirement_text,
+                   CASE WHEN r.education_level IS NULL
+                        THEN COALESCE(s.name, r.skill_text, '')
+                        ELSE COALESCE(r.skill_text, '')
+                   END AS skill_name,
                    -- Числового weight в схеме больше нет (009): важность задаёт kind.
                    CASE r.kind WHEN 'MUST' THEN 3 WHEN 'NICE' THEN 2 ELSE 1 END AS weight,
-                   r.kind, r.critical, r.qualification,
+                   r.kind, r.critical, r.qualification, r.education_level,
                    r.years_required, COALESCE(r.half_life_years, 0) AS half_life_years
             FROM vacancy_requirement r
             LEFT JOIN skill s ON s.id = r.skill_id
@@ -98,7 +105,8 @@ public class VacancyTemplateQuery {
                                 rs.getBoolean("critical"),
                                 rs.getDouble("years_required"),
                                 rs.getDouble("half_life_years"),
-                                rs.getBoolean("qualification")),
+                                rs.getBoolean("qualification"),
+                                rs.getString("education_level")),
                 templateId);
     }
 }

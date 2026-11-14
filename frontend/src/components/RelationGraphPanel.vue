@@ -1,6 +1,7 @@
 <script setup lang="ts">
-import { computed, onMounted, ref } from 'vue'
-import { Link2, Loader2, Plus, RefreshCw, Trash2 } from '@lucide/vue'
+import { computed, nextTick, onBeforeUnmount, onMounted, ref, watch } from 'vue'
+import * as d3 from 'd3'
+import { Link2, Loader2, Maximize2, Plus, RefreshCw, Trash2 } from '@lucide/vue'
 import {
   createRelation,
   deleteRelation,
@@ -11,8 +12,20 @@ import {
 } from '@/api/dictionary'
 import { apiErrorMessage } from '@/api'
 import { useToast } from '@/composables/useToast'
+import SkillCombobox from './SkillCombobox.vue'
 
 const { success, error: toastError } = useToast()
+
+interface GraphNode extends d3.SimulationNodeDatum {
+  id: string
+  label: string
+}
+
+interface GraphEdge extends d3.SimulationLinkDatum<GraphNode> {
+  leftSkillId: string
+  rightSkillId: string
+  kind: string
+}
 
 const relations = ref<Relation[]>([])
 const skills = ref<Skill[]>([])
@@ -21,10 +34,15 @@ const error = ref('')
 const selectedId = ref('')
 const leftId = ref('')
 const rightId = ref('')
-const leftQuery = ref('')
-const rightQuery = ref('')
 const kind = ref('RELATED')
 const saving = ref(false)
+const svgRef = ref<SVGSVGElement | null>(null)
+let simulation: d3.Simulation<GraphNode, GraphEdge> | null = null
+let zoomBehavior: d3.ZoomBehavior<SVGSVGElement, unknown> | null = null
+
+const GRAPH_WIDTH = 900
+const GRAPH_HEIGHT = 560
+const GRAPH_MARGIN = 48
 
 const kindLabels: Record<string, string> = {
   SAME_GROUP: 'Одна группа',
@@ -48,40 +66,26 @@ const skillNames = computed(() => {
   return result
 })
 
-const nodes = computed(() => {
+const nodes = computed<GraphNode[]>(() => {
   const ids = new Set<string>()
   for (const relation of relations.value) {
     ids.add(relation.leftSkillId)
     ids.add(relation.rightSkillId)
   }
-  const list = [...ids]
-  const centerX = 450
-  const centerY = 280
-  const radius = Math.min(220, 42 + list.length * 16)
-  return list.map((id, index) => {
-    const angle = (Math.PI * 2 * index) / Math.max(list.length, 1) - Math.PI / 2
-    return {
-      id,
-      label: skillNames.value.get(id) ?? id,
-      x: centerX + Math.cos(angle) * radius,
-      y: centerY + Math.sin(angle) * radius,
-    }
-  })
+  return [...ids].map((id) => ({
+    id,
+    label: skillNames.value.get(id) ?? id,
+  }))
 })
 
-const nodeMap = computed(() => new Map(nodes.value.map((node) => [node.id, node])))
-
-const edges = computed(() =>
-  relations.value
-    .map((relation) => {
-      const left = nodeMap.value.get(relation.leftSkillId)
-      const right = nodeMap.value.get(relation.rightSkillId)
-      if (!left || !right) {
-        return null
-      }
-      return { ...relation, left, right }
-    })
-    .filter((edge): edge is NonNullable<typeof edge> => edge !== null),
+const edges = computed<GraphEdge[]>(() =>
+  relations.value.map((relation) => ({
+    leftSkillId: relation.leftSkillId,
+    rightSkillId: relation.rightSkillId,
+    kind: relation.kind,
+    source: relation.leftSkillId,
+    target: relation.rightSkillId,
+  })),
 )
 
 const selectedRelations = computed(() =>
@@ -92,21 +96,6 @@ const selectedRelations = computed(() =>
       )
     : [],
 )
-
-const leftSkills = computed(() => filterSkills(leftQuery.value))
-const rightSkills = computed(() => filterSkills(rightQuery.value))
-
-function filterSkills(query: string): Skill[] {
-  const normalized = query.trim().toLowerCase()
-  if (!normalized) {
-    return skills.value
-  }
-  return skills.value.filter(
-    (skill) =>
-      skill.canonicalName.toLowerCase().includes(normalized) ||
-      skill.aliases.some((alias) => alias.raw.toLowerCase().includes(normalized)),
-  )
-}
 
 const canCreate = computed(
   () => leftId.value && rightId.value && leftId.value !== rightId.value && !saving.value,
@@ -135,6 +124,209 @@ function nodeClass(id: string): string {
   return 'fill-white stroke-slate-400'
 }
 
+function shortLabel(label: string): string {
+  return label.length > 28 ? `${label.slice(0, 27)}…` : label
+}
+
+function nodeRadius(id: string): number {
+  return selectedId.value === id ? 11 : 9
+}
+
+function updateSelection() {
+  const element = svgRef.value
+  if (!element) {
+    return
+  }
+  const root = d3.select(element)
+  root
+    .selectAll<SVGCircleElement, GraphNode>('circle[data-node]')
+    .attr('class', (node) => nodeClass(node.id))
+    .attr('r', (node) => nodeRadius(node.id))
+
+  const selected = selectedId.value
+  root
+    .selectAll<SVGLineElement, GraphEdge>('line[data-edge]')
+    .attr('opacity', (edge) => {
+      if (!selected) {
+        return 0.55
+      }
+      return edge.leftSkillId === selected || edge.rightSkillId === selected ? 0.8 : 0.08
+    })
+    .attr('stroke-width', (edge) => {
+      if (!selected) {
+        return 1.5
+      }
+      return edge.leftSkillId === selected || edge.rightSkillId === selected ? 2.5 : 1
+    })
+}
+
+function fitGraph() {
+  const element = svgRef.value
+  if (!element || !simulation || !zoomBehavior) {
+    return
+  }
+  const points = simulation.nodes()
+  if (points.length === 0) {
+    return
+  }
+  const xs = points.map((point) => point.x ?? 0)
+  const ys = points.map((point) => point.y ?? 0)
+  const minX = Math.min(...xs)
+  const maxX = Math.max(...xs)
+  const minY = Math.min(...ys)
+  const maxY = Math.max(...ys)
+  const padding = 64
+  const graphWidth = Math.max(maxX - minX, 1) + padding * 2
+  const graphHeight = Math.max(maxY - minY, 1) + padding * 2
+  const scale = Math.max(
+    0.2,
+    Math.min(2.5, Math.min(GRAPH_WIDTH / graphWidth, GRAPH_HEIGHT / graphHeight)),
+  )
+  const centerX = (minX + maxX) / 2
+  const centerY = (minY + maxY) / 2
+  const transform = d3.zoomIdentity
+    .translate(GRAPH_WIDTH / 2 - centerX * scale, GRAPH_HEIGHT / 2 - centerY * scale)
+    .scale(scale)
+  d3.select(element).call(zoomBehavior.transform, transform)
+}
+
+function renderGraph() {
+  simulation?.stop()
+  const element = svgRef.value
+  if (!element) {
+    return
+  }
+  const graphNodes = nodes.value.map((node) => ({ ...node }))
+  const graphEdges = edges.value.map((edge) => ({ ...edge }))
+  if (graphNodes.length === 0) {
+    d3.select(element).selectAll('*').remove()
+    return
+  }
+
+  const svg = d3.select(element)
+  svg.selectAll('*').remove()
+  svg.on('click', () => {
+    selectedId.value = ''
+  })
+  const root = svg.append('g')
+
+  zoomBehavior = d3
+    .zoom<SVGSVGElement, unknown>()
+    .scaleExtent([0.2, 4])
+    .extent([
+      [0, 0],
+      [GRAPH_WIDTH, GRAPH_HEIGHT],
+    ])
+    .on('zoom', (event) => {
+      root.attr('transform', event.transform.toString())
+    })
+  svg.call(zoomBehavior)
+
+  const link = root
+    .append('g')
+    .selectAll<SVGLineElement, GraphEdge>('line')
+    .data(graphEdges)
+    .join('line')
+    .attr('data-edge', '')
+    .attr('stroke', 'currentColor')
+    .attr('stroke-width', 1.5)
+    .attr('opacity', 0.55)
+    .attr('class', (edge) => kindClass(edge.kind))
+
+  const node = root
+    .append('g')
+    .selectAll<SVGGElement, GraphNode>('g')
+    .data(graphNodes)
+    .join('g')
+    .attr('data-node', (item) => item.id)
+    .attr('class', 'cursor-pointer')
+    .on('click', (event, item) => {
+      event.stopPropagation()
+      selectedId.value = selectedId.value === item.id ? '' : item.id
+    })
+
+  node
+    .append('circle')
+    .attr('data-node', (item) => item.id)
+    .attr('r', 9)
+    .attr('stroke-width', 2)
+    .attr('class', (item) => nodeClass(item.id))
+
+  node
+    .append('text')
+    .attr('y', -15)
+    .attr('text-anchor', 'middle')
+    .attr('class', 'fill-slate-700 text-[11px] font-medium')
+    .text((item) => shortLabel(item.label))
+
+  const clampPositions = () => {
+    for (const item of graphNodes) {
+      item.x = Math.max(GRAPH_MARGIN, Math.min(GRAPH_WIDTH - GRAPH_MARGIN, item.x ?? 0))
+      item.y = Math.max(GRAPH_MARGIN, Math.min(GRAPH_HEIGHT - GRAPH_MARGIN, item.y ?? 0))
+    }
+  }
+
+  const tick = () => {
+    clampPositions()
+    link
+      .attr('x1', (edge) => (edge.source as GraphNode).x ?? 0)
+      .attr('y1', (edge) => (edge.source as GraphNode).y ?? 0)
+      .attr('x2', (edge) => (edge.target as GraphNode).x ?? 0)
+      .attr('y2', (edge) => (edge.target as GraphNode).y ?? 0)
+    node.attr('transform', (item) => `translate(${item.x ?? 0},${item.y ?? 0})`)
+  }
+
+  simulation = d3
+    .forceSimulation<GraphNode>(graphNodes)
+    .force(
+      'link',
+      d3
+        .forceLink<GraphNode, GraphEdge>(graphEdges)
+        .id((item) => item.id)
+        .distance(130)
+        .strength(0.55),
+    )
+    .force('charge', d3.forceManyBody<GraphNode>().strength(-200).distanceMax(300))
+    .force('center', d3.forceCenter(GRAPH_WIDTH / 2, GRAPH_HEIGHT / 2))
+    .force('x', d3.forceX<GraphNode>(GRAPH_WIDTH / 2).strength(0.03))
+    .force('y', d3.forceY<GraphNode>(GRAPH_HEIGHT / 2).strength(0.03))
+    .force('collide', d3.forceCollide<GraphNode>().radius(44))
+    .on('tick', tick)
+
+  simulation.stop()
+  for (let index = 0; index < 80; index += 1) {
+    simulation.tick()
+    clampPositions()
+  }
+  tick()
+  fitGraph()
+
+  node.call(
+    d3
+      .drag<SVGGElement, GraphNode>()
+      .on('start', (event, item) => {
+        if (!event.active) {
+          simulation?.alphaTarget(0.1).restart()
+        }
+        item.fx = item.x
+        item.fy = item.y
+      })
+      .on('drag', (event, item) => {
+        item.fx = event.x
+        item.fy = event.y
+      })
+      .on('end', (event, item) => {
+        if (!event.active) {
+          simulation?.alphaTarget(0)
+        }
+        item.fx = null
+        item.fy = null
+      }),
+  )
+
+  updateSelection()
+}
+
 async function load() {
   loading.value = true
   error.value = ''
@@ -161,6 +353,8 @@ async function submit() {
   try {
     await createRelation(leftId.value, rightId.value, kind.value)
     success('Связь добавлена')
+    leftId.value = ''
+    rightId.value = ''
     await load()
   } catch (exception) {
     toastError('Не удалось добавить связь', apiErrorMessage(exception))
@@ -179,7 +373,22 @@ async function remove(relation: Relation) {
   }
 }
 
+watch(
+  [loading, nodes, edges],
+  async () => {
+    if (loading.value) {
+      return
+    }
+    await nextTick()
+    renderGraph()
+  },
+  { deep: false },
+)
+
+watch(selectedId, updateSelection)
+
 onMounted(load)
+onBeforeUnmount(() => simulation?.stop())
 </script>
 
 <template>
@@ -203,13 +412,24 @@ onMounted(load)
             <div>
               <h2 class="text-base font-semibold text-slate-900">Граф связей</h2>
               <p class="mt-0.5 text-xs text-slate-500">
-                Нажмите на навык, чтобы подсветить его связи.
+                Нажмите на навык, чтобы подсветить его связи. Узлы можно перетаскивать.
               </p>
             </div>
-            <button class="btn-secondary" @click="load">
-              <RefreshCw :size="14" />
-              Обновить
-            </button>
+            <div class="flex items-center gap-2">
+              <button
+                type="button"
+                class="btn-secondary"
+                data-testid="fit-graph"
+                @click="fitGraph"
+              >
+                <Maximize2 :size="14" />
+                Уместить
+              </button>
+              <button class="btn-secondary" @click="load">
+                <RefreshCw :size="14" />
+                Обновить
+              </button>
+            </div>
           </div>
 
           <div
@@ -226,47 +446,14 @@ onMounted(load)
             </p>
           </div>
 
-          <div v-else class="mt-3 overflow-x-auto">
-            <svg viewBox="0 0 900 560" class="h-auto w-full min-w-[620px]" role="img" aria-label="Граф связей навыков">
-              <g>
-                <line
-                  v-for="edge in edges"
-                  :key="`${edge.leftSkillId}:${edge.rightSkillId}`"
-                  :x1="edge.left.x"
-                  :y1="edge.left.y"
-                  :x2="edge.right.x"
-                  :y2="edge.right.y"
-                  stroke="currentColor"
-                  stroke-width="1.5"
-                  :class="kindClass(edge.kind)"
-                  opacity="0.55"
-                />
-              </g>
-              <g>
-                <g
-                  v-for="node in nodes"
-                  :key="node.id"
-                  class="cursor-pointer"
-                  @click="selectedId = selectedId === node.id ? '' : node.id"
-                >
-                  <circle
-                    :cx="node.x"
-                    :cy="node.y"
-                    r="9"
-                    stroke-width="2"
-                    :class="nodeClass(node.id)"
-                  />
-                  <text
-                    :x="node.x"
-                    :y="node.y - 15"
-                    text-anchor="middle"
-                    class="fill-slate-700 text-[11px] font-medium"
-                  >
-                    {{ node.label }}
-                  </text>
-                </g>
-              </g>
-            </svg>
+          <div v-else class="mt-3 overflow-hidden rounded-lg border border-slate-100 bg-slate-50/40">
+            <svg
+              ref="svgRef"
+              viewBox="0 0 900 560"
+              class="h-auto w-full cursor-grab touch-none active:cursor-grabbing"
+              role="img"
+              aria-label="Граф связей навыков"
+            />
           </div>
 
           <div class="mt-3 flex flex-wrap gap-3 border-t border-slate-100 pt-3 text-xs text-slate-500">
@@ -285,36 +472,20 @@ onMounted(load)
             </p>
           </div>
           <form class="space-y-3" @submit.prevent="submit">
-            <div>
-              <label class="label" for="relation-left">Первый навык</label>
-              <input
-                v-model="leftQuery"
-                class="input mb-2"
-                placeholder="Поиск навыка"
-                aria-label="Поиск первого навыка"
-              />
-              <select id="relation-left" v-model="leftId" class="input">
-                <option value="" disabled>Выберите навык</option>
-                <option v-for="skill in leftSkills" :key="skill.id" :value="skill.id">
-                  {{ skill.canonicalName }}
-                </option>
-              </select>
-            </div>
-            <div>
-              <label class="label" for="relation-right">Второй навык</label>
-              <input
-                v-model="rightQuery"
-                class="input mb-2"
-                placeholder="Поиск навыка"
-                aria-label="Поиск второго навыка"
-              />
-              <select id="relation-right" v-model="rightId" class="input">
-                <option value="" disabled>Выберите навык</option>
-                <option v-for="skill in rightSkills" :key="skill.id" :value="skill.id">
-                  {{ skill.canonicalName }}
-                </option>
-              </select>
-            </div>
+            <SkillCombobox
+              v-model="leftId"
+              input-id="relation-left"
+              label="Первый навык"
+              input-label="Первый навык"
+              :skills="skills"
+            />
+            <SkillCombobox
+              v-model="rightId"
+              input-id="relation-right"
+              label="Второй навык"
+              input-label="Второй навык"
+              :skills="skills"
+            />
             <div>
               <label class="label" for="relation-kind">Тип связи</label>
               <select id="relation-kind" v-model="kind" class="input">

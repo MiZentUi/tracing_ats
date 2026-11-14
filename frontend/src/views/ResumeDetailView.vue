@@ -9,6 +9,7 @@ import {
   RefreshCcw,
 } from '@lucide/vue'
 import type {
+  ResumeExtraction,
   ResumeFullText,
   ResumeSummary,
   ResumeText,
@@ -17,14 +18,15 @@ import type {
 import { apiErrorMessage, resumeRankingApi, resumesApi } from '@/api'
 import RevealPiiDialog from '@/components/RevealPiiDialog.vue'
 import { useToast } from '@/composables/useToast'
-import { resumeDisplayTitle } from '@/lib/format'
-import { resumeStatusClass, resumeStatusLabel } from '@/lib/labels'
+import { pluralizeRu, resumeDisplayTitle } from '@/lib/format'
+import { educationLevelLabel, resumeStatusClass, resumeStatusLabel } from '@/lib/labels'
 
 const props = defineProps<{ id: string }>()
 const { success, error: toastError } = useToast()
 
 const resume = ref<ResumeSummary | null>(null)
 const resumeText = ref<ResumeText | null>(null)
+const extraction = ref<ResumeExtraction | null>(null)
 const revealed = ref<ResumeFullText | null>(null)
 const ranking = ref<ResumeVacancyRankingResponse | null>(null)
 const loading = ref(true)
@@ -54,6 +56,24 @@ const inProgress = computed(() => {
 const vacancies = computed(() => ranking.value?.items ?? [])
 const displayText = computed(() => revealed.value?.text ?? resumeText.value?.maskedText ?? '')
 
+function experiencePeriod(item: {
+  beginYear?: number | null
+  endYear?: number | null
+}): string {
+  const start = item.beginYear ?? null
+  const end = item.endYear ?? null
+  if (start && end) {
+    return `${start} — ${end}`
+  }
+  if (start) {
+    return `с ${start}`
+  }
+  if (end) {
+    return `до ${end}`
+  }
+  return 'Период не указан'
+}
+
 function resizeEdit() {
   const element = editTextarea.value
   if (!element) {
@@ -79,7 +99,7 @@ async function load() {
     ])
     resume.value = resumeResponse.data
     ranking.value = rankingResponse.data
-    await loadText()
+    await Promise.all([loadText(), loadExtraction()])
     if (inProgress.value) {
       poll()
     } else {
@@ -98,6 +118,15 @@ async function loadText() {
     resumeText.value = response.data
   } catch {
     resumeText.value = null
+  }
+}
+
+async function loadExtraction() {
+  try {
+    const response = await resumesApi.getResumeExtraction({ resumeId: props.id })
+    extraction.value = response.data
+  } catch {
+    extraction.value = null
   }
 }
 
@@ -128,7 +157,7 @@ function poll() {
           resumeId: props.id,
         })
         ranking.value = rankingResponse.data
-        await loadText()
+        await Promise.all([loadText(), loadExtraction()])
       }
     } catch {
       stopPolling()
@@ -305,6 +334,165 @@ onBeforeUnmount(stopPolling)
                 Редактировать
               </button>
             </div>
+          </article>
+
+          <article v-if="extraction" class="card p-5">
+            <div class="flex items-center justify-between gap-3">
+              <h2 class="text-base font-semibold text-slate-900">Опыт работы</h2>
+              <span class="badge-neutral">
+                {{ extraction.experience.length }}
+                {{ pluralizeRu(extraction.experience.length, 'место', 'места', 'мест') }}
+              </span>
+            </div>
+            <div v-if="extraction.experience.length" class="mt-4 space-y-2">
+              <div
+                v-for="(item, index) in extraction.experience"
+                :key="`${item.company ?? 'experience'}-${index}`"
+                class="rounded-lg border border-slate-200 bg-slate-50/60 p-3"
+              >
+                <div class="flex flex-wrap items-start justify-between gap-2">
+                  <div class="min-w-0">
+                    <p class="font-medium text-slate-900">
+                      {{ item.position || item.category || 'Опыт работы' }}
+                    </p>
+                    <p v-if="item.company" class="mt-0.5 text-sm text-slate-500">
+                      {{ item.company }}
+                    </p>
+                  </div>
+                  <span class="badge-neutral shrink-0">{{ experiencePeriod(item) }}</span>
+                </div>
+                <p v-if="item.category" class="mt-1 text-xs text-slate-500">
+                  {{ item.category }}
+                </p>
+                <blockquote
+                  v-if="item.evidenceQuote"
+                  class="mt-2 rounded-md bg-white px-3 py-2 text-sm leading-6 text-slate-600"
+                >
+                  {{ item.evidenceQuote }}
+                </blockquote>
+                <ul v-if="item.metrics.length" class="mt-2 space-y-1 text-sm text-slate-600">
+                  <li
+                    v-for="(metric, metricIndex) in item.metrics"
+                    :key="`${index}-${metricIndex}`"
+                    class="flex gap-2"
+                  >
+                    <span class="mt-2 h-1.5 w-1.5 shrink-0 rounded-full bg-indigo-400" />
+                    <span>{{ metric }}</span>
+                  </li>
+                </ul>
+              </div>
+            </div>
+            <p v-else class="mt-3 text-sm text-slate-500">Опыт не извлечён.</p>
+          </article>
+
+          <article v-if="extraction" class="card p-5">
+            <div class="flex items-center justify-between gap-3">
+              <h2 class="text-base font-semibold text-slate-900">Извлечённые навыки</h2>
+              <span class="badge-neutral">
+                {{ extraction.skills.length }}
+                {{ pluralizeRu(extraction.skills.length, 'навык', 'навыка', 'навыков') }}
+              </span>
+            </div>
+            <div v-if="extraction.skills.length" class="mt-4 flex flex-wrap gap-2">
+              <span
+                v-for="skill in extraction.skills"
+                :key="skill.normalizedName"
+                class="inline-flex items-center gap-2 rounded-lg border border-slate-200 bg-slate-50 px-3 py-1.5 text-sm text-slate-700"
+              >
+                {{ skill.name }}
+                <span v-if="skill.tenure !== null && skill.tenure !== undefined" class="text-xs text-slate-400">
+                  {{ skill.tenure }} {{ pluralizeRu(skill.tenure, 'год', 'года', 'лет') }}
+                </span>
+              </span>
+            </div>
+            <p v-else class="mt-3 text-sm text-slate-500">
+              Навыки пока не извлечены.
+            </p>
+          </article>
+
+          <article v-if="extraction" class="card p-5">
+            <div class="flex items-center justify-between gap-3">
+              <h2 class="text-base font-semibold text-slate-900">Квалификации</h2>
+              <span class="badge-neutral">
+                {{ extraction.qualifications.length }}
+                {{
+                  pluralizeRu(
+                    extraction.qualifications.length,
+                    'квалификация',
+                    'квалификации',
+                    'квалификаций',
+                  )
+                }}
+              </span>
+            </div>
+            <div
+              v-if="extraction.qualifications.length"
+              class="mt-4 grid gap-2 sm:grid-cols-2"
+            >
+              <div
+                v-for="(item, index) in extraction.qualifications"
+                :key="`${item.label}-${index}`"
+                class="rounded-lg border border-slate-200 bg-slate-50/60 p-3"
+              >
+                <p class="font-medium text-slate-900">{{ item.label }}</p>
+                <blockquote
+                  v-if="item.evidenceQuote"
+                  class="mt-2 rounded-md bg-white px-3 py-2 text-sm leading-6 text-slate-600"
+                >
+                  {{ item.evidenceQuote }}
+                </blockquote>
+              </div>
+            </div>
+            <p v-else class="mt-3 text-sm text-slate-500">
+              Квалификации не извлечены.
+            </p>
+          </article>
+
+          <article v-if="extraction" class="card p-5">
+            <div class="flex items-center justify-between gap-3">
+              <h2 class="text-base font-semibold text-slate-900">Образование</h2>
+              <span class="badge-neutral">
+                {{ extraction.education.length }}
+                {{ pluralizeRu(extraction.education.length, 'запись', 'записи', 'записей') }}
+              </span>
+            </div>
+            <div v-if="extraction.education.length" class="mt-4 space-y-2">
+              <div
+                v-for="(item, index) in extraction.education"
+                :key="`${item.institution ?? 'education'}-${index}`"
+                class="rounded-lg border border-slate-200 bg-slate-50/60 p-3"
+              >
+                <div class="flex flex-wrap items-start justify-between gap-2">
+                  <div class="min-w-0">
+                    <p class="font-medium text-slate-900">
+                      {{ item.specialty || item.institution || 'Образование' }}
+                    </p>
+                    <p
+                      v-if="item.institution && item.institution !== item.specialty"
+                      class="mt-0.5 text-sm text-slate-500"
+                    >
+                      {{ item.institution }}
+                    </p>
+                  </div>
+                  <span class="badge-info shrink-0">{{ educationLevelLabel(item.level) }}</span>
+                </div>
+                <p
+                  v-if="item.graduationYear"
+                  class="mt-1 text-xs text-slate-500"
+                >
+                  Год выпуска: {{ item.graduationYear }}
+                </p>
+                <blockquote
+                  v-if="item.evidenceQuote"
+                  class="mt-2 rounded-md bg-white px-3 py-2 text-sm leading-6 text-slate-600"
+                >
+                  {{ item.evidenceQuote }}
+                </blockquote>
+              </div>
+            </div>
+            <p v-else class="mt-3 text-sm text-slate-500">
+              Образование не извлечено.
+            </p>
           </article>
 
           <article class="card overflow-hidden">

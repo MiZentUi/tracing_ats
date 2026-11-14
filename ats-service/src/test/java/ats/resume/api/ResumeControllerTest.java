@@ -91,6 +91,72 @@ class ResumeControllerTest {
     }
 
     @Test
+    void returnsExtractedEducationAndQualificationsWithoutPii() {
+        ResumeIngestionService ingestion = mock(ResumeIngestionService.class);
+        ResumeQueryService query = mock(ResumeQueryService.class);
+        UUID resumeId = UUID.randomUUID();
+        when(query.extraction(resumeId))
+                .thenReturn(
+                        Optional.of(
+                                new ResumeQueryService.ExtractionView(
+                                        resumeId,
+                                        List.of(),
+                                        List.of(
+                                                new ResumeQueryService.QualificationView(
+                                                        "III группа по электробезопасности",
+                                                        "III группа по электробезопасности")),
+                                        List.of(
+                                                new ResumeQueryService.EducationView(
+                                                        "[PII_UNIVERSITY_1]",
+                                                        "Прикладная математика",
+                                                        "MASTER",
+                                                        2019,
+                                                        "[PII_UNIVERSITY_1], 2019")),
+                                        List.of(
+                                                new ResumeQueryService.ExperienceView(
+                                                        "ООО Ромашка",
+                                                        "Backend-разработчик",
+                                                        "backend",
+                                                        2020,
+                                                        2023,
+                                                        "ООО Ромашка, 2020–2023",
+                                                        List.of("Ускорил API в 2 раза"))))));
+
+        ResponseEntity<ats.gateway.model.ResumeExtraction> response =
+                new ResumeController(
+                                ingestion,
+                                query,
+                                mock(ResumeEditService.class),
+                                mock(ResumeDeleteService.class),
+                                mock(ats.resume.infrastructure.report.RevealService.class))
+                        .getResumeExtraction(resumeId);
+
+        assertThat(response.getStatusCode().value()).isEqualTo(200);
+        assertThat(response.getBody()).isNotNull();
+        assertThat(response.getBody().getSkills()).isEmpty();
+        assertThat(response.getBody().getQualifications()).hasSize(1);
+        assertThat(response.getBody().getQualifications().getFirst().getLabel())
+                .isEqualTo("III группа по электробезопасности");
+        assertThat(response.getBody().getQualifications().getFirst().getEvidenceQuote())
+                .isEqualTo("III группа по электробезопасности");
+        assertThat(response.getBody().getEducation()).hasSize(1);
+        assertThat(response.getBody().getEducation().getFirst().getLevel()).isEqualTo("MASTER");
+        assertThat(response.getBody().getEducation().getFirst().getSpecialty())
+                .isEqualTo("Прикладная математика");
+        assertThat(response.getBody().getEducation().getFirst().getInstitution())
+                .isEqualTo("[PII_UNIVERSITY_1]");
+        assertThat(response.getBody().getExperience()).hasSize(1);
+        assertThat(response.getBody().getExperience().getFirst().getCompany())
+                .isEqualTo("ООО Ромашка");
+        assertThat(response.getBody().getExperience().getFirst().getBeginYear()).isEqualTo(2020);
+        assertThat(response.getBody().getExperience().getFirst().getEndYear()).isEqualTo(2023);
+        assertThat(response.getBody().getExperience().getFirst().getEvidenceQuote())
+                .isEqualTo("ООО Ромашка, 2020–2023");
+        assertThat(response.getBody().getExperience().getFirst().getMetrics())
+                .containsExactly("Ускорил API в 2 раза");
+    }
+
+    @Test
     void updatesResumeTitle() {
         ResumeIngestionService ingestion = mock(ResumeIngestionService.class);
         ResumeQueryService query = mock(ResumeQueryService.class);

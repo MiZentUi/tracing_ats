@@ -58,6 +58,9 @@ message Requirement {
   double half_life_years = 8;
   // true: `skill` содержит открытый label квалификации, а не навык.
   bool qualification = 9;
+  // Уровень образования требования. Пустая строка — требование не об образовании.
+  // Значения: SECONDARY, SECONDARY_SPECIALIZED, BACHELOR, MASTER, DOCTOR, COURSES.
+  string education_level = 10;
 }
 
 enum RequirementKind {

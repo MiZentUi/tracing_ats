@@ -85,6 +85,8 @@ function serialize() {
       yearsRequired: item.yearsRequired,
       quote: item.quote,
       clarityWarning: item.clarityWarning,
+      educationLevel: item.educationLevel,
+      educationSpecialty: item.educationSpecialty,
     })),
   })
 }
@@ -132,8 +134,18 @@ async function load() {
 }
 
 function requirementsFor(kind: keyof typeof kindLabels) {
-  return requirements.value.filter((item) => item.kind === kind)
+  return requirements.value.filter(
+    (item) => !item.qualification && !item.educationLevel && item.kind === kind,
+  )
 }
+
+const qualificationCount = computed(
+  () => requirements.value.filter((item) => item.qualification).length,
+)
+
+const educationCount = computed(
+  () => requirements.value.filter((item) => item.educationLevel).length,
+)
 
 const kindCounters = computed(() =>
   (Object.keys(kindLabels) as Array<keyof typeof kindLabels>).map((kind) => ({
@@ -150,6 +162,9 @@ function normalizedSkill(skill: string | null) {
 const duplicateKeys = computed(() => {
   const counts = new Map<string, number>()
   for (const item of requirements.value) {
+    if (item.educationLevel) {
+      continue
+    }
     const key = normalizedSkill(item.skill)
     if (key !== '') {
       counts.set(key, (counts.get(key) ?? 0) + 1)
@@ -166,17 +181,32 @@ const visibleRequirements = computed(() => {
   return requirements.value.filter(
     (item) =>
       (item.skill ?? '').toLowerCase().includes(query) ||
+      (item.educationSpecialty ?? '').toLowerCase().includes(query) ||
       (item.quote ?? '').toLowerCase().includes(query),
   )
 })
 
-async function revealRequirement(key: string, focusSkill = false) {
+const visibleSkillRequirements = computed(() =>
+  visibleRequirements.value.filter((item) => !item.qualification && !item.educationLevel),
+)
+const visibleQualificationRequirements = computed(() =>
+  visibleRequirements.value.filter((item) => item.qualification),
+)
+const visibleEducationRequirements = computed(() =>
+  visibleRequirements.value.filter((item) => item.educationLevel),
+)
+
+async function revealRequirement(
+  key: string,
+  focusSkill = false,
+  focusLabel = 'Название навыка',
+) {
   highlightedKey.value = key
   await nextTick()
   const element = document.querySelector(`[data-requirement-key="${key}"]`)
   element?.scrollIntoView?.({ behavior: 'smooth', block: 'center' })
   if (focusSkill) {
-    const input = element?.querySelector<HTMLInputElement>('input[aria-label="Название навыка"]')
+    const input = element?.querySelector<HTMLInputElement>(`input[aria-label="${focusLabel}"]`)
     input?.focus({ preventScroll: true })
   }
   window.setTimeout(() => {
@@ -213,11 +243,37 @@ async function addRequirement(kind: SkillKind = 'MUST') {
     quote: null,
     clarityWarning: null,
     history: null,
+    qualification: false,
+    educationLevel: null,
+    educationSpecialty: null,
   })
   if (kind !== 'MUST') {
     info('Требование добавлено', `Колонка «${kindLabels[kind]}»`)
   }
   await revealRequirement(key, true)
+}
+
+async function addEducationRequirement() {
+  requirementSearch.value = ''
+  const key = `new-edu-${Date.now()}-${requirements.value.length}`
+  requirements.value.push({
+    key,
+    id: null,
+    skill: null,
+    skillId: null,
+    normalizationStatus: 'NEW',
+    kind: 'MUST',
+    kindSource: 'HR',
+    llmKind: null,
+    yearsRequired: null,
+    quote: null,
+    clarityWarning: null,
+    history: null,
+    qualification: false,
+    educationLevel: 'BACHELOR',
+    educationSpecialty: '',
+  })
+  await revealRequirement(key, true, 'Специальность')
 }
 
 function requestSave() {
@@ -245,8 +301,13 @@ async function save(mode: 'save' | 'template') {
     error.value = 'Нужно хотя бы одно требование'
     return
   }
-  if (requirements.value.some((item) => !item.skill?.trim() && !item.quote)) {
-    error.value = 'У требования должен быть навык или цитата'
+  if (
+    requirements.value.some(
+      (item) =>
+        !item.skill?.trim() && !item.educationSpecialty?.trim() && !item.quote,
+    )
+  ) {
+    error.value = 'У требования должен быть навык, специальность или цитата'
     return
   }
   if (!sourceTextDraft.value.trim()) {
@@ -274,6 +335,8 @@ async function save(mode: 'save' | 'template') {
           years_required: item.yearsRequired,
           quote: item.quote,
           clarity_warning: item.clarityWarning,
+          education_level: item.educationLevel,
+          education_specialty: item.educationSpecialty?.trim() || null,
         })),
       },
     })
@@ -436,6 +499,8 @@ onMounted(load)
                 <span v-if="index > 0"> · </span>
                 {{ counter.label }} {{ counter.count }}
               </template>
+              <span v-if="qualificationCount > 0"> · Квалификации {{ qualificationCount }}</span>
+              <span v-if="educationCount > 0"> · Образование {{ educationCount }}</span>
             </p>
           </div>
           <div class="flex flex-wrap items-center gap-2">
@@ -491,6 +556,7 @@ onMounted(load)
             @update="updateRequirement"
             @remove="removeRequirement"
             @add="addRequirement"
+            @add-education="addEducationRequirement"
           />
         </div>
 
@@ -498,14 +564,14 @@ onMounted(load)
           <div
             class="hidden gap-2 border-b border-slate-100 bg-slate-50/80 px-3 py-2 text-[11px] font-medium uppercase tracking-wide text-slate-400 md:grid md:grid-cols-[minmax(0,1fr)_9rem_5.5rem_4.5rem]"
           >
-            <span>Навык</span>
+            <span>Требование</span>
             <span>Тип</span>
             <span>Опыт</span>
             <span class="text-right">Действия</span>
           </div>
           <div class="divide-y divide-slate-100">
             <div
-              v-for="item in visibleRequirements"
+              v-for="item in visibleSkillRequirements"
               :key="item.key"
               :data-requirement-key="item.key"
               class="transition-all duration-300"
@@ -519,8 +585,85 @@ onMounted(load)
               />
             </div>
           </div>
+
+          <div
+            v-if="visibleEducationRequirements.length || !requirementSearch.trim()"
+            class="border-t border-slate-200"
+          >
+            <div
+              class="flex items-center justify-between gap-3 border-b border-slate-100 bg-slate-50/80 px-3 py-2"
+            >
+              <div>
+                <p class="text-[11px] font-medium uppercase tracking-wide text-slate-400">
+                  Образование
+                </p>
+                <p class="text-xs text-slate-500">
+                  Уровень и специальность; отдельно от навыков.
+                </p>
+              </div>
+              <button
+                type="button"
+                class="btn-secondary px-2.5 py-1 text-xs"
+                data-testid="add-education"
+                @click="addEducationRequirement"
+              >
+                <Plus :size="13" />
+                Добавить
+              </button>
+            </div>
+            <div v-if="visibleEducationRequirements.length" class="divide-y divide-slate-100">
+              <div
+                v-for="item in visibleEducationRequirements"
+                :key="item.key"
+                :data-requirement-key="item.key"
+                class="transition-all duration-300"
+                :class="highlightedKey === item.key ? 'ring-2 ring-inset ring-indigo-300' : ''"
+              >
+                <RequirementRow
+                  :requirement="item"
+                  @update="(patch) => updateRequirement(item.key, patch)"
+                  @remove="removeRequirement(item.key)"
+                />
+              </div>
+            </div>
+            <p v-else class="px-4 py-6 text-center text-sm text-slate-400">
+              Пока нет требований к образованию.
+            </p>
+          </div>
+
+          <div v-if="visibleQualificationRequirements.length" class="border-t border-slate-200">
+            <div
+              class="hidden gap-2 border-b border-slate-100 bg-slate-50/80 px-3 py-2 text-[11px] font-medium uppercase tracking-wide text-slate-400 md:grid md:grid-cols-[minmax(0,1fr)_9rem_5.5rem_4.5rem]"
+            >
+              <span>Квалификация</span>
+              <span>Тип</span>
+              <span>Опыт</span>
+              <span class="text-right">Действия</span>
+            </div>
+            <div class="divide-y divide-slate-100">
+              <div
+                v-for="item in visibleQualificationRequirements"
+                :key="item.key"
+                :data-requirement-key="item.key"
+                class="transition-all duration-300"
+                :class="highlightedKey === item.key ? 'ring-2 ring-inset ring-indigo-300' : ''"
+              >
+                <RequirementRow
+                  :requirement="item"
+                  :duplicate="duplicateKeys.has(normalizedSkill(item.skill))"
+                  @update="(patch) => updateRequirement(item.key, patch)"
+                  @remove="removeRequirement(item.key)"
+                />
+              </div>
+            </div>
+          </div>
+
           <p
-            v-if="visibleRequirements.length === 0"
+            v-if="
+              visibleSkillRequirements.length === 0 &&
+              visibleQualificationRequirements.length === 0 &&
+              visibleEducationRequirements.length === 0
+            "
             class="px-4 py-10 text-center text-sm text-slate-400"
           >
             {{ requirements.length === 0 ? 'Пока нет требований. Добавьте первое.' : 'Ничего не найдено по запросу.' }}

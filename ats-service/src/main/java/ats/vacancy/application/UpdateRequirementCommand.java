@@ -9,4 +9,6 @@ public record UpdateRequirementCommand(
         Kind kind,
         BigDecimal yearsRequired,
         String quote,
-        String clarityWarning) {}
+        String clarityWarning,
+        String educationLevel,
+        String educationSpecialty) {}

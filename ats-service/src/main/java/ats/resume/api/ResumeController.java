@@ -2,6 +2,11 @@ package ats.resume.api;
 
 import ats.api.ResumesApi;
 import ats.gateway.model.ResumeBatchUploadResponse;
+import ats.gateway.model.ResumeExtractedEducation;
+import ats.gateway.model.ResumeExtractedExperience;
+import ats.gateway.model.ResumeExtractedQualification;
+import ats.gateway.model.ResumeExtractedSkill;
+import ats.gateway.model.ResumeExtraction;
 import ats.gateway.model.ResumeFullText;
 import ats.gateway.model.ResumeList;
 import ats.gateway.model.ResumeSummary;
@@ -102,6 +107,99 @@ public class ResumeController implements ResumesApi {
                                                 .maskedText(view.maskedText())
                                                 .warnings(view.warnings())
                                                 .blind(true)))
+                .orElseGet(() -> ResponseEntity.notFound().build());
+    }
+
+    @Override
+    public ResponseEntity<ResumeExtraction> getResumeExtraction(UUID resumeId) {
+        return queryService
+                .extraction(resumeId)
+                .map(
+                        view ->
+                                ResponseEntity.ok(
+                                        new ResumeExtraction()
+                                                .resumeId(view.resumeId())
+                                                .skills(
+                                                        view.skills().stream()
+                                                                .map(
+                                                                        skill ->
+                                                                                new ResumeExtractedSkill()
+                                                                                        .name(
+                                                                                                skill
+                                                                                                        .name())
+                                                                                        .normalizedName(
+                                                                                                skill
+                                                                                                        .normalizedName())
+                                                                                        .tenure(
+                                                                                                skill
+                                                                                                        .tenure())
+                                                                                        .recency(
+                                                                                                skill
+                                                                                                        .recency())
+                                                                                        .evidenceQuote(
+                                                                                                skill
+                                                                                                        .evidenceQuote()))
+                                                                .toList())
+                                                .qualifications(
+                                                        view.qualifications().stream()
+                                                                .map(
+                                                                        qualification ->
+                                                                                new ResumeExtractedQualification()
+                                                                                        .label(
+                                                                                                qualification
+                                                                                                        .label())
+                                                                                        .evidenceQuote(
+                                                                                                qualification
+                                                                                                        .evidenceQuote()))
+                                                                .toList())
+                                                .education(
+                                                        view.education().stream()
+                                                                .map(
+                                                                        education ->
+                                                                                new ResumeExtractedEducation()
+                                                                                        .institution(
+                                                                                                education
+                                                                                                        .institution())
+                                                                                        .specialty(
+                                                                                                education
+                                                                                                        .specialty())
+                                                                                        .level(
+                                                                                                education
+                                                                                                        .level())
+                                                                                        .graduationYear(
+                                                                                                education
+                                                                                                        .graduationYear())
+                                                                                        .evidenceQuote(
+                                                                                                education
+                                                                                                        .evidenceQuote()))
+                                                                .toList())
+                                                .experience(
+                                                        view.experience().stream()
+                                                                .map(
+                                                                        experience ->
+                                                                                new ResumeExtractedExperience()
+                                                                                        .company(
+                                                                                                experience
+                                                                                                        .company())
+                                                                                        .position(
+                                                                                                experience
+                                                                                                        .position())
+                                                                                        .category(
+                                                                                                experience
+                                                                                                        .category())
+                                                                                        .beginYear(
+                                                                                                experience
+                                                                                                        .beginYear())
+                                                                                        .endYear(
+                                                                                                experience
+                                                                                                        .endYear())
+                                                                                        .evidenceQuote(
+                                                                                                experience
+                                                                                                        .evidenceQuote())
+                                                                                        .metrics(
+                                                                                                experience
+                                                                                                        .metrics()))
+                                                                .toList())))
                 .orElseGet(() -> ResponseEntity.notFound().build());
     }
 

@@ -27,6 +27,7 @@ import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Component;
 import scoring_service.v1.models.Messages;
 import scoring_service.v1.models.features.Common;
+import scoring_service.v1.models.features.Education;
 import scoring_service.v1.models.features.Qualification;
 import scoring_service.v1.models.features.Skill;
 
@@ -170,6 +171,13 @@ public class GrpcScoringClient implements ScoringClient {
                 general.hasTenure() ? general.getTenure() : null,
                 List.of(),
                 requirements,
+                response.getGapsList().stream()
+                        .map(
+                                gap ->
+                                        new ScoringResult.Gap(
+                                                gap.getRequirementId(),
+                                                gap.getReason().name().replace("GAP_REASON_", "")))
+                        .toList(),
                 response.getStrengthsList(),
                 response.getRisksList(),
                 response.getQuestionsList(),
@@ -275,6 +283,14 @@ public class GrpcScoringClient implements ScoringClient {
                         : requirement.skill();
         FeatureRequirement.Builder builder =
                 FeatureRequirement.newBuilder().setCriticality(criticality(requirement));
+        if (requirement.educationLevel() != null && !requirement.educationLevel().isBlank()) {
+            return builder.setEducation(
+                            Education.EducationRequirement.newBuilder()
+                                    .setMaster(nullToEmpty(subject))
+                                    .setLevel(educationLevel(requirement.educationLevel()))
+                                    .build())
+                    .build();
+        }
         if (requirement.qualification()) {
             return builder.setQualification(
                             Qualification.QualificationRequirement.newBuilder()
@@ -306,6 +322,19 @@ public class GrpcScoringClient implements ScoringClient {
                             .build());
         }
         return builder.build();
+    }
+
+    private Education.EducationLevel educationLevel(String value) {
+        return switch (normalize(value)) {
+            case "secondary" -> Education.EducationLevel.EDUCATION_LEVEL_SECONDARY;
+            case "secondary_specialized" ->
+                    Education.EducationLevel.EDUCATION_LEVEL_SECONDARY_SPECIALIZED;
+            case "bachelor" -> Education.EducationLevel.EDUCATION_LEVEL_BACHELOR;
+            case "master" -> Education.EducationLevel.EDUCATION_LEVEL_MASTER;
+            case "doctor" -> Education.EducationLevel.EDUCATION_LEVEL_DOCTOR;
+            case "courses" -> Education.EducationLevel.EDUCATION_LEVEL_COURSES;
+            default -> Education.EducationLevel.EDUCATION_LEVEL_UNSPECIFIED;
+        };
     }
 
     private Common.FeatureCriticality criticality(Requirement requirement) {

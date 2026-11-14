@@ -63,3 +63,6 @@ databaseChangeLog:
   - include:
       file: changes/023-dictionary-qualifications-and-relations.sql
       relativeToChangelogFile: true
+  - include:
+      file: changes/024-education-requirement.sql
+      relativeToChangelogFile: true

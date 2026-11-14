@@ -18,4 +18,7 @@ public record RequirementView(
         BigDecimal yearsRequired,
         String quote,
         String clarityWarning,
-        SkillKindHistory history) {}
+        SkillKindHistory history,
+        boolean qualification,
+        String educationLevel,
+        String educationSpecialty) {}

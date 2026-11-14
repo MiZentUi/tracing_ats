@@ -5,6 +5,7 @@ import ats.gateway.model.ApplicationReport;
 import ats.gateway.model.ExternalEvidenceItem;
 import ats.gateway.model.ReportDecision;
 import ats.gateway.model.ReportDecisionRequest;
+import ats.gateway.model.ReportGap;
 import ats.gateway.model.RequirementReportItem;
 import ats.gateway.model.RevealRequest;
 import ats.gateway.model.RevealedCandidate;
@@ -100,7 +101,19 @@ public class ReportController implements ReportsApi {
                 .requirements(report.requirements().stream().map(this::requirement).toList())
                 .externalEvidence(report.externalEvidence().stream().map(this::external).toList())
                 .flags(report.flags())
-                .blind(report.blind());
+                .blind(report.blind())
+                .strengths(report.strengths())
+                .risks(report.risks())
+                .questions(report.questions())
+                .recruiterNote(report.recruiterNote())
+                .gaps(report.gaps().stream().map(this::gap).toList());
+    }
+
+    private ReportGap gap(ReportService.ReportGap item) {
+        return new ReportGap()
+                .requirementId(item.requirementId())
+                .text(item.text())
+                .reason(item.reason());
     }
 
     private RequirementReportItem requirement(ReportService.RequirementReportItem item) {
