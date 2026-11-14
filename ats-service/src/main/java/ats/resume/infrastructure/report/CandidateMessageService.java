@@ -47,9 +47,23 @@ public class CandidateMessageService {
     private final AuditEventRepository auditEventRepository;
     private final JsonCodec jsonCodec;
 
-    /** Последние черновики по каждому типу для текущего запуска. */
     public List<View> latest(UUID applicationId, String phase) {
-        ReportView report = report(applicationId, phase);
+        return latest(applicationReport(applicationId, phase));
+    }
+
+    public List<View> latestForMatch(UUID resumeId, UUID vacancyId) {
+        return latest(matchReport(resumeId, vacancyId));
+    }
+
+    public View generate(UUID applicationId, String phase, CandidateMessageKind kind) {
+        return generate(applicationReport(applicationId, phase), kind);
+    }
+
+    public View generateForMatch(UUID resumeId, UUID vacancyId, CandidateMessageKind kind) {
+        return generate(matchReport(resumeId, vacancyId), kind);
+    }
+
+    private List<View> latest(ReportView report) {
         Map<String, CandidateMessageEntity> latestByKind = new LinkedHashMap<>();
         for (CandidateMessageEntity entity :
                 messageRepository.findByScoreRunIdOrderByCreatedAtDesc(report.scoreRunId())) {
@@ -63,8 +77,7 @@ public class CandidateMessageService {
                 .toList();
     }
 
-    public View generate(UUID applicationId, String phase, CandidateMessageKind kind) {
-        ReportView report = report(applicationId, phase);
+    private View generate(ReportView report, CandidateMessageKind kind) {
         List<String> confirmed =
                 kind == CandidateMessageKind.INTERVIEW_INVITATION
                         ? confirmedRequirements(report)
@@ -74,9 +87,11 @@ public class CandidateMessageService {
 
         if (kind == CandidateMessageKind.REJECTION && uncovered.isEmpty()) {
             log.info(
-                    "candidate_message_generation_rejected application_id={} phase={} kind={}"
-                            + " reason=no_uncovered_requirements",
-                    applicationId,
+                    "candidate_message_generation_rejected application_id={} resume_id={}"
+                            + " vacancy_id={} phase={} kind={} reason=no_uncovered_requirements",
+                    report.applicationId(),
+                    report.resumeId(),
+                    report.vacancyId(),
                     report.phase(),
                     kind);
             throw ApiException.unprocessable(
@@ -112,9 +127,11 @@ public class CandidateMessageService {
                         ? confirmed.size()
                         : uncovered.size();
         log.info(
-                "candidate_message_generation_started application_id={} phase={} kind={}"
-                        + " facts={} prompt_version={}",
-                applicationId,
+                "candidate_message_generation_started application_id={} resume_id={}"
+                        + " vacancy_id={} phase={} kind={} facts={} prompt_version={}",
+                report.applicationId(),
+                report.resumeId(),
+                report.vacancyId(),
                 report.phase(),
                 kind,
                 facts,
@@ -125,7 +142,9 @@ public class CandidateMessageService {
         response = parsed.response();
 
         CandidateMessageEntity entity = new CandidateMessageEntity();
-        entity.setApplicationId(applicationId);
+        entity.setApplicationId(report.applicationId());
+        entity.setResumeId(report.resumeId());
+        entity.setVacancyId(report.vacancyId());
         entity.setScoreRunId(report.scoreRunId());
         entity.setPhase(report.phase());
         entity.setKind(kind.name());
@@ -137,10 +156,12 @@ public class CandidateMessageService {
         audit(entity);
 
         log.info(
-                "candidate_message_generation_finished application_id={} run_id={} kind={}"
-                        + " prompt_version={} model={} subject_chars={} body_chars={}"
-                        + " elapsed_ms={}",
-                applicationId,
+                "candidate_message_generation_finished application_id={} resume_id={}"
+                        + " vacancy_id={} run_id={} kind={} prompt_version={} model={}"
+                        + " subject_chars={} body_chars={} elapsed_ms={}",
+                report.applicationId(),
+                report.resumeId(),
+                report.vacancyId(),
                 report.scoreRunId(),
                 kind,
                 selected.version(),
@@ -151,10 +172,16 @@ public class CandidateMessageService {
         return view(entity);
     }
 
-    private ReportView report(UUID applicationId, String phase) {
+    private ReportView applicationReport(UUID applicationId, String phase) {
         return reportService
                 .report(applicationId, phase)
                 .orElseThrow(() -> ApiException.notFound("Application report not found"));
+    }
+
+    private ReportView matchReport(UUID resumeId, UUID vacancyId) {
+        return reportService
+                .reportForMatch(resumeId, vacancyId, "PRELIMINARY")
+                .orElseThrow(() -> ApiException.notFound("Resume-vacancy report not found"));
     }
 
     private LlmResponse call(LlmRequest request) {
@@ -272,17 +299,17 @@ public class CandidateMessageService {
         audit.setActor("hr");
         audit.setAction("CANDIDATE_MESSAGE_GENERATED");
         audit.setReason("candidate message generated for HR review");
-        audit.setMetadata(
-                jsonCodec.write(
-                        Map.of(
-                                "applicationId", entity.getApplicationId().toString(),
-                                "scoreRunId", entity.getScoreRunId().toString(),
-                                "kind", entity.getKind(),
-                                "promptVersion", entity.getPromptVersion(),
-                                "model",
-                                        entity.getModelVersion() == null
-                                                ? ""
-                                                : entity.getModelVersion())));
+        Map<String, Object> metadata = new LinkedHashMap<>();
+        if (entity.getApplicationId() != null) {
+            metadata.put("applicationId", entity.getApplicationId().toString());
+        }
+        metadata.put("resumeId", entity.getResumeId().toString());
+        metadata.put("vacancyId", entity.getVacancyId().toString());
+        metadata.put("scoreRunId", entity.getScoreRunId().toString());
+        metadata.put("kind", entity.getKind());
+        metadata.put("promptVersion", entity.getPromptVersion());
+        metadata.put("model", entity.getModelVersion() == null ? "" : entity.getModelVersion());
+        audit.setMetadata(jsonCodec.write(metadata));
         auditEventRepository.save(audit);
     }
 
@@ -290,6 +317,8 @@ public class CandidateMessageService {
         return new View(
                 entity.getId(),
                 entity.getApplicationId(),
+                entity.getResumeId(),
+                entity.getVacancyId(),
                 entity.getPhase(),
                 entity.getKind(),
                 entity.getSubject(),
@@ -315,6 +344,8 @@ public class CandidateMessageService {
     public record View(
             UUID id,
             UUID applicationId,
+            UUID resumeId,
+            UUID vacancyId,
             String phase,
             String kind,
             String subject,

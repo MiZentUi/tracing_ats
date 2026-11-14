@@ -87,6 +87,27 @@ public class ReportController implements ReportsApi {
     }
 
     @Override
+    public ResponseEntity<List<CandidateMessage>> getResumeVacancyCandidateMessages(
+            UUID resumeId, UUID vacancyId) {
+        return ResponseEntity.ok(
+                candidateMessageService.latestForMatch(resumeId, vacancyId).stream()
+                        .map(this::candidateMessage)
+                        .toList());
+    }
+
+    @Override
+    public ResponseEntity<CandidateMessage> generateResumeVacancyCandidateMessage(
+            UUID resumeId, UUID vacancyId, CandidateMessageRequest candidateMessageRequest) {
+        CandidateMessageKind kind = candidateMessageRequest.getKind();
+        if (kind == null) {
+            throw ApiException.unprocessable("KIND_REQUIRED", "Candidate message kind is required");
+        }
+        return ResponseEntity.ok(
+                candidateMessage(
+                        candidateMessageService.generateForMatch(resumeId, vacancyId, kind)));
+    }
+
+    @Override
     public ResponseEntity<RevealedCandidate> revealCandidate(
             UUID applicationId, RevealRequest revealRequest) {
         return revealService
@@ -140,6 +161,8 @@ public class ReportController implements ReportsApi {
         return new CandidateMessage()
                 .id(view.id())
                 .applicationId(view.applicationId())
+                .resumeId(view.resumeId())
+                .vacancyId(view.vacancyId())
                 .phase(CandidateMessage.PhaseEnum.valueOf(view.phase()))
                 .kind(CandidateMessageKind.valueOf(view.kind()))
                 .subject(view.subject())

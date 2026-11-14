@@ -44,6 +44,8 @@ import org.slf4j.LoggerFactory;
 class CandidateMessageServiceTest {
 
     private static final UUID APPLICATION_ID = UUID.randomUUID();
+    private static final UUID RESUME_ID = UUID.randomUUID();
+    private static final UUID VACANCY_ID = UUID.randomUUID();
     private static final UUID RUN_ID = UUID.randomUUID();
 
     private final Logger logger = (Logger) LoggerFactory.getLogger(CandidateMessageService.class);
@@ -265,6 +267,31 @@ class CandidateMessageServiceTest {
     }
 
     @Test
+    void generatesMatchMessageWithoutApplication() {
+        ReportView report =
+                matchReport(List.of(requirement("req-1", "Java", true, "COVERED")), List.of());
+        when(reportService.reportForMatch(RESUME_ID, VACANCY_ID, "PRELIMINARY"))
+                .thenReturn(Optional.of(report));
+        when(llmClient.complete(any()))
+                .thenReturn(
+                        new LlmResponse(
+                                json("Тема", "Тело письма. ".repeat(15)), "model", 1, 1, "stop"));
+        when(parser.parse(anyString()))
+                .thenReturn(
+                        new CandidateMessageParser.ParsedMessage(
+                                "Тема", "Тело письма. ".repeat(15)));
+
+        CandidateMessageService.View view =
+                service.generateForMatch(
+                        RESUME_ID, VACANCY_ID, CandidateMessageKind.INTERVIEW_INVITATION);
+
+        assertThat(view.applicationId()).isNull();
+        assertThat(view.resumeId()).isEqualTo(RESUME_ID);
+        assertThat(view.vacancyId()).isEqualTo(VACANCY_ID);
+        assertThat(view.phase()).isEqualTo("PRELIMINARY");
+    }
+
+    @Test
     void returnsLatestMessagePerKind() {
         CandidateMessageEntity older =
                 entity(CandidateMessageKind.REJECTION, "Старое", Instant.now().minusSeconds(10));
@@ -285,11 +312,38 @@ class CandidateMessageServiceTest {
     private ReportView report(List<RequirementReportItem> requirements, List<ReportGap> gaps) {
         return new ReportView(
                 APPLICATION_ID,
-                UUID.randomUUID(),
-                UUID.randomUUID(),
+                RESUME_ID,
+                VACANCY_ID,
                 RUN_ID,
                 "Java-разработчик",
                 "FINAL",
+                0.8,
+                69.0,
+                62.0,
+                82.0,
+                false,
+                "SHORTLISTED",
+                requirements,
+                List.of(),
+                List.of(),
+                true,
+                null,
+                null,
+                List.of(),
+                List.of(),
+                List.of(),
+                "note",
+                gaps);
+    }
+
+    private ReportView matchReport(List<RequirementReportItem> requirements, List<ReportGap> gaps) {
+        return new ReportView(
+                null,
+                RESUME_ID,
+                VACANCY_ID,
+                RUN_ID,
+                "Java-разработчик",
+                "PRELIMINARY",
                 0.8,
                 69.0,
                 62.0,
@@ -320,6 +374,8 @@ class CandidateMessageServiceTest {
         CandidateMessageEntity entity = new CandidateMessageEntity();
         entity.setId(UUID.randomUUID());
         entity.setApplicationId(APPLICATION_ID);
+        entity.setResumeId(RESUME_ID);
+        entity.setVacancyId(VACANCY_ID);
         entity.setScoreRunId(RUN_ID);
         entity.setPhase("FINAL");
         entity.setKind(kind.name());

@@ -25,6 +25,8 @@ import org.springframework.http.ResponseEntity;
 class ReportControllerTest {
 
     private static final UUID APPLICATION_ID = UUID.randomUUID();
+    private static final UUID RESUME_ID = UUID.randomUUID();
+    private static final UUID VACANCY_ID = UUID.randomUUID();
 
     @Mock private ReportService reportService;
     @Mock private ReportDecisionService decisionService;
@@ -46,6 +48,8 @@ class ReportControllerTest {
                 new CandidateMessageService.View(
                         UUID.randomUUID(),
                         APPLICATION_ID,
+                        RESUME_ID,
+                        VACANCY_ID,
                         "FINAL",
                         "REJECTION",
                         "Тема",
@@ -77,6 +81,8 @@ class ReportControllerTest {
                 new CandidateMessageService.View(
                         UUID.randomUUID(),
                         APPLICATION_ID,
+                        RESUME_ID,
+                        VACANCY_ID,
                         "PRELIMINARY",
                         "INTERVIEW_INVITATION",
                         "Тема",
@@ -93,5 +99,36 @@ class ReportControllerTest {
         assertThat(response.getBody()).hasSize(1);
         assertThat(response.getBody().getFirst().getKind())
                 .isEqualTo(CandidateMessageKind.INTERVIEW_INVITATION);
+    }
+
+    @Test
+    void mapsResumeVacancyCandidateMessageResponse() {
+        CandidateMessageService.View view =
+                new CandidateMessageService.View(
+                        UUID.randomUUID(),
+                        null,
+                        RESUME_ID,
+                        VACANCY_ID,
+                        "PRELIMINARY",
+                        "INTERVIEW_INVITATION",
+                        "Тема",
+                        "Тело письма",
+                        "candidate-message.invitation.v1",
+                        "model",
+                        Instant.parse("2026-11-14T12:00:00Z"));
+        when(candidateMessageService.generateForMatch(
+                        RESUME_ID, VACANCY_ID, CandidateMessageKind.INTERVIEW_INVITATION))
+                .thenReturn(view);
+
+        ResponseEntity<CandidateMessage> response =
+                controller.generateResumeVacancyCandidateMessage(
+                        RESUME_ID,
+                        VACANCY_ID,
+                        new CandidateMessageRequest(CandidateMessageKind.INTERVIEW_INVITATION));
+
+        assertThat(response.getBody()).isNotNull();
+        assertThat(response.getBody().getApplicationId()).isNull();
+        assertThat(response.getBody().getResumeId()).isEqualTo(RESUME_ID);
+        assertThat(response.getBody().getVacancyId()).isEqualTo(VACANCY_ID);
     }
 }

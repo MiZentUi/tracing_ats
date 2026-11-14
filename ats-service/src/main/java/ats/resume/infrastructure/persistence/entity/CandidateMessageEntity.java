@@ -25,8 +25,14 @@ public class CandidateMessageEntity {
     @GeneratedValue(strategy = GenerationType.UUID)
     private UUID id;
 
-    @Column(name = "application_id", nullable = false)
+    @Column(name = "application_id")
     private UUID applicationId;
+
+    @Column(name = "resume_id", nullable = false)
+    private UUID resumeId;
+
+    @Column(name = "vacancy_id", nullable = false)
+    private UUID vacancyId;
 
     @Column(name = "score_run_id", nullable = false)
     private UUID scoreRunId;

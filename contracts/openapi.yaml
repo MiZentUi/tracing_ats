@@ -553,6 +553,58 @@ paths:
         default:
           $ref: "#/components/responses/default"
 
+  /resumes/{resumeId}/vacancies/{vacancyId}/candidate-messages:
+    get:
+      tags:
+        - Reports
+      summary: Последние черновики писем кандидату по паре резюме и вакансия
+      operationId: getResumeVacancyCandidateMessages
+      parameters:
+        - $ref: "#/components/parameters/ResumeId"
+        - $ref: "#/components/parameters/VacancyPathId"
+      responses:
+        "200":
+          description: Черновики писем
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/CandidateMessage"
+        "404":
+          description: Отчёт или запуск не найден
+        default:
+          $ref: "#/components/responses/default"
+    post:
+      tags:
+        - Reports
+      summary: Сгенерировать черновик письма кандидату по паре резюме и вакансия
+      operationId: generateResumeVacancyCandidateMessage
+      parameters:
+        - $ref: "#/components/parameters/ResumeId"
+        - $ref: "#/components/parameters/VacancyPathId"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/CandidateMessageRequest"
+      responses:
+        "200":
+          description: Черновик письма
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/CandidateMessage"
+        "404":
+          description: Отчёт или запуск не найден
+        "422":
+          description: Нет непокрытых требований для письма отказа
+        "502":
+          description: LLM недоступна или вернула невалидный ответ
+        default:
+          $ref: "#/components/responses/default"
+
   /resumes/{resumeId}/vacancies/{vacancyId}/decision:
     put:
       tags:
@@ -2288,7 +2340,6 @@ components:
       type: object
       required:
         - id
-        - applicationId
         - phase
         - kind
         - subject
@@ -2302,6 +2353,16 @@ components:
         applicationId:
           type: string
           format: uuid
+          nullable: true
+          description: Заполнено для отчёта по отклику.
+        resumeId:
+          type: string
+          format: uuid
+          nullable: true
+        vacancyId:
+          type: string
+          format: uuid
+          nullable: true
         phase:
           type: string
           enum:
