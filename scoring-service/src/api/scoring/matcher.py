@@ -30,6 +30,19 @@ from .text import TextMatcher
 
 _NOT_STATED_HIGH = 1.0
 
+# Порядок уровней образования для сравнения. Курсы стоят выше средней школы,
+# но ниже бакалавриата; числовые значения protobuf-enum для этого не годятся,
+# потому что COURSES объявлен последним.
+_EDUCATION_LEVEL_RANK = {
+    education_pb2.EDUCATION_LEVEL_UNSPECIFIED: -1,
+    education_pb2.EDUCATION_LEVEL_SECONDARY: 0,
+    education_pb2.EDUCATION_LEVEL_SECONDARY_SPECIALIZED: 1,
+    education_pb2.EDUCATION_LEVEL_COURSES: 2,
+    education_pb2.EDUCATION_LEVEL_BACHELOR: 3,
+    education_pb2.EDUCATION_LEVEL_MASTER: 4,
+    education_pb2.EDUCATION_LEVEL_DOCTOR: 5,
+}
+
 
 class RequirementMatcher:
     """Сопоставляет одно требование с уже извлечённым резюме."""
@@ -158,9 +171,7 @@ class RequirementMatcher:
         coverage_low = _clamp01(score * confidence * tau_low)
         coverage_high = _clamp01(score * confidence * tau_high)
 
-        status, gap_reason = self._status.skill(
-            score, coverage, years, float(spec.tenure)
-        )
+        status, gap_reason = self._status.skill(score, coverage, years, float(spec.tenure))
         comment = _skill_comment(
             status,
             gap_reason,
@@ -303,7 +314,7 @@ class RequirementMatcher:
             level_factor = (
                 1.0
                 if spec.level == education_pb2.EDUCATION_LEVEL_UNSPECIFIED
-                or education.level >= spec.level
+                or _education_level_rank(education.level) >= _education_level_rank(spec.level)
                 else 0.0
             )
             score = _clamp01(0.7 * field_score + 0.3 * level_factor)
@@ -507,6 +518,10 @@ def _absent(
         label=label,
         gap_reason=common_pb2.GAP_REASON_ABSENT,
     )
+
+
+def _education_level_rank(level: int) -> int:
+    return _EDUCATION_LEVEL_RANK.get(level, -1)
 
 
 def _skill_comment(

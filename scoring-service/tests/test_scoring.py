@@ -503,6 +503,89 @@ def test_evaluate_resume_match_matches_skill_version_to_base_requirement() -> No
     assert match.resume_feature_key == "skill:0"
 
 
+@pytest.mark.parametrize(
+    ("required_level", "resume_level", "expected_status", "expected_relevance"),
+    [
+        (
+            education_pb2.EDUCATION_LEVEL_BACHELOR,
+            education_pb2.EDUCATION_LEVEL_COURSES,
+            common_pb2.CORRESPONDENCE_PARTIAL,
+            0.7,
+        ),
+        (
+            education_pb2.EDUCATION_LEVEL_COURSES,
+            education_pb2.EDUCATION_LEVEL_BACHELOR,
+            common_pb2.CORRESPONDENCE_FULL,
+            1.0,
+        ),
+        (
+            education_pb2.EDUCATION_LEVEL_SECONDARY,
+            education_pb2.EDUCATION_LEVEL_COURSES,
+            common_pb2.CORRESPONDENCE_FULL,
+            1.0,
+        ),
+        (
+            education_pb2.EDUCATION_LEVEL_COURSES,
+            education_pb2.EDUCATION_LEVEL_SECONDARY,
+            common_pb2.CORRESPONDENCE_PARTIAL,
+            0.7,
+        ),
+        (
+            education_pb2.EDUCATION_LEVEL_COURSES,
+            education_pb2.EDUCATION_LEVEL_COURSES,
+            common_pb2.CORRESPONDENCE_FULL,
+            1.0,
+        ),
+        (
+            education_pb2.EDUCATION_LEVEL_MASTER,
+            education_pb2.EDUCATION_LEVEL_COURSES,
+            common_pb2.CORRESPONDENCE_PARTIAL,
+            0.7,
+        ),
+    ],
+)
+def test_education_courses_rank_between_secondary_and_bachelor(
+    required_level: int,
+    resume_level: int,
+    expected_status: int,
+    expected_relevance: float,
+) -> None:
+    text = "Курсы Python, 2024"
+    resume = messages_pb2.ParsedResume(schema_version=3)
+    resume.education["education:0"].CopyFrom(
+        education_pb2.EducationPerResume(
+            institution="Курсы",
+            master="Python",
+            level=resume_level,
+            evidence=common_pb2.FeatureEvidence(text=text),
+        )
+    )
+    vacancy = messages_pb2.Vacancy(
+        requirements={
+            "education": features_pb2.FeatureRequirement(
+                criticality=common_pb2.FEATURE_CRITICALITY_REQUIRED,
+                education=education_pb2.EducationRequirement(
+                    master="Python",
+                    level=required_level,
+                ),
+            )
+        }
+    )
+    request = messages_pb2.EvaluateResumeMatchRequest(
+        resume=resume,
+        unprocessed_resume=messages_pb2.UnprocessedResume(text=text),
+        vacancy=vacancy,
+        reference_date=_reference_date(),
+    )
+
+    with _running(ResumeExtractor(FakeLlm(PAYLOAD))) as stub:
+        response = stub.EvaluateResumeMatch(request, timeout=2)
+
+    match = response.matches["education"]
+    assert match.status == expected_status
+    assert match.relevance == pytest.approx(expected_relevance)
+
+
 def test_evaluate_resume_match_uses_vacancy_tenure_in_score() -> None:
     without_tenure = _evaluate_request()
     without_tenure.vacancy.tenure = 0
