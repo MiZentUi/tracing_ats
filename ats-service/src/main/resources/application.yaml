@@ -70,6 +70,15 @@ ats:
       confidence-threshold: ${ATS_PII_NER_THRESHOLD:0.85}
       # В production true: без локальной NER текст не уходит в скоринг.
       fail-closed: ${ATS_PII_NER_FAIL_CLOSED:true}
+    sanitize:
+      # Локальный Python-сервис маскировки PII (spaCy).
+      # По умолчанию выключен, чтобы CI не требовал запущенный сервис.
+      enabled: ${ATS_PII_SANITIZE_ENABLED:false}
+      target: ${ATS_PII_SANITIZE_TARGET:localhost:8083}
+      deadline: ${ATS_PII_SANITIZE_DEADLINE:3s}
+      pipeline: ${ATS_PII_SANITIZE_PIPELINE:}
+      min-confidence: ${ATS_PII_SANITIZE_MIN_CONFIDENCE:0}
+      fail-closed: ${ATS_PII_SANITIZE_FAIL_CLOSED:true}
   vacancy:
     # Оба контура живут в одном процессе: gRPC-фасад шаблона и решение по шорт-листу.
     grpc:

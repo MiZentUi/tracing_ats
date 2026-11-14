@@ -31,10 +31,11 @@ ext {
 	set('libphonenumberVersion', "9.0.43")
 }
 
-// Объединённый сервис использует оба внутренних контракта: scoring и vacancy-internal.
+// Объединённый сервис использует внутренние контракты: scoring, vacancy-internal и sanitize.
 // Копируем только нужные каталоги, иначе protoc увидит две копии google.type.Date.
 def scoringProtoRoot = layout.buildDirectory.dir('scoring-proto').get().asFile
 def internalProtoRoot = layout.buildDirectory.dir('internal-proto').get().asFile
+def sanitizeProtoRoot = layout.buildDirectory.dir('sanitize-proto').get().asFile
 
 tasks.register('prepareScoringProtos', Copy) {
 	from('../contracts/proto/scoring_service') {
@@ -48,11 +49,19 @@ tasks.register('prepareInternalProtos', Copy) {
 	into internalProtoRoot
 }
 
+tasks.register('prepareSanitizeProtos', Copy) {
+	from('../contracts/proto/sanitize_service') {
+		include '**/*.proto'
+	}
+	into new File(sanitizeProtoRoot, 'sanitize_service')
+}
+
 sourceSets {
 	main {
 		proto {
 			srcDir internalProtoRoot
 			srcDir scoringProtoRoot
+			srcDir sanitizeProtoRoot
 		}
 	}
 }
@@ -60,7 +69,7 @@ sourceSets {
 tasks.matching {
 	it.name.toLowerCase().contains('proto') && !it.name.startsWith('prepare')
 }.configureEach {
-	dependsOn 'prepareScoringProtos', 'prepareInternalProtos'
+	dependsOn 'prepareScoringProtos', 'prepareInternalProtos', 'prepareSanitizeProtos'
 }
 
 protobuf {

@@ -1,0 +1,101 @@
+syntax = "proto3";
+
+package sanitize_service.v1;
+
+option java_multiple_files = true;
+option java_outer_classname = "SanitizeServiceProto";
+option java_package = "ats.sanitize.proto";
+
+// Локальный stateless-детектор PII. Получает исходный текст, возвращает только
+// найденные сущности. Замену плейсхолдерами, хранение оригиналов и решение о
+// дальнейшей передаче текста по-прежнему выполняет Java.
+//
+// Сервис не ходит во внешние API, не читает файлы и БД и не логирует текст.
+service SanitizeService {
+  // Находит PII в тексте. Пайплайн и слои задаются конфигурацией сервиса;
+  // запрос может выбрать пайплайн и ограничить набор слоёв.
+  rpc DetectPii(DetectPiiRequest) returns (DetectPiiResponse);
+}
+
+// Слой маскировки. Слои складываются: результат spaCy можно дополнить LLM,
+// не меняя контракт и Java-шлюз.
+enum Layer {
+  LAYER_UNSPECIFIED = 0;
+  LAYER_SPACY = 1;
+  // Зарезервирован под будущий слой. Сейчас сервис отвечает INVALID_ARGUMENT.
+  LAYER_LLM = 2;
+  // Зарезервирован для структурных правил. Сейчас их ищет Java.
+  LAYER_REGEX = 3;
+}
+
+// Категории PII, которые умеет возвращать сервис. Значения совпадают с
+// ats.resume.domain.privacy.PiiType, кроме ORGANIZATION: организации намеренно
+// не маскируются.
+enum PiiEntityType {
+  PII_TYPE_UNSPECIFIED = 0;
+  PII_TYPE_NAME = 1;
+  PII_TYPE_EMAIL = 2;
+  PII_TYPE_PHONE = 3;
+  PII_TYPE_URL = 4;
+  PII_TYPE_TELEGRAM = 5;
+  PII_TYPE_LINKEDIN = 6;
+  PII_TYPE_GITHUB = 7;
+  PII_TYPE_PASSPORT = 8;
+  PII_TYPE_SNILS = 9;
+  PII_TYPE_INN = 10;
+  PII_TYPE_BIRTH_DATE = 11;
+  PII_TYPE_AGE = 12;
+  PII_TYPE_GENDER = 13;
+  PII_TYPE_LOCATION = 14;
+  PII_TYPE_UNIVERSITY = 15;
+  PII_TYPE_GRADUATION_YEAR = 16;
+  PII_TYPE_MARITAL_STATUS = 17;
+  PII_TYPE_PHOTO = 18;
+}
+
+message DetectPiiRequest {
+  // Исходный текст резюме. Сервис локальный: наружу текст не уходит.
+  string text = 1;
+
+  // Код языка (ru, en). Зарезервирован для слоёв, которым нужен язык;
+  // spaCy-пайплайн определяется конфигурацией сервиса.
+  string language = 2;
+
+  // Имя пайплайна из конфигурации сервиса. Пусто — пайплайн по умолчанию.
+  string pipeline = 3;
+
+  // Слои, которые нужно применить. Пусто — все слои выбранного пайплайна.
+  repeated Layer layers = 4;
+
+  // Минимальная уверенность сущности, 0..1. 0 — порог пайплайна из
+  // конфигурации; ненулевое значение заменяет его.
+  double min_confidence = 5;
+}
+
+message PiiEntity {
+  PiiEntityType type = 1;
+
+  // Смещения в Unicode code points исходного текста, end исключительно.
+  // Java-шлюз переводит их в индексы UTF-16 перед созданием PiiSpan.
+  uint32 start = 2;
+  uint32 end = 3;
+
+  // Уверенность 0..1. Для детерминированных слоёв — фиксированное значение
+  // из конфигурации слоя.
+  double confidence = 4;
+
+  // Слой, который нашёл сущность.
+  Layer layer = 5;
+}
+
+message DetectPiiResponse {
+  repeated PiiEntity entities = 1;
+
+  // Фактически использованный пайплайн и слои — для аудита запуска.
+  string pipeline = 2;
+  repeated Layer layers = 3;
+
+  // Идентификаторы моделей и их версии, например "spacy:ru_core_news_sm".
+  string model = 4;
+  string model_version = 5;
+}

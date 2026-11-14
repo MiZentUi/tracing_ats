@@ -1,0 +1,47 @@
+[project]
+name = "sanitize-service"
+version = "0.1.0"
+description = "Local stateless PII detector for Tracing ATS"
+readme = "README.md"
+authors = [{ name = "Nikita Moskaliov", email = "nikwit10@gmail.com" }]
+requires-python = ">=3.14"
+dependencies = [
+    "grpcio>=1.85.1",
+    "grpcio-health-checking>=1.85.1",
+    "grpcio-reflection>=1.85.1",
+    "pydantic>=2.14.3",
+    "pydantic-settings>=2.16.2",
+    "spacy>=3.8,<4",
+]
+
+[project.scripts]
+sanitize-service = "api:main"
+sanitize-service-healthcheck = "api.healthcheck:main"
+
+[build-system]
+requires = ["uv_build>=0.13.7,<0.14.0"]
+build-backend = "uv_build"
+
+[tool.uv.build-backend]
+module-name = ["api", "sanitize_service"]
+
+[dependency-groups]
+dev = ["grpcio-tools>=1.85.1", "pytest>=9.2.0", "ruff>=0.17.4"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+
+[tool.ruff]
+line-length = 100
+target-version = "py314"
+exclude = [
+    "src/sanitize_service",
+]
+
+[tool.ruff.lint]
+select = ["E", "F", "I", "UP", "B", "SIM", "RUF"]
+
+[tool.ruff.lint.per-file-ignores]
+# Русский текст в комментариях, docstring'ах и тестовых данных — намеренный.
+"src/api/*" = ["RUF001", "RUF002", "RUF003"]
+"tests/*" = ["RUF001", "RUF002", "RUF003"]

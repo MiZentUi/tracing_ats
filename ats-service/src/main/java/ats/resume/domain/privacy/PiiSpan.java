@@ -21,6 +21,8 @@ public record PiiSpan(int start, int end, PiiType type, double confidence, Sourc
         REGEX,
         NER,
         LABEL,
-        EDUCATION
+        EDUCATION,
+        /** Результат внешнего локального слоя, например sanitize-service. */
+        SANITIZE
     }
 }
