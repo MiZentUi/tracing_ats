@@ -8,6 +8,7 @@ from __future__ import annotations
 
 import math
 import re
+from collections.abc import Callable, Mapping
 from dataclasses import dataclass
 from datetime import date
 from typing import Protocol
@@ -17,18 +18,32 @@ from scoring_service.v1.models.features import common_pb2
 
 
 class WeightPolicy(Protocol):
-    """Вес требования `Wv^i`."""
+    """Вес требования `Wv^i`.
 
-    def weight(self, criticality: int) -> float: ...
+    Политика получает распределение требований по критичности, чтобы
+    учитывать размер групп. `counts` может быть `None`, если вызывающий
+    код хочет получить базовый вес без нормализации.
+    """
+
+    def weight(
+        self,
+        criticality: int,
+        counts: Mapping[int, int] | None = None,
+    ) -> float: ...
 
 
 @dataclass(frozen=True, slots=True)
 class CriticalityWeightPolicy:
-    """Промежуточный маппинг criticality → Wv.
+    """Маппинг criticality → Wv с учётом размера групп.
 
-    В контракте нет отдельного `weight`, поэтому вес выводится из
-    критичности. Значения нормированы в [0; 1]; критичность не вводит
-    отдельный cap и не обнуляет требование.
+    Базовые веса задают относительную важность группы. Если
+    `normalize_by_counts=True`, вес каждого требования делится на количество
+    требований этой критичности: группа с десятью MUST не получает в десять
+    раз больший суммарный вес, чем группа с одним MUST.
+
+    Свой подбор весов можно передать через `weight_fn` или унаследоваться от
+    политики и переопределить `weight`. Callback получает criticality и
+    распределение `counts`.
     """
 
     optional: float = 0.25
@@ -36,14 +51,28 @@ class CriticalityWeightPolicy:
     required: float = 0.75
     critical: float = 1.0
     unspecified: float = 0.5
+    normalize_by_counts: bool = True
+    weight_fn: Callable[[int, Mapping[int, int]], float] | None = None
 
-    def weight(self, criticality: int) -> float:
-        return {
+    def weight(
+        self,
+        criticality: int,
+        counts: Mapping[int, int] | None = None,
+    ) -> float:
+        if self.weight_fn is not None:
+            return self.weight_fn(criticality, counts or {})
+        base = {
             common_pb2.FEATURE_CRITICALITY_OPTIONAL: self.optional,
             common_pb2.FEATURE_CRITICALITY_NICE: self.nice,
             common_pb2.FEATURE_CRITICALITY_REQUIRED: self.required,
             common_pb2.FEATURE_CRITICALITY_CRITICAL: self.critical,
         }.get(criticality, self.unspecified)
+        if not self.normalize_by_counts or counts is None:
+            return base
+        count = counts.get(criticality, 0)
+        if count <= 0:
+            return base
+        return base / count
 
 
 @dataclass(frozen=True, slots=True)

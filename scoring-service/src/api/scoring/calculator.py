@@ -8,6 +8,7 @@
 
 from __future__ import annotations
 
+from collections import Counter
 from collections.abc import Iterable
 
 from .model import GeneralScore, RequirementScore
@@ -36,6 +37,12 @@ class ScoringCalculator:
         required_tenure: float = 0.0,
         domain_score: float = 0.0,
     ) -> GeneralScore:
+        matches = list(matches)
+        counts = Counter(match.criticality for match in matches)
+        weights = {
+            criticality: self._weights.weight(criticality, counts)
+            for criticality in counts
+        }
         total_weight = 0.0
         relevance_sum = 0.0
         coverage_sum = 0.0
@@ -43,7 +50,7 @@ class ScoringCalculator:
         coverage_high_sum = 0.0
 
         for match in matches:
-            weight = self._weights.weight(match.criticality)
+            weight = weights[match.criticality]
             total_weight += weight
             relevance_sum += weight * match.relevance
             coverage_sum += weight * match.coverage
