@@ -15,6 +15,7 @@
   "dependencies": {
     "@lucide/vue": "^1.72.0",
     "axios": "^1.7.9",
+    "d3": "^7.9.2",
     "markdown-it": "^15.0.3",
     "vue": "^3.5.13",
     "vue-router": "^4.5.0"
@@ -22,6 +23,7 @@
   "devDependencies": {
     "@openapitools/openapi-generator-cli": "^2.15.3",
     "@tailwindcss/vite": "^4.0.0",
+    "@types/d3": "^7.4.3",
     "@types/markdown-it": "^14.2.0",
     "@vitejs/plugin-vue": "^6.0.10",
     "@vue/test-utils": "^2.4.6",

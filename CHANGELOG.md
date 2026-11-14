@@ -59,6 +59,9 @@
   `ResumeExtractedEducation`, `ResumeExtraction.qualifications`,
   `ResumeExtraction.education`, `Requirement.education_level`,
   `Requirement.education_specialty` и те же поля в `UpdateRequirement`.
+- **Связи навыков.** Выбор навыка объединён с текстовым полем в combobox с
+  поиском по названию и алиасам; граф связей переведён на `d3.js` с
+  force-layout, перетаскиванием узлов и подсветкой выбранного навыка.
 
 ### Ветка `feature/frontend-dictionary-dark-theme` — словарь и тёмная тема
 
