@@ -277,6 +277,96 @@ paths:
         default:
           $ref: "#/components/responses/error"
 
+  /vacancies/{vacancyId}/hh-publication:
+    get:
+      tags:
+        - HH
+      summary: Статус публикации вакансии на hh.ru
+      operationId: getHhPublication
+      parameters:
+        - $ref: "#/components/parameters/VacancyPathId"
+      responses:
+        "200":
+          description: Статус публикации
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/HhPublication"
+        "404":
+          $ref: "#/components/responses/notFound"
+        default:
+          $ref: "#/components/responses/error"
+    post:
+      tags:
+        - HH
+      summary: Опубликовать вакансию на hh.ru
+      description: |
+        Создаёт черновик в hh.ru и публикует его. Повторный вызов использует уже
+        созданный черновик и не создаёт дубль. Требуется подтверждённый шаблон.
+      operationId: publishVacancyToHh
+      parameters:
+        - $ref: "#/components/parameters/VacancyPathId"
+      responses:
+        "202":
+          description: Публикация запущена или уже выполнена
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/HhPublication"
+        "404":
+          $ref: "#/components/responses/notFound"
+        "409":
+          $ref: "#/components/responses/conflict"
+        "422":
+          $ref: "#/components/responses/unprocessable"
+        "503":
+          $ref: "#/components/responses/serviceUnavailable"
+        default:
+          $ref: "#/components/responses/error"
+    delete:
+      tags:
+        - HH
+      summary: Снять вакансию с публикации на hh.ru
+      operationId: archiveHhPublication
+      parameters:
+        - $ref: "#/components/parameters/VacancyPathId"
+      responses:
+        "204":
+          description: Публикация снята
+        "404":
+          $ref: "#/components/responses/notFound"
+        default:
+          $ref: "#/components/responses/error"
+
+  /integrations/hh/webhook:
+    post:
+      tags:
+        - HH
+      summary: Вебхук hh.ru о новом отклике
+      description: |
+        Принимает событие NEW_NEGOTIATION_VACANCY. Секрет передаётся в query-параметре
+        token и не логируется. Обработка асинхронная.
+      operationId: receiveHhWebhook
+      parameters:
+        - name: token
+          in: query
+          required: true
+          schema:
+            type: string
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/HhWebhookEvent"
+      responses:
+        "202":
+          description: Событие принято
+        "401":
+          description: Неверный токен
+        default:
+          $ref: "#/components/responses/error"
+
   /resumes:
     get:
       tags:
@@ -348,6 +438,12 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/ResumeBatchUploadResponse"
+        "413":
+          description: Файл больше допустимого размера
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiStatusResponse"
         default:
           $ref: "#/components/responses/default"
 
@@ -1457,6 +1553,78 @@ components:
         - CLOSED
         - ARCHIVED
 
+    HhPublication:
+      type: object
+      required:
+        - status
+      properties:
+        status:
+          type: string
+          enum:
+            - NOT_PUBLISHED
+            - PENDING
+            - PUBLISHED
+            - FAILED
+            - ARCHIVED
+        hh_vacancy_id:
+          type: string
+          nullable: true
+        hh_url:
+          type: string
+          nullable: true
+        error_code:
+          type: string
+          nullable: true
+        published_at:
+          type: string
+          format: date-time
+          nullable: true
+
+    HhWebhookPayload:
+      type: object
+      required:
+        - vacancy_id
+        - resume_id
+        - topic_id
+        - employer_id
+        - negotiation_date
+      properties:
+        vacancy_id:
+          type: string
+          nullable: true
+        resume_id:
+          type: string
+          nullable: true
+        topic_id:
+          type: string
+        employer_id:
+          type: string
+        chat_id:
+          type: string
+          nullable: true
+        negotiation_date:
+          type: string
+
+    HhWebhookEvent:
+      type: object
+      required:
+        - id
+        - subscription_id
+        - action_type
+        - payload
+      properties:
+        id:
+          type: string
+        subscription_id:
+          type: string
+        action_type:
+          type: string
+        user_id:
+          type: string
+          nullable: true
+        payload:
+          $ref: "#/components/schemas/HhWebhookPayload"
+
     SkillKindHistory:
       type: object
       required:
@@ -1989,6 +2157,30 @@ components:
           nullable: true
         status:
           type: string
+        matching:
+          type: boolean
+          description: Идёт ли обратный подбор «вакансии под резюме».
+        applicationId:
+          type: string
+          format: uuid
+          nullable: true
+          description: Отклик, созданный по этому резюме, если он есть.
+        vacancyId:
+          type: string
+          format: uuid
+          nullable: true
+          description: Вакансия отклика, если отклик есть.
+        vacancyTitle:
+          type: string
+          nullable: true
+          description: Название вакансии отклика, если отклик есть.
+        source:
+          type: string
+          nullable: true
+          enum:
+            - MANUAL
+            - HH
+          description: Источник резюме. `HH` — резюме пришло через вебхук hh.ru.
         fileType:
           type: string
         sizeBytes:
@@ -2208,6 +2400,13 @@ components:
             - SHORTLISTED
             - BORDERLINE
             - NOT_SHORTLISTED
+        source:
+          type: string
+          nullable: true
+          enum:
+            - MANUAL
+            - HH
+          description: Источник отклика. `HH` — отклик пришёл через вебхук hh.ru.
         flags:
           type: array
           items:

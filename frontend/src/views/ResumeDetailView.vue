@@ -2,6 +2,7 @@
 import { computed, nextTick, onBeforeUnmount, onMounted, ref } from 'vue'
 import {
   ArrowLeft,
+  ArrowRight,
   Eye,
   EyeOff,
   Loader2,
@@ -18,8 +19,8 @@ import type {
 import { apiErrorMessage, resumeRankingApi, resumesApi } from '@/api'
 import RevealPiiDialog from '@/components/RevealPiiDialog.vue'
 import { useToast } from '@/composables/useToast'
-import { pluralizeRu, resumeDisplayTitle } from '@/lib/format'
-import { educationLevelLabel, resumeStatusClass, resumeStatusLabel } from '@/lib/labels'
+import { pluralizeRu, resumeDisplayTitle, shortId } from '@/lib/format'
+import { educationLevelLabel, resumeStatusClass, resumeStatusLabel, uploadWarningLabel } from '@/lib/labels'
 
 const props = defineProps<{ id: string }>()
 const { success, error: toastError } = useToast()
@@ -44,13 +45,44 @@ const error = ref('')
 let timer: number | null = null
 
 const inProgress = computed(() => {
-  const status = resume.value?.status
-  return (
-    status === 'UPLOADED' ||
-    status === 'MASKED' ||
-    status === 'EXTRACTED' ||
-    status === 'MATCHING'
-  )
+  return resume.value?.matching === true || resume.value?.status === 'UPLOADED'
+})
+
+const isHhResume = computed(() => resume.value?.source === 'HH')
+const scoringFailed = computed(() => resume.value?.status === 'SCORING_FAILED')
+
+const GENERIC_RESUME_TITLES = new Set(['резюме кандидата', 'резюме'])
+
+const resumePageTitle = computed(() => {
+  const current = resume.value
+  const title = current?.title?.trim() ?? ''
+  if (title && !GENERIC_RESUME_TITLES.has(title.toLowerCase())) {
+    return title
+  }
+  return current?.vacancyTitle?.trim() || resumeDisplayTitle(title, current?.createdAt ?? '')
+})
+
+const resumeVacancyLine = computed(() => {
+  const vacancyTitle = resume.value?.vacancyTitle?.trim()
+  return vacancyTitle && vacancyTitle !== resumePageTitle.value ? vacancyTitle : null
+})
+
+const resumeWarningMessages = computed(() =>
+  (resume.value?.warnings ?? []).map((code) => uploadWarningLabel(code)),
+)
+const resumeWarningsDanger = computed(() =>
+  ['FAILED', 'TEXT_EMPTY', 'MASKING_FAILED'].includes(resume.value?.status ?? ''),
+)
+const resumeTextWarningMessages = computed(() =>
+  (resumeText.value?.warnings ?? []).map((code) => uploadWarningLabel(code)),
+)
+
+const applicationReportLink = computed(() => {
+  const applicationId = resume.value?.applicationId
+  if (!applicationId || scoringFailed.value) {
+    return null
+  }
+  return `/applications/${applicationId}/report?phase=PRELIMINARY`
 })
 
 const vacancies = computed(() => ranking.value?.items ?? [])
@@ -306,14 +338,25 @@ onBeforeUnmount(stopPolling)
                 </template>
                 <template v-else>
                   <h1 class="text-2xl font-semibold tracking-tight text-slate-900">
-                    {{ resumeDisplayTitle(resume.title, resume.createdAt) }}
+                    {{ resumePageTitle }}
                   </h1>
-                  <span
-                    class="mt-2 inline-flex rounded-md px-2 py-0.5 text-xs font-medium"
-                    :class="resumeStatusClass(resume.status)"
-                  >
-                    {{ resumeStatusLabel(resume.status) }}
-                  </span>
+                  <p v-if="resumeVacancyLine" class="mt-1 truncate text-sm text-slate-500">
+                    Вакансия: {{ resumeVacancyLine }}
+                  </p>
+                  <div class="mt-2 flex flex-wrap items-center gap-2">
+                    <span
+                      class="inline-flex rounded-md px-2 py-0.5 text-xs font-medium"
+                      :class="resumeStatusClass(resume.status)"
+                    >
+                      {{ resumeStatusLabel(resume.status) }}
+                    </span>
+                    <span
+                      class="inline-flex rounded-md bg-slate-100 px-2 py-0.5 font-mono text-[11px] font-medium text-slate-500"
+                      :title="`Полный ID: ${resume.resumeId}`"
+                    >
+                      #{{ shortId(resume.resumeId) }}
+                    </span>
+                  </div>
                 </template>
               </div>
               <div v-if="editOpen" class="flex shrink-0 gap-2">
@@ -333,6 +376,17 @@ onBeforeUnmount(stopPolling)
                 <Pencil :size="16" />
                 Редактировать
               </button>
+            </div>
+            <div
+              v-if="resumeWarningMessages.length"
+              class="mt-3 rounded-xl border px-4 py-3 text-sm"
+              :class="
+                resumeWarningsDanger
+                  ? 'border-rose-200 bg-rose-50 text-rose-800'
+                  : 'border-amber-200 bg-amber-50 text-amber-800'
+              "
+            >
+              <p v-for="message in resumeWarningMessages" :key="message">{{ message }}</p>
             </div>
           </article>
 
@@ -516,10 +570,10 @@ onBeforeUnmount(stopPolling)
               </template>
             </div>
             <div
-              v-if="resumeText?.warnings?.length"
+              v-if="resumeTextWarningMessages.length"
               class="border-b border-amber-100 bg-amber-50 px-5 py-3 text-sm text-amber-800"
             >
-              {{ resumeText.warnings.join(', ') }}
+              <p v-for="message in resumeTextWarningMessages" :key="message">{{ message }}</p>
             </div>
             <textarea
               v-if="editOpen"
@@ -542,10 +596,29 @@ onBeforeUnmount(stopPolling)
                 <h2 class="text-base font-semibold text-slate-900">Подходящие вакансии</h2>
                 <span v-if="vacancies.length" class="badge-neutral">{{ vacancies.length }}</span>
               </div>
-              <button class="btn-primary mt-3 w-full" :disabled="matching || inProgress" @click="rematch">
+              <RouterLink
+                v-if="applicationReportLink"
+                :to="applicationReportLink"
+                class="btn-primary mt-3 w-full"
+              >
+                <ArrowRight :size="16" />
+                Открыть сравнение 1:1
+              </RouterLink>
+              <p
+                v-else-if="scoringFailed"
+                class="mt-3 rounded-xl border border-rose-200 bg-rose-50 px-3 py-2 text-xs leading-5 text-rose-700"
+              >
+                Скоринг завершился ошибкой. Отчёт по этой вакансии недоступен.
+              </p>
+              <button
+                class="mt-3 w-full"
+                :class="applicationReportLink ? 'btn-secondary' : 'btn-primary'"
+                :disabled="matching || inProgress"
+                @click="rematch"
+              >
                 <Loader2 v-if="matching" :size="16" class="animate-spin" />
                 <RefreshCcw v-else :size="16" />
-                Подобрать вакансии
+                {{ applicationReportLink ? 'Подобрать другие вакансии' : 'Подобрать вакансии' }}
               </button>
             </div>
 
@@ -558,7 +631,16 @@ onBeforeUnmount(stopPolling)
             </div>
 
             <div v-if="!vacancies.length" class="px-4 py-8 text-center text-sm text-slate-500">
-              <p>Пока нет подходящих вакансий.</p>
+              <p v-if="isHhResume">
+                <template v-if="scoringFailed">
+                  Скоринг по отклику завершился ошибкой; отчёт по вакансии недоступен.
+                </template>
+                <template v-else>
+                  Это резюме пришло из hh.ru. Нажмите «Открыть сравнение 1:1», чтобы увидеть
+                  отчёт по вакансии, на которую пришёл отклик.
+                </template>
+              </p>
+              <p v-else>Пока нет подходящих вакансий.</p>
             </div>
 
             <ul v-else class="divide-y divide-slate-100">

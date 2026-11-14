@@ -10,6 +10,10 @@ out/
 .env
 .env.production
 
+# Rust mock-hh
+infra/mock-hh/target/
+infra/mock-hh/state.json
+
 # Python bytecode
 __pycache__/
 *.py[cod]

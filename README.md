@@ -77,6 +77,41 @@ docker compose ps
 
 Сценарий создаёт вакансию, показывает очередь словаря, загружает синтетическое резюме и печатает рейтинг и отчёт. Описание — [`docs/demo-skill-dictionary.md`](docs/demo-skill-dictionary.md).
 
+## Быстрый запуск демо hh.ru
+
+```bash
+export ATS_HH_ENABLED=true
+export ATS_HH_API_BASE_URL=http://mock-hh:8090
+export ATS_HH_TOKEN=mock-token
+export ATS_HH_EMPLOYER_ID=999
+export ATS_HH_WEBHOOK_TOKEN=mock-hh-token
+export ATS_HH_WEBHOOK_PUBLIC_URL='http://ats-service:8080/api/v1/integrations/hh/webhook?token=mock-hh-token'
+export SCORING_GRPC_TARGET=mock-scoring:8082
+export ATS_PROFILES=mock-llm
+docker compose --profile mock-hh --profile mock-scoring up -d --build
+./scripts/demo-hh-flow.sh
+```
+
+Mock hh.ru написан на Rust + Axum (`infra/mock-hh`). Он эмулирует черновик, публикацию,
+подписку, выдачу резюме и вебхук `NEW_NEGOTIATION_VACANCY`. У заглушки есть свой HTML-фронтенд:
+`http://localhost:8090` — список вакансий и кнопка «Отправить отклик». Ссылка «Открыть на hh.ru»
+в ATS ведёт именно туда. Подробности — в `infra/mock-hh/README.md` и
+`docs/adr/0007-hh-webhook-integration.md`.
+
+Для Telegram-алертов нужен токен бота и chat id:
+
+```bash
+export ATS_TELEGRAM_ENABLED=true
+export ATS_TELEGRAM_BOT_TOKEN='<токен из @BotFather>'
+export ATS_TELEGRAM_CHAT_ID='<id чата>'
+./scripts/telegram-check.sh
+```
+
+Без токена и chat id алерты не отправляются: `ats-service` работает штатно, но
+`notification_outbox` не пополняется.
+
+---
+
 ### Остановка
 
 ```bash
@@ -128,6 +163,32 @@ flowchart LR
 - **`scoring-service`** получает только обезличенный текст и структурированные требования. Он не читает файлы, не ходит в БД, MinIO, GitHub и не получает PII. LLM он вызывает только для извлечения признаков резюме.
 - **`dictionary-service`** не вызывает LLM и не знает про скоринг. Он отдаёт канонические идентификаторы, ключи и классы связей; числа `S^{ij}` считает `scoring-service`.
 - **`ats-service`** не дублирует арифметику скоринга.
+
+### Интеграция с hh.ru
+
+```text
+HR подтверждает шаблон
+  → POST /vacancies/{id}/hh-publication
+  → HH: черновик → публикация
+  → vacancy_hh_publication: hh_vacancy_id → vacancy_id
+  → HH: подписка NEW_NEGOTIATION_VACANCY
+
+HH webhook (vacancy_id, resume_id, topic_id)
+  → hh_webhook_event (идемпотентно)
+  → привязка по hh_vacancy_id
+  → GET /resumes/{resume_id}
+  → только профессиональный текст
+  → маскировка → parsed_resume → application (source=HH)
+  → Score_pre по одной вакансии
+  → notification_outbox → Telegram
+```
+
+- Сопоставление только по `hh_vacancy_id`. Название и URL не используются как ключ.
+- Отдельный одиночный пайплайн: `ScreeningService` и top-N не вызываются, `screening_decision` остаётся пустым.
+- `Score_final` не считается: внешних источников в этом сценарии нет.
+- Несвязанная hh-вакансия → `UNMATCHED` + алерт, без автосоздания вакансии.
+- Telegram-сообщение содержит вакансию, `Score_pre` без вилки и ссылку на анализ, без PII.
+- Имя и контакты из hh-резюме не переносятся: для скоринга достаточно профессиональных фактов.
 
 ---
 
@@ -473,14 +534,18 @@ tracing-ats/
 ├── frontend/                  # Vue 3 + TypeScript
 ├── migrations/                # Liquibase, схема public + dictionary
 ├── infra/
-│   ├── mock-llm/
-│   └── mock-scoring-service/
+│   ├── mock-llm/                # заглушка LLM для CI и демо
+│   ├── mock-scoring-service/
+│   └── mock-hh/                 # заглушка hh.ru на Rust + Axum
 ├── scripts/
 │   ├── demo-skill-dictionary.sh
+│   ├── demo-hh-flow.sh
 │   ├── demo-resume.txt
-│   └── download-ner.sh
+│   ├── download-ner.sh
+│   └── telegram-check.sh
 ├── models/                    # сюда кладётся ONNX-модель, в git не входит
 ├── docs/
+├── .github/workflows/
 └── compose.yaml
 ```
 

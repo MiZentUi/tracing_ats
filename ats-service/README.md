@@ -54,20 +54,25 @@ LLM вызывается для:
 |---|---|---|
 | `inbound_request_received`, `inbound_response_sent` | INFO | HTTP-фильтр, gRPC server interceptor |
 | `outbound_request_sent`, `outbound_response_received` | INFO | gRPC client interceptor |
-| `outbound_request_failed` | WARN | gRPC client |
-| `inbound_request_failed` | ERROR | gRPC server |
-| `llm_request_sent`, `llm_response_received` | INFO | LLM-клиент |
-| `llm_rate_limited`, `llm_timeout`, `llm_transport_error`, `llm_request_failed` | WARN | LLM-клиент |
-| `llm_model_exhausted`, `llm_chain_exhausted` | WARN/ERROR | LLM-клиент |
-| `llm_provider_started`, `llm_provider_fallback`, `llm_provider_exhausted`, `llm_provider_failed` | INFO/WARN | fallback |
-| `template_extraction_started/finished`, `template_response_invalid` | INFO/WARN | шаблон |
-| `template_requirements_all_dropped` | WARN | шаблон |
-| `vacancy_created`, `vacancy_template_updated`, `vacancy_deleted` | INFO | вакансии |
-| `screening_batch_started/finished/failed` | INFO/ERROR | скрининг |
-| `preliminary_scoring_started/finished/failed` | INFO/WARN | предварительный скор |
-| `candidate_message_generation_started/finished/failed/rejected` | INFO/WARN | письма |
+| `outbound_request_failed` | WARN | gRPC client: `UNAVAILABLE`/`DEADLINE_EXCEEDED` |
+| `inbound_request_failed` | ERROR | gRPC server: обработчик упал до ответа |
+| `llm_request_sent`, `llm_response_received` | INFO | клиент LLM: модель, попытка, формат, `elapsed_ms`, токены, `finish_reason` |
+| `llm_rate_limited`, `llm_timeout`, `llm_transport_error`, `llm_request_failed` | WARN | внешний провайдер: повтор или следующая модель |
+| `llm_model_exhausted`, `llm_chain_exhausted` | WARN/ERROR | исчерпание попыток/цепочки |
+| `llm_provider_started`, `llm_provider_fallback`, `llm_provider_exhausted`, `llm_provider_failed` | INFO/WARN | переключение OpenRouter → Cloudflare Workers AI |
+| `template_extraction_started/finished`, `template_response_invalid` | INFO/WARN | разбор шаблона; причина без содержимого ответа |
+| `template_requirements_all_dropped` | WARN | все требования отброшены: счётчики причин и примеры |
+| `vacancy_created`, `vacancy_template_updated`, `vacancy_deleted` | INFO | бизнес-итог операции |
+| `screening_batch_started/finished`, `screening_batch_failed` | INFO/ERROR | фоновая задача скрининга |
+| `preliminary_scoring_started/finished/failed` | INFO/WARN | предварительный скор при загрузке |
+| `candidate_message_generation_started/finished/failed/rejected` | INFO/WARN | письма кандидату |
+| `hh_vacancy_publish_started/finished/failed`, `hh_vacancy_draft_created` | INFO/WARN | публикация вакансии на hh.ru |
+| `hh_subscription_created/failed` | INFO/WARN | подписка на отклики hh |
+| `hh_webhook_received/duplicate/unmatched` | INFO/WARN | входящий вебхук hh: только идентификаторы |
+| `hh_resume_fetch_failed`, `hh_application_created` | WARN/INFO | получение резюме и создание отклика |
+| `notification_outbox_enqueued/sent/retry/failed` | INFO/WARN | Telegram-алерты без PII |
 | `report_decision_saved`, `resume_ingested`, `resume_updated`, `resume_deleted` | INFO | бизнес-операции |
-| `api_request_rejected`, `api_error_unexpected` | INFO/ERROR | HTTP-граница |
+| `api_request_rejected`, `api_error_unexpected` | INFO/ERROR | граница ошибок HTTP |
 
 Не логируются: тела запросов и ответов, промпты и ответы LLM, тексты резюме и вакансии, цитаты, PII, токены и `Authorization`.
 

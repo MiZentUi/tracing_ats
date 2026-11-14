@@ -222,14 +222,14 @@ async function submit() {
             })),
           },
         })
-        success('Вакансия создана', 'Требования и приоритеты взяты из шаблона')
+        success('Вакансия создана', 'Требования взяты из шаблона — проверьте и подтвердите')
       } catch (copyError) {
         toastError('Вакансия создана без шаблона', apiErrorMessage(copyError))
       }
     } else {
-      success('Вакансия создана', 'Проверьте требования и назначьте приоритеты')
+      success('Вакансия создана', 'Разложите требования по важности и подтвердите шаблон')
     }
-    await router.push(`/vacancies/${created.vacancy_id}`)
+    await router.push(`/vacancies/${created.vacancy_id}/edit`)
   } catch (e) {
     const message = apiErrorMessage(e)
     error.value = message

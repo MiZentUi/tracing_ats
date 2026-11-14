@@ -2,6 +2,7 @@ import axios from 'axios'
 import { logger } from '@/lib/logger'
 import {
   Configuration,
+  HHApi,
   RankingApi,
   ReferenceApi,
   ReportsApi,
@@ -42,6 +43,7 @@ export const resumeRankingApi = new ResumeRankingApi(configuration)
 export const screeningApi = new ScreeningApi(configuration)
 export const rankingApi = new RankingApi(configuration)
 export const reportsApi = new ReportsApi(configuration)
+export const hhApi = new HHApi(configuration)
 
 export function apiErrorCode(error: unknown): string | null {
   if (axios.isAxiosError<ApiStatusResponse>(error) && error.response?.data?.status) {

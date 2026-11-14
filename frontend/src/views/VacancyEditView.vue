@@ -342,7 +342,7 @@ async function save(mode: 'save' | 'template') {
     })
     apply(response.data)
     if (mode === 'template') {
-      success('Шаблон сохранён')
+      success('Шаблон подтверждён')
       await router.push(`/vacancies/${props.id}`)
       return
     }
@@ -428,6 +428,18 @@ onMounted(load)
           </p>
         </div>
       </header>
+
+      <div
+        v-if="!isConfirmed"
+        class="rounded-2xl border border-indigo-200 bg-indigo-50 p-4 text-sm text-indigo-900"
+      >
+        <p class="font-semibold">Осталось подтвердить шаблон</p>
+        <p class="mt-1 text-indigo-800">
+          Проверьте параметры и разложите требования по важности: «Обязательно», «Желательно»,
+          «Научим». После подтверждения шаблон зафиксируется, вакансия станет активной и появится
+          возможность опубликовать её на hh.ru.
+        </p>
+      </div>
 
       <div
         v-if="savedMessage"
@@ -694,7 +706,7 @@ onMounted(load)
           <button class="btn-secondary" :disabled="!canSave" @click="requestUseTemplate">
             <LoaderCircle v-if="savingMode === 'template'" :size="16" class="animate-spin" />
             <Sparkles v-else :size="16" />
-            {{ savingMode === 'template' ? 'Сохраняем…' : 'Использовать как шаблон' }}
+            {{ savingMode === 'template' ? 'Сохраняем…' : 'Подтвердить шаблон' }}
           </button>
           <span
             class="mr-auto flex items-center gap-2 px-1 text-xs font-medium"
@@ -718,9 +730,9 @@ onMounted(load)
 
     <ConfirmDialog
       :open="useTemplateOpen"
-      title="Использовать как шаблон?"
-      message="Текущие требования и текст вакансии будут сохранены как шаблон."
-      confirm-label="Использовать"
+      title="Подтвердить шаблон?"
+      message="Требования и приоритеты будут зафиксированы как текущий шаблон вакансии. После этого станет доступна публикация на hh.ru."
+      confirm-label="Подтвердить"
       @cancel="useTemplateOpen = false"
       @confirm="confirmUseTemplate"
     />

@@ -1,5 +1,6 @@
 package ats.resume.infrastructure.scoring;
 
+import ats.resume.domain.ingestion.HhApplicationScoredEvent;
 import ats.resume.domain.scoring.ParsedResume;
 import ats.resume.domain.scoring.ScoringClient;
 import ats.resume.domain.scoring.ScoringRequest;
@@ -17,6 +18,7 @@ import ats.resume.infrastructure.screening.ScoreRunWriter;
 import java.util.UUID;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.context.ApplicationEventPublisher;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.support.TransactionTemplate;
 
@@ -38,6 +40,7 @@ public class PreliminaryScoringService {
     private final ScoringClient scoringClient;
     private final ScoreRunWriter scoreRunWriter;
     private final TransactionTemplate transactionTemplate;
+    private final ApplicationEventPublisher eventPublisher;
 
     /** Запуск после загрузки. Ошибки не пробрасываются в HTTP-запрос: статус отклика их хранит. */
     public void scoreOnUpload(UUID applicationId) {
@@ -156,6 +159,16 @@ public class PreliminaryScoringService {
         application.setPreliminaryScoreRunId(run.getId());
         application.setStatus("SCORED");
         applicationRepository.save(application);
+        if ("HH".equals(application.getSource())) {
+            eventPublisher.publishEvent(
+                    new HhApplicationScoredEvent(
+                            applicationId,
+                            template.vacancyId(),
+                            template.title(),
+                            run.getScore().doubleValue(),
+                            run.getScoreLow().doubleValue(),
+                            run.getScoreHigh().doubleValue()));
+        }
         return run;
     }
 

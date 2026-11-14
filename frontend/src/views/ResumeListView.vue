@@ -16,7 +16,7 @@ import type { ResumeSummary } from '@/api/generated'
 import { apiErrorMessage, resumesApi } from '@/api'
 import ConfirmDialog from '@/components/ConfirmDialog.vue'
 import { useToast } from '@/composables/useToast'
-import { formatBytes, formatDate, resumeDisplayTitle } from '@/lib/format'
+import { formatBytes, formatDate, resumeDisplayTitle, shortId } from '@/lib/format'
 import { resumeStatusClass, resumeStatusLabel } from '@/lib/labels'
 
 const { error: toastError } = useToast()
@@ -45,7 +45,8 @@ const filteredItems = computed(() =>
     const query = appliedSearch.value.toLowerCase()
     const matchesSearch =
       query === '' ||
-      resumeDisplayTitle(item.title, item.createdAt).toLowerCase().includes(query) ||
+      resumeCardTitle(item).toLowerCase().includes(query) ||
+      (item.vacancyTitle?.toLowerCase().includes(query) ?? false) ||
       resumeStatusLabel(item.status).toLowerCase().includes(query)
     let matchesStatus = true
     if (appliedStatus.value === 'PROCESSING') {
@@ -60,6 +61,28 @@ const filteredItems = computed(() =>
     return matchesSearch && matchesStatus
   }),
 )
+
+const GENERIC_RESUME_TITLES = new Set(['резюме кандидата', 'резюме'])
+
+function resumeCardTitle(item: ResumeSummary): string {
+  const title = item.title?.trim() ?? ''
+  if (title && !GENERIC_RESUME_TITLES.has(title.toLowerCase())) {
+    return title
+  }
+  return item.vacancyTitle?.trim() || resumeDisplayTitle(title, item.createdAt)
+}
+
+function resumeVacancySubtitle(item: ResumeSummary): string | null {
+  const vacancyTitle = item.vacancyTitle?.trim()
+  if (!vacancyTitle || vacancyTitle === resumeCardTitle(item)) {
+    return null
+  }
+  return vacancyTitle
+}
+
+function resumeShortId(resumeId: string): string {
+  return shortId(resumeId)
+}
 
 const activeFilterCount = computed(() => (appliedStatus.value === 'ALL' ? 0 : 1))
 
@@ -276,10 +299,23 @@ onBeforeUnmount(stopPolling)
                 :to="`/resumes/${item.resumeId}`"
                 class="block text-lg font-semibold text-slate-900 transition group-hover:text-indigo-600"
               >
-                {{ resumeDisplayTitle(item.title, item.createdAt) }}
+                {{ resumeCardTitle(item) }}
               </RouterLink>
+              <p
+                v-if="resumeVacancySubtitle(item)"
+                class="mt-1 truncate text-xs text-slate-500"
+                :title="item.vacancyTitle ?? undefined"
+              >
+                Вакансия: {{ resumeVacancySubtitle(item) }}
+              </p>
             </div>
             <div class="flex shrink-0 items-center gap-1">
+              <span
+                class="rounded-md bg-slate-100 px-2 py-0.5 font-mono text-[11px] font-medium text-slate-500"
+                :title="`Полный ID: ${item.resumeId}`"
+              >
+                #{{ resumeShortId(item.resumeId) }}
+              </span>
               <span
                 class="rounded-md px-2 py-0.5 text-[11px] font-medium"
                 :class="resumeStatusClass(item.status)"
@@ -318,7 +354,7 @@ onBeforeUnmount(stopPolling)
     <ConfirmDialog
       :open="deleteTarget !== null"
       title="Удалить резюме?"
-      :message="`Резюме «${deleteTarget ? resumeDisplayTitle(deleteTarget.title, deleteTarget.createdAt) : ''}» будет удалено без возможности восстановления.`"
+      :message="`Резюме «${deleteTarget ? resumeCardTitle(deleteTarget) : ''}» будет удалено без возможности восстановления.`"
       confirm-label="Удалить"
       danger
       @cancel="deleteTarget = null"

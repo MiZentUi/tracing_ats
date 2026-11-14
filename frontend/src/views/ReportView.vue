@@ -1,6 +1,7 @@
 <script setup lang="ts">
 import { computed, onMounted, ref } from 'vue'
 import { useRoute } from 'vue-router'
+import axios from 'axios'
 import { ArrowLeft, LockKeyholeOpen } from '@lucide/vue'
 import { CandidateMessageKind } from '@/api/generated'
 import type {
@@ -146,7 +147,11 @@ async function load() {
     }
     await loadTexts()
   } catch (e) {
-    error.value = apiErrorMessage(e)
+    if (axios.isAxiosError(e) && e.response?.status === 404) {
+      error.value = 'Отчёт пока недоступен: скоринг ещё не завершён или завершился ошибкой.'
+    } else {
+      error.value = apiErrorMessage(e)
+    }
   } finally {
     loading.value = false
   }

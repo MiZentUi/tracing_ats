@@ -2,9 +2,13 @@ package ats.resume.infrastructure.ingestion;
 
 import ats.resume.infrastructure.json.JsonCodec;
 import ats.resume.infrastructure.persistence.entity.ResumeEntity;
+import ats.resume.infrastructure.persistence.repository.ApplicationRepository;
 import ats.resume.infrastructure.persistence.repository.ParsedResumeRepository;
 import ats.resume.infrastructure.persistence.repository.ResumeExtractionRepository;
 import ats.resume.infrastructure.persistence.repository.ResumeRepository;
+import ats.resume.infrastructure.persistence.repository.ScreeningBatchRepository;
+import ats.vacancy.infrastructure.persistence.VacancyEntity;
+import ats.vacancy.infrastructure.persistence.VacancyRepository;
 import com.fasterxml.jackson.core.type.TypeReference;
 import com.google.protobuf.InvalidProtocolBufferException;
 import com.google.type.Date;
@@ -31,6 +35,9 @@ public class ResumeQueryService {
     private final ResumeRepository resumeRepository;
     private final ParsedResumeRepository parsedResumeRepository;
     private final ResumeExtractionRepository extractionRepository;
+    private final ScreeningBatchRepository batchRepository;
+    private final ApplicationRepository applicationRepository;
+    private final VacancyRepository vacancyRepository;
     private final JsonCodec jsonCodec;
 
     public Optional<ResumeView> find(UUID resumeId) {
@@ -202,6 +209,14 @@ public class ResumeQueryService {
     }
 
     private ResumeView view(ResumeEntity resume) {
+        var application =
+                applicationRepository.findFirstByResumeIdOrderByCreatedAtDesc(resume.getId());
+        String vacancyTitle =
+                application
+                        .map(entity -> entity.getVacancyId())
+                        .flatMap(vacancyRepository::findById)
+                        .map(VacancyEntity::getTitle)
+                        .orElse(null);
         return new ResumeView(
                 resume.getId(),
                 resume.getTitle(),
@@ -209,7 +224,22 @@ public class ResumeQueryService {
                 resume.getFileType(),
                 resume.getOriginalSizeBytes(),
                 resume.getCreatedAt(),
+                matching(resume),
+                application.map(entity -> entity.getId()).orElse(null),
+                application.map(entity -> entity.getVacancyId()).orElse(null),
+                vacancyTitle,
+                resume.getSource(),
                 warnings(resume));
+    }
+
+    private boolean matching(ResumeEntity resume) {
+        return batchRepository
+                .findFirstByResumeIdOrderByCreatedAtDesc(resume.getId())
+                .map(
+                        batch ->
+                                "PENDING".equals(batch.getStatus())
+                                        || "RUNNING".equals(batch.getStatus()))
+                .orElse(false);
     }
 
     private List<String> warnings(ResumeEntity resume) {
@@ -227,6 +257,11 @@ public class ResumeQueryService {
             String fileType,
             long sizeBytes,
             Instant createdAt,
+            boolean matching,
+            UUID applicationId,
+            UUID vacancyId,
+            String vacancyTitle,
+            String source,
             List<String> warnings) {}
 
     public record ResumePage(List<ResumeView> items, long total) {}

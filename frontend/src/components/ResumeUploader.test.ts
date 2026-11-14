@@ -48,4 +48,20 @@ describe('ResumeUploader', () => {
 
     expect(uploadResumes.mock.calls[0][0].vacancyId).toBeUndefined()
   })
+
+  it('показывает понятную ошибку, если сервер не смог разобрать файл', async () => {
+    uploadResumes.mockResolvedValue({
+      data: { resumes: [{ status: 'FAILED', warnings: ['CORRUPTED_FILE'] }] },
+    })
+    const wrapper = mount(ResumeUploader)
+
+    await wrapper.get('textarea').setValue('Java, Kafka, 5 лет опыта')
+    await wrapper
+      .findAll('button')
+      .find((button) => button.text().includes('Добавить резюме'))
+      ?.trigger('click')
+    await flushPromises()
+
+    expect(wrapper.text()).toContain('Файл повреждён или не читается')
+  })
 })

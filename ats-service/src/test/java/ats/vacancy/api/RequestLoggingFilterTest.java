@@ -53,6 +53,21 @@ class RequestLoggingFilterTest {
     }
 
     @Test
+    void doesNotLogWebhookTokenFromQueryString() throws Exception {
+        MockHttpServletRequest request =
+                new MockHttpServletRequest("POST", "/api/v1/integrations/hh/webhook");
+        request.setQueryString("token=super-secret-token");
+        MockHttpServletResponse response = new MockHttpServletResponse();
+        FilterChain chain = (req, res) -> {};
+
+        new RequestLoggingFilter().doFilter(request, response, chain);
+
+        assertThat(appender.list)
+                .extracting(ILoggingEvent::getFormattedMessage)
+                .noneMatch(message -> message.contains("super-secret-token"));
+    }
+
+    @Test
     void generatesRequestIdWhenHeaderIsMissing() throws Exception {
         MockHttpServletResponse response = new MockHttpServletResponse();
         FilterChain chain = (req, res) -> {};

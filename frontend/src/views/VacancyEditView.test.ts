@@ -207,11 +207,11 @@ describe('VacancyEditView', () => {
     const wrapper = await mountEditor()
 
     await wrapper.get('#editor-title').setValue('Backend Senior')
-    await buttonWithText(wrapper, 'Использовать как шаблон')?.trigger('click')
+    await buttonWithText(wrapper, 'Подтвердить шаблон')?.trigger('click')
     await flushPromises()
 
-    expect(wrapper.text()).toContain('Использовать как шаблон?')
-    await buttonWithText(wrapper, 'Использовать')?.trigger('click')
+    expect(wrapper.text()).toContain('Подтвердить шаблон?')
+    await buttonWithText(wrapper, 'Подтвердить')?.trigger('click')
     await flushPromises()
 
     expect(updateVacancyTemplate).toHaveBeenCalledTimes(1)
