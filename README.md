@@ -32,41 +32,19 @@ flowchart LR
 - **`text-extraction`** — библиотека извлечения текста из PDF, DOCX, TXT и MD.
 - **Человек решает:** автоматических отказов и приглашений нет; письмо кандидату — черновик для проверки HR.
 
-### Потоки данных
+### Внешние сервисы
 
-**Резюме → вакансии:** загрузка файла → извлечение текста → маскировка PII → `ExtractResume` через LLM → `resume_extraction` → `EvaluateResumeMatches` без LLM → `score_run` → рейтинг и отчёт.
+ДОБАВИТЬ про hh ru + готовые сервисы
 
-**Вакансия → кандидаты:** создание вакансии → LLM-шаблон требований → правка HR → загрузка резюме → `ExtractResume` + `EvaluateResumeMatch` → `score_run(PRELIMINARY)` → скрининг → `score_run(FINAL)` → рейтинг, отчёт, черновик письма.
-
-`PRELIMINARY` и `FINAL` — разные фазы и разные записи `score_run`; они не смешиваются. `FINAL` переиспользует готовые факты `PRELIMINARY`, пока в контракте нет `Refine`.
-
-### Скоринг
-
-| Элемент | Правило |
-|---|---|
-| `S` для навыков | Точный ключ — `1.0`; `SAME_GROUP`/`RELATED` — `0.7`, `PARENT` — `0.6`, `CHILD` — `0.5`; иначе `0` |
-| `S` для квалификаций | Бинарно по каноническому ключу |
-| `S` для образования | `0.7 · направление + 0.3 · уровень` |
-| `S` для опыта и текста | Сходство категории / доля значимых токенов в лучшей строке |
-| `t` | Regex: результат `0.8`, обязанность `0.5`, остальное `0.3` |
-| `τ` | `0.5 · (1 + tanh(years/required − 1)) · 2^(−recency/2)` |
-| `c` | Навык `S·t·τ`, опыт `S·τ`, образование/текст `S`, квалификация `1.0` |
-| `Score` | Взвешенное покрытие; в Python `0..1`, в API и БД `0..100` |
-
-Цитата-доказательство принимается только как подстрока обезличенного текста после нормализации пробелов. Критичность входит в `Wv`; отдельного cap нет.
-
-### Приватность
-
-- PII маскируется до вызова LLM; в `parsed_resume` и `masked_text` PII не попадает.
-- PII хранится в AES-256-GCM `pii_vault`; раскрытие требует причины и пишет аудит.
-- В отчёте по умолчанию `blind=true`: PII не попадает в DOM до `reveal`.
-- `ATS_PII_NER_PROVIDER=fake` маскирует только regex-PII. Для реальных данных нужен `onnx` и модель в `models/ner`.
 
 ---
 
 ## Запуск
 
 ### Требования
+
+В данном разделе перечислены требования для запуска приложения
+в dev-режиме.
 
 | Компонент | Минимум |
 |---|---|
@@ -78,14 +56,33 @@ flowchart LR
 ### Запуск
 
 ```bash
+# Скачивает и квантует NER-модель для маскировки ПДн
+chmod +x scripts/download-ner.sh
+./scripts/download-ner.sh
+
 cp .env.example .env
-# заполните ключи в .env (см. таблицу ниже)
+# заполнить ключи в .env (см. ниже)
 
 docker compose up -d --build
-docker compose ps
 ```
 
-Схему накатывает контейнер `migrations`; `ats-service` таблицы не создаёт. Бакет MinIO создаёт `minio-init`.
+В .env необходимо прописать как минимум следующие переменные,
+содержащие секреты (пример):
+```bash
+# Настройки OpenAI-совместимого API для ats-service
+OPENROUTER_API_KEY=xxx
+VACANCY_LLM_BASE_URL=https://openrouter.ai/api/v1
+VACANCY_LLM_MODEL=dots-studio/dots-3-note-preview:free
+
+ATS_PII_NER_PROVIDER=onnx
+
+# Использовать OpenAI-совместимый API, а не mock
+SCORING_SERVICE_LLM_PROVIDER=openai
+SCORING_SERVICE_LLM_BASE_URL=https://openrouter.ai/api/v1
+SCORING_SERVICE_LLM_MODEL=dots-studio/dots-3-note-preview:free
+SCORING_SERVICE_LLM_API_KEY=yyy
+```
+
 
 ### Адреса
 
@@ -117,12 +114,6 @@ docker compose ps
 Порты, таймауты, лимиты и остальные настройки — в [`.env.example`](.env.example).
 
 ### Остановка
-
-```bash
-docker compose down
-# удалить также данные PostgreSQL и MinIO:
-docker compose down -v
-```
 
 ---
 
