@@ -22,7 +22,7 @@ from ..extraction.quotes import QuoteIndex
 from .dates import experience_years
 from .errors import InvalidRequirement
 from .model import RequirementScore
-from .policies import ClaimConfidence, RelationPolicy, TemporalPolicyProtocol
+from .policies import ClaimConfidence, RelationPolicy, StatusPolicy, TemporalPolicyProtocol
 from .qualification import BatchQualificationResolution
 from .resolver import BatchResolution, SkillResolver
 from .similarity import SimilarityScorer
@@ -42,6 +42,7 @@ class RequirementMatcher:
         text_matcher: TextMatcher,
         resolver: SkillResolver,
         relations: RelationPolicy,
+        status: StatusPolicy | None = None,
     ) -> None:
         self._similarity = similarity
         self._temporal = temporal
@@ -49,6 +50,7 @@ class RequirementMatcher:
         self._text = text_matcher
         self._resolver = resolver
         self._relations = relations
+        self._status = status or StatusPolicy()
 
     def prepare(
         self,
@@ -156,8 +158,17 @@ class RequirementMatcher:
         coverage_low = _clamp01(score * confidence * tau_low)
         coverage_high = _clamp01(score * confidence * tau_high)
 
-        status, gap_reason = _skill_status(score, years, float(spec.tenure))
-        comment = _skill_comment(status, gap_reason, skill.name)
+        status, gap_reason = self._status.skill(
+            score, coverage, years, float(spec.tenure)
+        )
+        comment = _skill_comment(
+            status,
+            gap_reason,
+            skill.name,
+            score,
+            coverage,
+            self._status.skill_full_coverage,
+        )
         if context_confirmed:
             comment = f"{comment} Дополнительно подтверждено в описании опыта работы."
 
@@ -307,7 +318,7 @@ class RequirementMatcher:
         if score <= 0.0:
             return _absent(requirement_id, requirement, label)
 
-        status, gap_reason = _status_for_score(score)
+        status, gap_reason = self._status.education(score)
         return RequirementScore(
             requirement_id=requirement_id,
             criticality=requirement.criticality,
@@ -372,8 +383,9 @@ class RequirementMatcher:
         coverage = _clamp01(category_score * tau)
         coverage_low = _clamp01(category_score * tau_low)
         coverage_high = _clamp01(category_score * tau_high)
-        status, gap_reason = _experience_status(
+        status, gap_reason = self._status.experience(
             category_score,
+            coverage,
             years,
             float(spec.tenure),
         )
@@ -408,7 +420,7 @@ class RequirementMatcher:
         if match.score <= 0.0:
             return _not_stated(requirement_id, requirement, label)
 
-        status, gap_reason = _text_status(match.score)
+        status, gap_reason = self._status.text(match.score)
         evidence = None
         if match.evidence_text:
             evidence = _verified_evidence(
@@ -497,57 +509,14 @@ def _absent(
     )
 
 
-def _status_for_score(score: float) -> tuple[int, int | None]:
-    if score >= 0.85:
-        return common_pb2.CORRESPONDENCE_FULL, None
-    if score >= 0.5:
-        return common_pb2.CORRESPONDENCE_PARTIAL, common_pb2.GAP_REASON_PARTIAL
-    return common_pb2.CORRESPONDENCE_ABSENT, common_pb2.GAP_REASON_ABSENT
-
-
-def _skill_status(
-    score: float,
-    years: float | None,
-    required: float,
-) -> tuple[int, int | None]:
-    if score < 0.5:
-        return common_pb2.CORRESPONDENCE_ABSENT, common_pb2.GAP_REASON_ABSENT
-    if score < 0.85:
-        return common_pb2.CORRESPONDENCE_PARTIAL, common_pb2.GAP_REASON_PARTIAL
-    if required > 0 and years is None:
-        return common_pb2.CORRESPONDENCE_PARTIAL, None
-    if required > 0 and years is not None and years + 0.01 < required:
-        return common_pb2.CORRESPONDENCE_PARTIAL, common_pb2.GAP_REASON_INSUFFICIENT_TENURE
-    return common_pb2.CORRESPONDENCE_FULL, None
-
-
-def _experience_status(
-    score: float,
-    years: float | None,
-    required: float,
-) -> tuple[int, int | None]:
-    if score < 0.5:
-        return common_pb2.CORRESPONDENCE_ABSENT, common_pb2.GAP_REASON_ABSENT
-    if score < 0.85:
-        return common_pb2.CORRESPONDENCE_PARTIAL, common_pb2.GAP_REASON_PARTIAL
-    if required <= 0:
-        return common_pb2.CORRESPONDENCE_FULL, None
-    if years is None:
-        return common_pb2.CORRESPONDENCE_PARTIAL, None
-    if years + 0.01 < required:
-        return common_pb2.CORRESPONDENCE_PARTIAL, common_pb2.GAP_REASON_INSUFFICIENT_TENURE
-    return common_pb2.CORRESPONDENCE_FULL, None
-
-
-def _text_status(score: float) -> tuple[int, int | None]:
-    if score >= 0.75:
-        return common_pb2.CORRESPONDENCE_FULL, None
-    if score >= 0.35:
-        return common_pb2.CORRESPONDENCE_PARTIAL, common_pb2.GAP_REASON_PARTIAL
-    return common_pb2.CORRESPONDENCE_ABSENT, common_pb2.GAP_REASON_ABSENT
-
-
-def _skill_comment(status: int, gap_reason: int | None, name: str) -> str:
+def _skill_comment(
+    status: int,
+    gap_reason: int | None,
+    name: str,
+    relevance: float,
+    coverage: float,
+    full_coverage: float,
+) -> str:
     if status == common_pb2.CORRESPONDENCE_FULL:
         return "Навык подтверждён в резюме."
     if gap_reason == common_pb2.GAP_REASON_INSUFFICIENT_TENURE:
@@ -555,6 +524,8 @@ def _skill_comment(status: int, gap_reason: int | None, name: str) -> str:
     if status == common_pb2.CORRESPONDENCE_PARTIAL and gap_reason is None:
         return "Навык подтверждён, но стаж по нему не указан."
     if status == common_pb2.CORRESPONDENCE_PARTIAL:
+        if relevance >= 0.85 and coverage + 1e-9 < full_coverage:
+            return "Навык найден, но подтверждение в резюме слабое."
         return "Найден близкий навык, соответствие частичное."
     return f"Навык «{name}» не найден в резюме."
 

@@ -158,6 +158,78 @@ class TemporalPolicy:
         return 1.0, 1.0, 1.0
 
 
+@dataclass(frozen=True, slots=True)
+class StatusPolicy:
+    """Пороги статусов требований.
+
+    `coverage` участвует в выборе `FULL`: наличие точного названия навыка
+    само по себе не означает, что требование закрыто. Для навыков порог ниже
+    остальных, потому что `t_i` для навыка ограничен 0.8.
+    """
+
+    skill_full_coverage: float = 0.70
+    experience_full_coverage: float = 0.85
+    education_full_coverage: float = 0.85
+    education_partial_coverage: float = 0.50
+    text_full_coverage: float = 0.75
+    text_partial_coverage: float = 0.35
+    absent_relevance: float = 0.50
+
+    def skill(
+        self,
+        relevance: float,
+        coverage: float,
+        years: float | None,
+        required: float,
+    ) -> tuple[int, int | None]:
+        if relevance < self.absent_relevance:
+            return common_pb2.CORRESPONDENCE_ABSENT, common_pb2.GAP_REASON_ABSENT
+        if required > 0 and years is None:
+            return common_pb2.CORRESPONDENCE_PARTIAL, None
+        if required > 0 and years is not None and years + 0.01 < required:
+            return (
+                common_pb2.CORRESPONDENCE_PARTIAL,
+                common_pb2.GAP_REASON_INSUFFICIENT_TENURE,
+            )
+        if coverage + 1e-9 < self.skill_full_coverage:
+            return common_pb2.CORRESPONDENCE_PARTIAL, common_pb2.GAP_REASON_PARTIAL
+        return common_pb2.CORRESPONDENCE_FULL, None
+
+    def experience(
+        self,
+        relevance: float,
+        coverage: float,
+        years: float | None,
+        required: float,
+    ) -> tuple[int, int | None]:
+        if relevance < self.absent_relevance:
+            return common_pb2.CORRESPONDENCE_ABSENT, common_pb2.GAP_REASON_ABSENT
+        if required > 0 and years is None:
+            return common_pb2.CORRESPONDENCE_PARTIAL, None
+        if required > 0 and years is not None and years + 0.01 < required:
+            return (
+                common_pb2.CORRESPONDENCE_PARTIAL,
+                common_pb2.GAP_REASON_INSUFFICIENT_TENURE,
+            )
+        if coverage + 1e-9 < self.experience_full_coverage:
+            return common_pb2.CORRESPONDENCE_PARTIAL, common_pb2.GAP_REASON_PARTIAL
+        return common_pb2.CORRESPONDENCE_FULL, None
+
+    def education(self, coverage: float) -> tuple[int, int | None]:
+        if coverage >= self.education_full_coverage:
+            return common_pb2.CORRESPONDENCE_FULL, None
+        if coverage >= self.education_partial_coverage:
+            return common_pb2.CORRESPONDENCE_PARTIAL, common_pb2.GAP_REASON_PARTIAL
+        return common_pb2.CORRESPONDENCE_ABSENT, common_pb2.GAP_REASON_ABSENT
+
+    def text(self, coverage: float) -> tuple[int, int | None]:
+        if coverage >= self.text_full_coverage:
+            return common_pb2.CORRESPONDENCE_FULL, None
+        if coverage >= self.text_partial_coverage:
+            return common_pb2.CORRESPONDENCE_PARTIAL, common_pb2.GAP_REASON_PARTIAL
+        return common_pb2.CORRESPONDENCE_ABSENT, common_pb2.GAP_REASON_ABSENT
+
+
 class ClaimConfidence(Protocol):
     """Убедительность заявления `t_i`."""
 

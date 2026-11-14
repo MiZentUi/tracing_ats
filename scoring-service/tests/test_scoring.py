@@ -443,7 +443,9 @@ def test_evaluate_resume_match_statuses_and_explanations() -> None:
         response = stub.EvaluateResumeMatch(_evaluate_request(), timeout=2)
 
     python = response.matches["python"]
-    assert python.status == common_pb2.CORRESPONDENCE_FULL
+    assert python.status == common_pb2.CORRESPONDENCE_PARTIAL
+    assert python.coverage < 0.7
+    assert python.comment == "Навык найден, но подтверждение в резюме слабое."
     assert python.resume_feature_key == "skill:0"
     assert python.evidence.text == "Python developer"
 
@@ -460,8 +462,8 @@ def test_evaluate_resume_match_statuses_and_explanations() -> None:
     assert soft.status == common_pb2.CORRESPONDENCE_NOT_STATED
 
     gap_ids = {gap.requirement_id for gap in response.gaps}
-    assert gap_ids == {"kafka", "soft"}
-    assert "Python" in " ".join(response.strengths)
+    assert gap_ids == {"python", "kafka", "soft"}
+    assert "Python" in " ".join([*response.risks, *response.questions])
     assert response.questions
     assert response.recruiter_note
     assert response.general_score.score_low < response.general_score.score_high

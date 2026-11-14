@@ -14,6 +14,7 @@ def test_defaults(monkeypatch) -> None:
     assert settings.log_level == "INFO"
     assert settings.max_workers == 10
     assert settings.tenure_weight == 0.1
+    assert settings.skill_full_coverage == 0.70
     assert settings.llm_max_output_tokens == 4096
 
 
@@ -21,6 +22,7 @@ def test_environment_override(monkeypatch) -> None:
     monkeypatch.setenv("SCORING_SERVICE_GRPC_PORT", "9090")
     monkeypatch.setenv("SCORING_SERVICE_LOG_LEVEL", "debug")
     monkeypatch.setenv("SCORING_SERVICE_TENURE_WEIGHT", "0.25")
+    monkeypatch.setenv("SCORING_SERVICE_SKILL_FULL_COVERAGE", "0.80")
     monkeypatch.setenv("SCORING_SERVICE_LLM_MAX_OUTPUT_TOKENS", "2048")
 
     settings = Settings(_env_file=None)
@@ -28,6 +30,7 @@ def test_environment_override(monkeypatch) -> None:
     assert settings.grpc_port == 9090
     assert settings.log_level == "debug"
     assert settings.tenure_weight == 0.25
+    assert settings.skill_full_coverage == 0.80
     assert settings.llm_max_output_tokens == 2048
 
 
