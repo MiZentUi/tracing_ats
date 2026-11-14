@@ -48,7 +48,9 @@ describe('RelationGraphPanel', () => {
     await nextTick()
     await nextTick()
 
-    expect(wrapper.find('svg[aria-label="Граф связей навыков"]').exists()).toBe(true)
+    const graph = wrapper.find('svg[aria-label="Граф связей навыков"]')
+    expect(graph.exists()).toBe(true)
+    expect(graph.attributes('viewBox')).toBe('0 0 1200 800')
     expect(wrapper.findAll('circle[data-node]')).toHaveLength(2)
     expect(wrapper.findAll('line[data-edge]')).toHaveLength(1)
     expect(wrapper.text()).toContain('JavaScript')

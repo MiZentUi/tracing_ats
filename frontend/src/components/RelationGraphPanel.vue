@@ -40,9 +40,11 @@ const svgRef = ref<SVGSVGElement | null>(null)
 let simulation: d3.Simulation<GraphNode, GraphEdge> | null = null
 let zoomBehavior: d3.ZoomBehavior<SVGSVGElement, unknown> | null = null
 
-const GRAPH_WIDTH = 900
-const GRAPH_HEIGHT = 560
-const GRAPH_MARGIN = 48
+// Пространство графа задаётся в координатах SVG. Оно должно быть заметно
+// больше карточки, чтобы вершины не сбивались в центр при большом числе связей.
+const GRAPH_WIDTH = 1200
+const GRAPH_HEIGHT = 800
+const GRAPH_MARGIN = 64
 
 const kindLabels: Record<string, string> = {
   SAME_GROUP: 'Одна группа',
@@ -334,14 +336,14 @@ function renderGraph() {
       d3
         .forceLink<GraphNode, GraphEdge>(graphEdges)
         .id((item) => item.id)
-        .distance(130)
+        .distance(160)
         .strength(0.55),
     )
-    .force('charge', d3.forceManyBody<GraphNode>().strength(-200).distanceMax(300))
+    .force('charge', d3.forceManyBody<GraphNode>().strength(-260).distanceMax(420))
     .force('center', d3.forceCenter(GRAPH_WIDTH / 2, GRAPH_HEIGHT / 2))
     .force('x', d3.forceX<GraphNode>(GRAPH_WIDTH / 2).strength(0.03))
     .force('y', d3.forceY<GraphNode>(GRAPH_HEIGHT / 2).strength(0.03))
-    .force('collide', d3.forceCollide<GraphNode>().radius(44))
+    .force('collide', d3.forceCollide<GraphNode>().radius(50))
     .on('tick', tick)
 
   simulation.stop()
@@ -500,7 +502,7 @@ onBeforeUnmount(() => simulation?.stop())
           <div v-else class="mt-3 overflow-hidden rounded-lg border border-slate-100 bg-slate-50/40">
             <svg
               ref="svgRef"
-              viewBox="0 0 900 560"
+              :viewBox="`0 0 ${GRAPH_WIDTH} ${GRAPH_HEIGHT}`"
               class="h-auto w-full cursor-grab touch-none active:cursor-grabbing"
               role="img"
               aria-label="Граф связей навыков"
