@@ -88,6 +88,7 @@ public class ScoreRunWriter {
         run.setParsed(
                 jsonCodec.write(
                         new Explanations(
+                                result.gaps(),
                                 result.strengths(),
                                 result.risks(),
                                 result.questions(),
@@ -172,5 +173,9 @@ public class ScoreRunWriter {
     }
 
     private record Explanations(
-            List<String> strengths, List<String> risks, List<String> questions, String note) {}
+            List<ScoringResult.Gap> gaps,
+            List<String> strengths,
+            List<String> risks,
+            List<String> questions,
+            String note) {}
 }

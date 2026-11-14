@@ -12,6 +12,7 @@ public record ScoringResult(
         Integer tenure,
         List<String> flags,
         List<RequirementResult> requirements,
+        List<Gap> gaps,
         List<String> strengths,
         List<String> risks,
         List<String> questions,
@@ -20,6 +21,7 @@ public record ScoringResult(
     public ScoringResult {
         flags = List.copyOf(flags);
         requirements = List.copyOf(requirements);
+        gaps = gaps == null ? List.of() : List.copyOf(gaps);
         strengths = strengths == null ? List.of() : List.copyOf(strengths);
         risks = risks == null ? List.of() : List.copyOf(risks);
         questions = questions == null ? List.of() : List.copyOf(questions);
@@ -44,8 +46,11 @@ public record ScoringResult(
                 List.of(),
                 List.of(),
                 List.of(),
+                List.of(),
                 null);
     }
+
+    public record Gap(String requirementId, String reason) {}
 
     public record RequirementResult(
             String requirementId,

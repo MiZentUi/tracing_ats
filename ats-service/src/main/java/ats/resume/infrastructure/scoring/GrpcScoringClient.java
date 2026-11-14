@@ -170,6 +170,13 @@ public class GrpcScoringClient implements ScoringClient {
                 general.hasTenure() ? general.getTenure() : null,
                 List.of(),
                 requirements,
+                response.getGapsList().stream()
+                        .map(
+                                gap ->
+                                        new ScoringResult.Gap(
+                                                gap.getRequirementId(),
+                                                gap.getReason().name().replace("GAP_REASON_", "")))
+                        .toList(),
                 response.getStrengthsList(),
                 response.getRisksList(),
                 response.getQuestionsList(),

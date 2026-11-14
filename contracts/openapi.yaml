@@ -2013,6 +2013,39 @@ components:
             type: string
         blind:
           type: boolean
+        strengths:
+          type: array
+          items:
+            type: string
+        risks:
+          type: array
+          items:
+            type: string
+        questions:
+          type: array
+          items:
+            type: string
+        recruiterNote:
+          type: string
+          nullable: true
+        gaps:
+          type: array
+          items:
+            $ref: "#/components/schemas/ReportGap"
+
+    ReportGap:
+      type: object
+      required:
+        - requirementId
+        - reason
+      properties:
+        requirementId:
+          type: string
+        text:
+          type: string
+          nullable: true
+        reason:
+          type: string
 
     ReportDecisionRequest:
       type: object
