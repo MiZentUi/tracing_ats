@@ -523,7 +523,7 @@ def test_evaluate_resume_match_logs_no_resume_text(caplog) -> None:
     assert "strengths=" in caplog.text
     assert "risks=" in caplog.text
     assert "questions=" in caplog.text
-    assert "feedback=feedback-templates.v3" in caplog.text
+    assert "feedback=feedback-templates.v4" in caplog.text
 
 
 def test_evaluate_resume_match_explains_missing_skill_tenure() -> None:

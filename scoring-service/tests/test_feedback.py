@@ -37,10 +37,15 @@ def _skill_requirement(
     name: str,
     tenure: int = 0,
     criticality: int = common_pb2.FEATURE_CRITICALITY_REQUIRED,
+    description: str = "",
 ) -> features_pb2.FeatureRequirement:
     return features_pb2.FeatureRequirement(
         criticality=criticality,
-        skill=skill_pb2.SkillRequirement(name=name, tenure=tenure),
+        skill=skill_pb2.SkillRequirement(
+            name=name,
+            tenure=tenure,
+            description=description,
+        ),
     )
 
 
@@ -181,7 +186,7 @@ def _build(
 
 
 def test_catalog_has_60_unique_templates() -> None:
-    assert FEEDBACK_TEMPLATE_VERSION == "feedback-templates.v3"
+    assert FEEDBACK_TEMPLATE_VERSION == "feedback-templates.v4"
     assert len(FEEDBACK_TEMPLATES) == 60
     ids = [template.id for template in FEEDBACK_TEMPLATES]
     assert len(ids) == len(set(ids))
@@ -406,6 +411,78 @@ def test_critical_gap_is_first_in_risks_and_questions() -> None:
     assert "Kafka" in feedback.questions[0]
 
 
+def test_risk_includes_requirement_context_and_action() -> None:
+    vacancy = _vacancy(
+        {
+            "kafka": _skill_requirement(
+                "Kafka",
+                description="Проектирование событийных интеграций",
+            )
+        }
+    )
+    matches = {
+        "kafka": _match(
+            "kafka",
+            status=common_pb2.CORRESPONDENCE_NOT_STATED,
+            label="Kafka",
+            evidence=None,
+            years_found=None,
+            gap_reason=common_pb2.GAP_REASON_NOT_STATED,
+        )
+    }
+
+    feedback = _build(vacancy=vacancy, matches=matches, general=_general(0.2))
+
+    risk = feedback.risks[0]
+    assert "В вакансии это описано так: «Проектирование событийных интеграций»." in risk
+    assert "Уточните проект, период и роль кандидата." in risk
+
+
+def test_partial_question_includes_verified_evidence() -> None:
+    vacancy = _vacancy({"kafka": _skill_requirement("Kafka")})
+    matches = {
+        "kafka": _match(
+            "kafka",
+            status=common_pb2.CORRESPONDENCE_PARTIAL,
+            label="Kafka",
+            evidence="Kafka producer",
+            years_found=None,
+            gap_reason=common_pb2.GAP_REASON_PARTIAL,
+        )
+    }
+
+    feedback = _build(vacancy=vacancy, matches=matches, general=_general(0.4))
+
+    question = feedback.questions[0]
+    assert question.startswith("В резюме есть подтверждение: «Kafka producer».")
+    assert "частично" in question
+
+
+def test_recruiter_note_mentions_strong_topics() -> None:
+    vacancy = _vacancy(
+        {
+            "python": _skill_requirement("Python"),
+            "kafka": _skill_requirement("Kafka"),
+        }
+    )
+    matches = {
+        "python": _match("python", label="Python", evidence="Python developer", years_found=3.0),
+        "kafka": _match(
+            "kafka",
+            status=common_pb2.CORRESPONDENCE_NOT_STATED,
+            label="Kafka",
+            evidence=None,
+            years_found=None,
+            gap_reason=common_pb2.GAP_REASON_NOT_STATED,
+        ),
+    }
+
+    feedback = _build(vacancy=vacancy, matches=matches, general=_general(0.6))
+
+    assert "Сильные стороны: навык «Python»." in feedback.recruiter_note
+    assert "Kafka" in feedback.recruiter_note
+
+
 def test_date_issue_risk_and_question() -> None:
     vacancy = _vacancy({"experience": _experience_requirement("backend")})
     matches = {
@@ -610,10 +687,15 @@ def test_required_gap_variant_is_stable_for_same_fact() -> None:
     }
 
     assert len(texts) == 1
-    assert texts.pop() in {
-        "Обязательное требование «Python» не закрыто полностью: в резюме нет сведений.",
-        "По обязательному требованию «Python» в резюме нет сведений.",
-    }
+    text = texts.pop()
+    assert text.startswith(
+        (
+            "Обязательное требование «Python» не закрыто полностью",
+            "По обязательному требованию «Python»",
+        )
+    )
+    assert "в резюме нет сведений" in text
+    assert "Уточните проект, период и роль кандидата." in text
 
 
 def test_recruiter_note_recommends_clarification_for_important_gaps() -> None:
