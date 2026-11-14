@@ -183,6 +183,13 @@ paths:
                 title:
                   type: string
                   nullable: true
+                experience_years:
+                  type: integer
+                  format: int32
+                  nullable: true
+                  minimum: 0
+                  maximum: 50
+                  description: Общий требуемый стаж вакансии в годах. Не влияет на скоринг.
                 text:
                   type: string
                   nullable: true
@@ -1749,6 +1756,13 @@ components:
         title:
           type: string
           nullable: true
+        experience_years:
+          type: integer
+          format: int32
+          nullable: true
+          minimum: 0
+          maximum: 50
+          description: Общий требуемый стаж вакансии в годах. Не влияет на скоринг.
         status:
           $ref: "#/components/schemas/VacancyStatus"
         source_text:
@@ -1859,6 +1873,15 @@ components:
         title:
           type: string
           nullable: true
+        experience_years:
+          type: integer
+          format: int32
+          nullable: true
+          minimum: 0
+          maximum: 50
+          description: >-
+            Общий требуемый стаж вакансии в годах. null очищает значение.
+            Не влияет на скоринг.
         source_text:
           type: string
           nullable: true

@@ -30,6 +30,9 @@ public class VacancyEntity {
     @Column(nullable = false, length = 256)
     private String title;
 
+    @Column(name = "experience_years")
+    private Integer experienceYears;
+
     @Column(nullable = false, length = 16)
     private String status;
 

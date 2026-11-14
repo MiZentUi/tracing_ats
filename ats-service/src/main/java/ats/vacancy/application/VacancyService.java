@@ -158,7 +158,15 @@ public class VacancyService {
                 extracted.droppedRequirements(),
                 extracted.model());
         VacancyView view =
-                store.create(text, sourceType, sourceRef, title, specialization, level, extracted);
+                store.create(
+                        text,
+                        sourceType,
+                        sourceRef,
+                        title,
+                        command.experienceYears(),
+                        specialization,
+                        level,
+                        extracted);
         log.info(
                 "vacancy_created vacancy_id={} version={} status={} requirements={}"
                         + " text_chars={}",

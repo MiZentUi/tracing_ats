@@ -12,7 +12,7 @@ import { apiErrorMessage, hhApi, rankingApi, referenceApi, vacanciesApi } from '
 import MarkdownText from '@/components/MarkdownText.vue'
 import { useToast } from '@/composables/useToast'
 import { decisionLabel } from '@/lib/labels'
-import { requirementsCount, resumeDisplayTitle } from '@/lib/format'
+import { pluralizeRu, requirementsCount, resumeDisplayTitle } from '@/lib/format'
 import { levelLabel } from '@/types'
 
 const props = defineProps<{ id: string }>()
@@ -241,6 +241,16 @@ onMounted(() => load())
               <div>
                 <dt class="text-xs uppercase tracking-wide text-slate-400">Уровень</dt>
                 <dd class="mt-1 font-medium text-slate-900">{{ levelLabel(vacancy.level) }}</dd>
+              </div>
+              <div>
+                <dt class="text-xs uppercase tracking-wide text-slate-400">Требуемый стаж</dt>
+                <dd class="mt-1 font-medium text-slate-900">
+                  {{
+                    vacancy.experience_years == null
+                      ? 'Не указан'
+                      : `${vacancy.experience_years} ${pluralizeRu(vacancy.experience_years, 'год', 'года', 'лет')}`
+                  }}
+                </dd>
               </div>
               <div>
                 <dt class="text-xs uppercase tracking-wide text-slate-400">Требований</dt>

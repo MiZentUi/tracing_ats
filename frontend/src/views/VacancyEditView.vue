@@ -31,6 +31,7 @@ const { success, info, error: toastError } = useToast()
 const vacancy = ref<Vacancy | null>(null)
 const requirements = ref<EditableRequirement[]>([])
 const title = ref('')
+const experienceYears = ref<number | null>(null)
 const sourceTextDraft = ref('')
 const sourceTextarea = ref<HTMLTextAreaElement | null>(null)
 const specialization = ref('')
@@ -75,6 +76,7 @@ watch(sourceTextDraft, () => {
 function serialize() {
   return JSON.stringify({
     title: title.value,
+    experienceYears: experienceYears.value,
     sourceText: sourceTextDraft.value,
     specialization: specialization.value,
     level: level.value,
@@ -105,6 +107,7 @@ const canSave = computed(
 function apply(value: Vacancy) {
   vacancy.value = value
   title.value = value.title ?? ''
+  experienceYears.value = value.experience_years ?? null
   sourceTextDraft.value = value.source_text ?? ''
   specialization.value = value.specialization
   level.value = value.level
@@ -214,6 +217,11 @@ async function revealRequirement(
       highlightedKey.value = null
     }
   }, 1800)
+}
+
+function updateExperienceYears(event: Event) {
+  const value = (event.target as HTMLInputElement).value
+  experienceYears.value = value === '' ? null : Number(value)
 }
 
 function updateRequirement(key: string, patch: Partial<EditableRequirement>) {
@@ -326,6 +334,7 @@ async function save(mode: 'save' | 'template') {
         specialization: specialization.value,
         level: needsLevel.value ? level.value : undefined,
         title: title.value.trim() || null,
+        experience_years: experienceYears.value,
         source_text: sourceTextDraft.value,
         confirm: mode === 'template' || isConfirmed.value,
         requirements: requirements.value.map((item) => ({
@@ -496,6 +505,24 @@ onMounted(load)
             >
               Не требуется: специализация не IT
             </p>
+          </div>
+          <div>
+            <label class="label" for="editor-experience-years">
+              Требуемый стаж, лет
+              <span class="font-normal text-slate-400">(необязательно)</span>
+            </label>
+            <input
+              id="editor-experience-years"
+              :value="experienceYears ?? ''"
+              class="input"
+              type="number"
+              min="0"
+              max="50"
+              step="1"
+              placeholder="Например, 3"
+              @input="updateExperienceYears"
+            />
+            <p class="hint">Общий стаж вакансии. На скоринг пока не влияет.</p>
           </div>
         </div>
       </div>

@@ -26,7 +26,7 @@ from .domain import (
     SkillRelation,
 )
 from .normalization import alias_keys, normalize_base
-from .seed import SeedQualification, SeedRelation
+from .seed import SeedQualification, SeedRelation, SeedSkill
 from .store import stable_id
 
 
@@ -357,6 +357,137 @@ class PostgresStore:
     def relations_empty(self) -> bool:
         with self._pool.connection() as conn:
             return conn.execute("SELECT count(*) FROM skill_relation").fetchone()[0] == 0
+
+    def seed(self, seed: tuple[SeedSkill, ...]) -> None:
+        self.seed_missing(seed)
+
+    def seed_missing(self, seed: tuple[SeedSkill, ...]) -> None:
+        inserted = False
+        with self._pool.connection() as conn, conn.transaction():
+            for item in seed:
+                if not normalize_base(item.canonical):
+                    continue
+                if self._any_skill_key_exists(conn, alias_keys(item.canonical)):
+                    continue
+                skill_id = stable_id(item.canonical)
+                conn.execute(
+                    "INSERT INTO skill (id, status, skill_type) "
+                    "VALUES (%s, 'ACTIVE', %s) ON CONFLICT (id) DO NOTHING",
+                    (skill_id, item.skill_type),
+                )
+                for index, raw in enumerate((item.canonical, *item.aliases)):
+                    self._insert_missing_skill_alias(
+                        conn, skill_id, raw, "mixed", "AUTO", index == 0
+                    )
+                for raw in item.raw_only:
+                    self._insert_missing_skill_alias(conn, skill_id, raw, "ru", "RAW_ONLY", False)
+                inserted = True
+            if inserted:
+                conn.execute(
+                    "UPDATE dictionary_meta SET dictionary_version = dictionary_version + 1 "
+                    "WHERE id = 1"
+                )
+
+    def _any_skill_key_exists(self, conn, keys: dict[str, str]) -> bool:
+        return any(
+            conn.execute(
+                "SELECT 1 FROM skill_alias_key WHERE key = %s",
+                (key,),
+            ).fetchone()
+            for key in keys.values()
+        )
+
+    def _any_qualification_key_exists(self, conn, keys: dict[str, str]) -> bool:
+        return any(
+            conn.execute(
+                "SELECT 1 FROM qualification_alias_key WHERE key = %s",
+                (key,),
+            ).fetchone()
+            for key in keys.values()
+        )
+
+    def _insert_missing_skill_alias(
+        self,
+        conn,
+        skill_id: str,
+        raw: str,
+        lang: str,
+        lemma_mode: str,
+        is_canonical: bool,
+    ) -> None:
+        keys = alias_keys(raw, lemma_mode)
+        if not keys:
+            return
+        for key in keys.values():
+            if conn.execute(
+                "SELECT 1 FROM skill_alias_key WHERE key = %s",
+                (key,),
+            ).fetchone():
+                return
+        alias_id = str(uuid.uuid4())
+        conn.execute(
+            "INSERT INTO skill_alias "
+            "(id, skill_id, alias_raw, is_canonical, lang, source, lemma_mode, created_by) "
+            "VALUES (%s, %s, %s, %s, %s, 'SEED', %s, 'seed')",
+            (alias_id, skill_id, raw.strip(), is_canonical, lang, lemma_mode),
+        )
+        for kind, key in keys.items():
+            conn.execute(
+                "INSERT INTO skill_alias_key (key, alias_id, kind) "
+                "VALUES (%s, %s, %s) ON CONFLICT (key) DO NOTHING",
+                (key, alias_id, kind),
+            )
+
+    def seed_qualifications_missing(self, seed: tuple[SeedQualification, ...]) -> None:
+        inserted = False
+        with self._pool.connection() as conn, conn.transaction():
+            for item in seed:
+                if not normalize_base(item.canonical):
+                    continue
+                if self._any_qualification_key_exists(conn, alias_keys(item.canonical)):
+                    continue
+                qualification_id = stable_id(item.canonical)
+                conn.execute(
+                    "INSERT INTO qualification (id, canonical_name, qualification_type) "
+                    "VALUES (%s, %s, %s) ON CONFLICT (id) DO NOTHING",
+                    (qualification_id, item.canonical, item.qualification_type),
+                )
+                for index, raw in enumerate((item.canonical, *item.aliases)):
+                    self._insert_missing_qualification_alias(
+                        conn, qualification_id, raw, index == 0
+                    )
+                inserted = True
+            if inserted:
+                conn.execute(
+                    "UPDATE dictionary_meta "
+                    "SET qualification_version = qualification_version + 1 WHERE id = 1"
+                )
+
+    def _insert_missing_qualification_alias(
+        self, conn, qualification_id: str, raw: str, is_canonical: bool
+    ) -> None:
+        keys = alias_keys(raw)
+        if not keys:
+            return
+        for key in keys.values():
+            if conn.execute(
+                "SELECT 1 FROM qualification_alias_key WHERE key = %s",
+                (key,),
+            ).fetchone():
+                return
+        alias_id = str(uuid.uuid4())
+        conn.execute(
+            "INSERT INTO qualification_alias "
+            "(id, qualification_id, alias_raw, is_canonical, lang, source, "
+            "lemma_mode, created_by) VALUES (%s, %s, %s, %s, %s, 'SEED', %s, 'seed')",
+            (alias_id, qualification_id, raw.strip(), is_canonical, "mixed", "AUTO"),
+        )
+        for kind, key in keys.items():
+            conn.execute(
+                "INSERT INTO qualification_alias_key (key, alias_id, kind) "
+                "VALUES (%s, %s, %s) ON CONFLICT (key) DO NOTHING",
+                (key, alias_id, kind),
+            )
 
     def seed_qualifications(self, seed: tuple[SeedQualification, ...]) -> None:
         if not self.qualifications_empty():

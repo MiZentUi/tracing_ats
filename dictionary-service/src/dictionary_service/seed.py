@@ -7,7 +7,9 @@
 
 from __future__ import annotations
 
+import json
 from dataclasses import dataclass
+from importlib.resources import files
 
 
 @dataclass(frozen=True, slots=True)
@@ -18,7 +20,7 @@ class SeedSkill:
     raw_only: tuple[str, ...] = ()
 
 
-SEED: tuple[SeedSkill, ...] = (
+BASE_SEED: tuple[SeedSkill, ...] = (
     # Языки и платформы
     SeedSkill("Java", "TECH", ("джава",)),
     SeedSkill("JavaScript", "TECH", ("js", "джаваскрипт")),
@@ -123,7 +125,7 @@ class SeedRelation:
     kind: str
 
 
-SEED_QUALIFICATIONS: tuple[SeedQualification, ...] = (
+BASE_SEED_QUALIFICATIONS: tuple[SeedQualification, ...] = (
     SeedQualification(
         "I группа по электробезопасности",
         "PERMIT",
@@ -167,3 +169,45 @@ SEED_RELATIONS: tuple[SeedRelation, ...] = (
     SeedRelation("PostgreSQL", "MySQL", "SAME_GROUP"),
     SeedRelation("Docker", "Kubernetes", "SAME_GROUP"),
 )
+
+
+def _load_open_seed() -> tuple[tuple[SeedSkill, ...], tuple[SeedQualification, ...]]:
+    resource = files("dictionary_service").joinpath("data/open_seed.json")
+    payload = json.loads(resource.read_text(encoding="utf-8"))
+    skills = tuple(
+        SeedSkill(
+            canonical=item["canonical"],
+            skill_type=item.get("type", "OTHER"),
+            aliases=tuple(item.get("aliases", ())),
+            raw_only=tuple(item.get("raw_only", ())),
+        )
+        for item in payload.get("skills", ())
+    )
+    qualifications = tuple(
+        SeedQualification(
+            canonical=item["canonical"],
+            qualification_type=item.get("type"),
+            aliases=tuple(item.get("aliases", ())),
+        )
+        for item in payload.get("qualifications", ())
+    )
+    return skills, qualifications
+
+
+def _merge_by_canonical(
+    base: tuple,
+    extra: tuple,
+) -> tuple:
+    seen = {item.canonical.strip().casefold() for item in base}
+    merged = list(base)
+    for item in extra:
+        key = item.canonical.strip().casefold()
+        if key not in seen:
+            merged.append(item)
+            seen.add(key)
+    return tuple(merged)
+
+
+OPEN_SEED, OPEN_SEED_QUALIFICATIONS = _load_open_seed()
+SEED = _merge_by_canonical(BASE_SEED, OPEN_SEED)
+SEED_QUALIFICATIONS = _merge_by_canonical(BASE_SEED_QUALIFICATIONS, OPEN_SEED_QUALIFICATIONS)

@@ -24,7 +24,7 @@ build-backend = "setuptools.build_meta"
 where = ["src"]
 
 [tool.setuptools.package-data]
-dictionary_service = ["*.sql"]
+dictionary_service = ["*.sql", "data/*.json"]
 
 [dependency-groups]
 dev = ["grpcio-tools>=1.85.1", "pytest>=8.3.0", "ruff>=0.9.0"]

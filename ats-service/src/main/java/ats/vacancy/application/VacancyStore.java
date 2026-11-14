@@ -65,6 +65,7 @@ public class VacancyStore {
             String sourceType,
             String sourceRef,
             String title,
+            Integer experienceYears,
             SpecializationEntity specialization,
             LevelEntity level,
             ExtractedTemplate extracted) {
@@ -74,6 +75,7 @@ public class VacancyStore {
         VacancyEntity vacancy =
                 VacancyEntity.builder()
                         .title(trimTitle(title))
+                        .experienceYears(normalizeExperience(experienceYears))
                         .status("DRAFT")
                         .sourceType(sourceType)
                         .sourceRef(sourceRef)
@@ -154,6 +156,7 @@ public class VacancyStore {
         if (command.title() != null && !command.title().isBlank()) {
             vacancy.setTitle(trimTitle(command.title()));
         }
+        vacancy.setExperienceYears(normalizeExperience(command.experienceYears()));
         if (command.sourceText() != null) {
             String sourceText = command.sourceText().strip();
             if (sourceText.isEmpty()) {
@@ -579,6 +582,17 @@ public class VacancyStore {
                     "INVALID_EDUCATION_LEVEL", "Unknown education level: " + value);
         }
         return normalized;
+    }
+
+    private static Integer normalizeExperience(Integer experienceYears) {
+        if (experienceYears == null) {
+            return null;
+        }
+        if (experienceYears < 0 || experienceYears > 50) {
+            throw ApiException.unprocessable(
+                    "INVALID_EXPERIENCE", "experience_years must be between 0 and 50");
+        }
+        return experienceYears;
     }
 
     private static String trimTitle(String title) {

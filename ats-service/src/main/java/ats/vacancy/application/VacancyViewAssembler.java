@@ -107,6 +107,7 @@ public class VacancyViewAssembler {
                 specializationCode,
                 levelCode,
                 vacancy.getTitle(),
+                vacancy.getExperienceYears(),
                 vacancy.getStatus(),
                 vacancy.getSourceText(),
                 version.getVersionNo(),
