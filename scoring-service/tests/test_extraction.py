@@ -250,6 +250,9 @@ def test_prompt_contains_schema_and_marks_resume_as_data() -> None:
     assert "Spring (Boot/Data/Security)" in prompt
     assert "Spring Security" in prompt
     assert "Java/Spring" in prompt
+    assert "только коммерческий опыт работы" in prompt
+    assert "место работы" in prompt
+    assert "даты начала/окончания" in prompt
     assert str(SKILL_QUOTE_MAX_CHARS) in prompt
     assert user_prompt("Python developer") == "<resume_text>\nPython developer\n</resume_text>"
 
