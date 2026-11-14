@@ -2,6 +2,8 @@ package ats.resume.api;
 
 import ats.api.ResumesApi;
 import ats.gateway.model.ResumeBatchUploadResponse;
+import ats.gateway.model.ResumeExtractedSkill;
+import ats.gateway.model.ResumeExtraction;
 import ats.gateway.model.ResumeFullText;
 import ats.gateway.model.ResumeList;
 import ats.gateway.model.ResumeSummary;
@@ -102,6 +104,39 @@ public class ResumeController implements ResumesApi {
                                                 .maskedText(view.maskedText())
                                                 .warnings(view.warnings())
                                                 .blind(true)))
+                .orElseGet(() -> ResponseEntity.notFound().build());
+    }
+
+    @Override
+    public ResponseEntity<ResumeExtraction> getResumeExtraction(UUID resumeId) {
+        return queryService
+                .extraction(resumeId)
+                .map(
+                        view ->
+                                ResponseEntity.ok(
+                                        new ResumeExtraction()
+                                                .resumeId(view.resumeId())
+                                                .skills(
+                                                        view.skills().stream()
+                                                                .map(
+                                                                        skill ->
+                                                                                new ResumeExtractedSkill()
+                                                                                        .name(
+                                                                                                skill
+                                                                                                        .name())
+                                                                                        .normalizedName(
+                                                                                                skill
+                                                                                                        .normalizedName())
+                                                                                        .tenure(
+                                                                                                skill
+                                                                                                        .tenure())
+                                                                                        .recency(
+                                                                                                skill
+                                                                                                        .recency())
+                                                                                        .evidenceQuote(
+                                                                                                skill
+                                                                                                        .evidenceQuote()))
+                                                                .toList())))
                 .orElseGet(() -> ResponseEntity.notFound().build());
     }
 

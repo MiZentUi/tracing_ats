@@ -438,6 +438,27 @@ paths:
         default:
           $ref: "#/components/responses/default"
 
+  /resumes/{resumeId}/extraction:
+    get:
+      tags:
+        - Resumes
+      summary: Извлечённые навыки резюме
+      description: Обезличенные признаки из последнего ExtractResume без текста резюме и PII.
+      operationId: getResumeExtraction
+      parameters:
+        - $ref: "#/components/parameters/ResumeId"
+      responses:
+        "200":
+          description: Извлечённые навыки
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ResumeExtraction"
+        "404":
+          description: Разбор ещё не готов
+        default:
+          $ref: "#/components/responses/default"
+
   /resumes/{resumeId}/reveal-text:
     post:
       tags:
@@ -1652,6 +1673,40 @@ components:
             type: string
         blind:
           type: boolean
+
+    ResumeExtraction:
+      type: object
+      required:
+        - resumeId
+        - skills
+      properties:
+        resumeId:
+          type: string
+          format: uuid
+        skills:
+          type: array
+          items:
+            $ref: "#/components/schemas/ResumeExtractedSkill"
+
+    ResumeExtractedSkill:
+      type: object
+      required:
+        - name
+        - normalizedName
+      properties:
+        name:
+          type: string
+        normalizedName:
+          type: string
+        tenure:
+          type: integer
+          nullable: true
+        recency:
+          type: integer
+          nullable: true
+        evidenceQuote:
+          type: string
+          nullable: true
 
     ResumeFullText:
       type: object
