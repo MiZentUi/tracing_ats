@@ -91,6 +91,8 @@ class TemporalPolicyProtocol(Protocol):
 class TemporalConfig:
     a: float = 1.0
     b: float = 1.0
+    # Поля recency пока не используются: в v1 recency всегда равен 1.
+    # Оставлены для будущей версии, когда свежесть снова войдёт в модель.
     half_life_years: float = 2.0
     max_recency_years: float = 10.0
 
@@ -99,7 +101,7 @@ class TemporalPolicy:
     """Темпоральный коэффициент из `rfc-scoring-model.md`.
 
     Неизвестный стаж расширяет вилку вниз (0 лет) и вверх (требуемый стаж).
-    Неизвестная давность расширяет вилку от `max_recency_years` до 0.
+    Давность пока не учитывается: recency всегда равен 1.
     """
 
     def __init__(self, config: TemporalConfig | None = None) -> None:
@@ -152,17 +154,8 @@ class TemporalPolicy:
         self,
         recency: float | None,
     ) -> tuple[float, float, float]:
-        if recency is None:
-            return (
-                self._recency_factor(0.0),
-                self._recency_factor(self._config.max_recency_years),
-                self._recency_factor(0.0),
-            )
-        value = self._recency_factor(recency)
-        return value, value, value
-
-    def _recency_factor(self, recency: float) -> float:
-        return 2.0 ** (-max(0.0, recency) / self._config.half_life_years)
+        # v1: свежесть отключена, поэтому точка и границы всегда нейтральны.
+        return 1.0, 1.0, 1.0
 
 
 class ClaimConfidence(Protocol):

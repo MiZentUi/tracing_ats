@@ -464,6 +464,18 @@ def test_evaluate_resume_match_matches_skill_version_to_base_requirement() -> No
     assert match.resume_feature_key == "skill:0"
 
 
+def test_evaluate_resume_match_uses_vacancy_tenure_in_score() -> None:
+    without_tenure = _evaluate_request()
+    without_tenure.vacancy.tenure = 0
+    with_tenure = _evaluate_request()
+
+    with _running(ResumeExtractor(FakeLlm(PAYLOAD))) as stub:
+        zero_score = stub.EvaluateResumeMatch(without_tenure, timeout=2)
+        five_score = stub.EvaluateResumeMatch(with_tenure, timeout=2)
+
+    assert zero_score.general_score.score != five_score.general_score.score
+
+
 def test_evaluate_resume_match_logs_no_resume_text(caplog) -> None:
     with caplog.at_level(logging.INFO), _running(ResumeExtractor(FakeLlm(PAYLOAD))) as stub:
         stub.EvaluateResumeMatch(_evaluate_request(), timeout=2)

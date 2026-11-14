@@ -71,10 +71,13 @@ class ResumeEvaluator:
         }
 
         total_years = total_experience_years(resume.experience.values(), reference_date)
-        tenure = round(total_years) if total_years is not None else None
         domain_score = self._domain.score(resume, vacancy)
-        # TODO: match tenure against total years
-        general = self._calculator.aggregate(matches.values(), tenure, domain_score)
+        general = self._calculator.aggregate(
+            matches.values(),
+            total_years,
+            float(vacancy.tenure),
+            domain_score,
+        )
 
         gaps = [
             GapView(requirement_id=match.requirement_id, reason=match.gap_reason)

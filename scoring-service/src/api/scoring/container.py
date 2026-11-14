@@ -7,7 +7,7 @@
 
 from __future__ import annotations
 
-from ..config import Settings
+from ..config import DEFAULT_TENURE_WEIGHT, Settings
 from ..dictionary.client import DictionaryClient
 from ..extraction.extractor import ResumeExtractor
 from ..llm import build_llm_client
@@ -45,18 +45,22 @@ def build_evaluator(settings: Settings | None = None) -> ResumeEvaluator:
             )
     resolver = SkillResolver(client, enabled=enabled)
     qualification_resolver = QualificationResolver(client, enabled=enabled)
+    temporal = TemporalPolicy()
     matcher = RequirementMatcher(
         similarity=similarity,
-        temporal=TemporalPolicy(),
+        temporal=temporal,
         confidence=HeuristicClaimConfidence(),
         text_matcher=DeterministicTextMatcher(similarity),
         resolver=resolver,
         relations=RelationPolicy(),
     )
+    tenure_weight = settings.tenure_weight if settings is not None else DEFAULT_TENURE_WEIGHT
     calculator = ScoringCalculator(
         weights=CriticalityWeightPolicy(),
-        # F пока не зафиксирована в RFC; fallback F = 0, M = 1.
+        # F пока не зафиксирована в RFC; fallback F = 0.
         domain_weight=0.0,
+        tenure_weight=tenure_weight,
+        temporal=temporal,
     )
     return ResumeEvaluator(
         matcher=matcher,
