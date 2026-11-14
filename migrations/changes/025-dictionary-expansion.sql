@@ -574,49 +574,263 @@ INSERT INTO dictionary.skill_alias_key (key, alias_id, kind) VALUES ('делов
 INSERT INTO dictionary.skill_alias (id, skill_id, alias_raw, is_canonical, lang, source, lemma_mode, created_by) VALUES ('471d3b69-242a-57d1-af57-d79198c4c58e'::uuid, 'c647b05a-d6d9-57ec-91d1-1bceab7523ed'::uuid, 'командная работа', false, 'mixed', 'SEED', 'AUTO', 'seed') ON CONFLICT (id) DO NOTHING;
 INSERT INTO dictionary.skill_alias_key (key, alias_id, kind) VALUES ('командная работа', '471d3b69-242a-57d1-af57-d79198c4c58e'::uuid, 'RAW') ON CONFLICT (key) DO NOTHING;
 
-INSERT INTO dictionary.skill_relation (left_skill_id, right_skill_id, relation_kind) VALUES ('12a891ce-9936-547a-95c6-baa7c8c21535'::uuid, 'e79a6edf-b6b4-5a4e-85fe-b98d386e2e1e'::uuid, 'RELATED') ON CONFLICT DO NOTHING;
-INSERT INTO dictionary.skill_relation (left_skill_id, right_skill_id, relation_kind) VALUES ('e5d48528-ef6a-545f-a196-629cfa99636e'::uuid, 'ec89e0a5-a0a9-5953-9729-6e2ad3065e0e'::uuid, 'SAME_GROUP') ON CONFLICT DO NOTHING;
-INSERT INTO dictionary.skill_relation (left_skill_id, right_skill_id, relation_kind) VALUES ('99f9a910-4c20-551c-8f35-aa42f258829d'::uuid, 'a55a0160-f383-598b-acab-ecc3103b9f44'::uuid, 'SAME_GROUP') ON CONFLICT DO NOTHING;
-INSERT INTO dictionary.skill_relation (left_skill_id, right_skill_id, relation_kind) VALUES ('2df9a597-cd55-5eb4-91ec-f95b258343d3'::uuid, '3a6710b1-7b9b-5431-a0e9-b1d68c8b7572'::uuid, 'RELATED') ON CONFLICT DO NOTHING;
-INSERT INTO dictionary.skill_relation (left_skill_id, right_skill_id, relation_kind) VALUES ('264e6b4e-ec6f-5742-800b-e066bbc04590'::uuid, '2df9a597-cd55-5eb4-91ec-f95b258343d3'::uuid, 'RELATED') ON CONFLICT DO NOTHING;
-INSERT INTO dictionary.skill_relation (left_skill_id, right_skill_id, relation_kind) VALUES ('2df9a597-cd55-5eb4-91ec-f95b258343d3'::uuid, '5a7f5090-2f22-5ed2-8e89-00d0cd76695b'::uuid, 'RELATED') ON CONFLICT DO NOTHING;
-INSERT INTO dictionary.skill_relation (left_skill_id, right_skill_id, relation_kind) VALUES ('2df9a597-cd55-5eb4-91ec-f95b258343d3'::uuid, 'be9001ff-a457-5ea7-888f-0b365f6c33a3'::uuid, 'RELATED') ON CONFLICT DO NOTHING;
-INSERT INTO dictionary.skill_relation (left_skill_id, right_skill_id, relation_kind) VALUES ('2df9a597-cd55-5eb4-91ec-f95b258343d3'::uuid, '34ffdb95-c5b9-599f-ab4a-22092c734abf'::uuid, 'RELATED') ON CONFLICT DO NOTHING;
-INSERT INTO dictionary.skill_relation (left_skill_id, right_skill_id, relation_kind) VALUES ('5a7f5090-2f22-5ed2-8e89-00d0cd76695b'::uuid, 'cb130713-9764-5aec-8dc2-8965aa11645c'::uuid, 'SAME_GROUP') ON CONFLICT DO NOTHING;
-INSERT INTO dictionary.skill_relation (left_skill_id, right_skill_id, relation_kind) VALUES ('64087a55-ae1d-567c-a8ba-9db6018ac868'::uuid, '6656725f-186d-5046-9976-ca3d8db47e49'::uuid, 'RELATED') ON CONFLICT DO NOTHING;
-INSERT INTO dictionary.skill_relation (left_skill_id, right_skill_id, relation_kind) VALUES ('64087a55-ae1d-567c-a8ba-9db6018ac868'::uuid, '7c04a069-c1a5-50fa-bb0e-45d41c17ca45'::uuid, 'RELATED') ON CONFLICT DO NOTHING;
-INSERT INTO dictionary.skill_relation (left_skill_id, right_skill_id, relation_kind) VALUES ('212bc73b-0550-5f74-81aa-fff037c75029'::uuid, '64087a55-ae1d-567c-a8ba-9db6018ac868'::uuid, 'RELATED') ON CONFLICT DO NOTHING;
-INSERT INTO dictionary.skill_relation (left_skill_id, right_skill_id, relation_kind) VALUES ('64087a55-ae1d-567c-a8ba-9db6018ac868'::uuid, 'b435f340-fe5d-57b2-ba28-f1df5b5220f3'::uuid, 'RELATED') ON CONFLICT DO NOTHING;
-INSERT INTO dictionary.skill_relation (left_skill_id, right_skill_id, relation_kind) VALUES ('64087a55-ae1d-567c-a8ba-9db6018ac868'::uuid, '76457970-eb66-592a-bea8-eea5a006bb74'::uuid, 'RELATED') ON CONFLICT DO NOTHING;
-INSERT INTO dictionary.skill_relation (left_skill_id, right_skill_id, relation_kind) VALUES ('64087a55-ae1d-567c-a8ba-9db6018ac868'::uuid, '7fbc8fbe-57fe-5e35-8ff1-eda424cc5166'::uuid, 'RELATED') ON CONFLICT DO NOTHING;
-INSERT INTO dictionary.skill_relation (left_skill_id, right_skill_id, relation_kind) VALUES ('000851ea-05d2-5e92-aba0-3af60591fad8'::uuid, '64087a55-ae1d-567c-a8ba-9db6018ac868'::uuid, 'RELATED') ON CONFLICT DO NOTHING;
-INSERT INTO dictionary.skill_relation (left_skill_id, right_skill_id, relation_kind) VALUES ('212bc73b-0550-5f74-81aa-fff037c75029'::uuid, '7c04a069-c1a5-50fa-bb0e-45d41c17ca45'::uuid, 'SAME_GROUP') ON CONFLICT DO NOTHING;
-INSERT INTO dictionary.skill_relation (left_skill_id, right_skill_id, relation_kind) VALUES ('a84ad921-249b-50d5-a36f-761fedf0993e'::uuid, 'a93ab924-4e40-53bd-8fd2-f0e349c80506'::uuid, 'SAME_GROUP') ON CONFLICT DO NOTHING;
-INSERT INTO dictionary.skill_relation (left_skill_id, right_skill_id, relation_kind) VALUES ('7bdca04e-bb84-5fa7-b99c-297252420434'::uuid, 'fb9181a1-fda4-514b-8dce-d5e5af8a5926'::uuid, 'SAME_GROUP') ON CONFLICT DO NOTHING;
-INSERT INTO dictionary.skill_relation (left_skill_id, right_skill_id, relation_kind) VALUES ('7bdca04e-bb84-5fa7-b99c-297252420434'::uuid, 'da9c44d3-e874-59ff-b2d3-3be080675487'::uuid, 'RELATED') ON CONFLICT DO NOTHING;
-INSERT INTO dictionary.skill_relation (left_skill_id, right_skill_id, relation_kind) VALUES ('906e8d27-aa29-55b9-b6a6-01fc655ba1cc'::uuid, 'aa5e070d-4623-55dd-a2d6-0ac0b2b94f07'::uuid, 'RELATED') ON CONFLICT DO NOTHING;
-INSERT INTO dictionary.skill_relation (left_skill_id, right_skill_id, relation_kind) VALUES ('17dc68a3-f782-5803-9a77-a1a0b60b5751'::uuid, 'aa5e070d-4623-55dd-a2d6-0ac0b2b94f07'::uuid, 'RELATED') ON CONFLICT DO NOTHING;
-INSERT INTO dictionary.skill_relation (left_skill_id, right_skill_id, relation_kind) VALUES ('aa5e070d-4623-55dd-a2d6-0ac0b2b94f07'::uuid, 'cdf652aa-ce46-5b9b-a911-d6eaff2de027'::uuid, 'RELATED') ON CONFLICT DO NOTHING;
-INSERT INTO dictionary.skill_relation (left_skill_id, right_skill_id, relation_kind) VALUES ('2e8c7a42-d49c-59ef-af43-1ca37e0271e8'::uuid, 'aa5e070d-4623-55dd-a2d6-0ac0b2b94f07'::uuid, 'SAME_GROUP') ON CONFLICT DO NOTHING;
-INSERT INTO dictionary.skill_relation (left_skill_id, right_skill_id, relation_kind) VALUES ('c9584917-8ebb-52a4-bc2c-3ab317733ceb'::uuid, 'f6bbece4-20b6-5959-9781-5336998d2591'::uuid, 'RELATED') ON CONFLICT DO NOTHING;
-INSERT INTO dictionary.skill_relation (left_skill_id, right_skill_id, relation_kind) VALUES ('a04a3379-0c64-530b-9f1e-0939125b2138'::uuid, 'ac39ca3f-988c-5aec-b457-a80bf8ca2b92'::uuid, 'RELATED') ON CONFLICT DO NOTHING;
-INSERT INTO dictionary.skill_relation (left_skill_id, right_skill_id, relation_kind) VALUES ('3350788c-289c-50f2-8b6c-d28ee19c1984'::uuid, '4438ac85-12f7-5ed0-81cc-22d403299353'::uuid, 'RELATED') ON CONFLICT DO NOTHING;
-INSERT INTO dictionary.skill_relation (left_skill_id, right_skill_id, relation_kind) VALUES ('5ec71905-8354-504d-8887-d90d453b6be3'::uuid, '8f23fad1-9ab1-5f54-88e6-3c7e349488a2'::uuid, 'SAME_GROUP') ON CONFLICT DO NOTHING;
-INSERT INTO dictionary.skill_relation (left_skill_id, right_skill_id, relation_kind) VALUES ('e270fc28-9053-548d-80d4-aa038285b38b'::uuid, 'e4545bb5-a299-558f-92bd-38f08f4b99ed'::uuid, 'RELATED') ON CONFLICT DO NOTHING;
-INSERT INTO dictionary.skill_relation (left_skill_id, right_skill_id, relation_kind) VALUES ('637a91f0-9faf-5acd-96f7-9ff1b3407710'::uuid, 'e4545bb5-a299-558f-92bd-38f08f4b99ed'::uuid, 'RELATED') ON CONFLICT DO NOTHING;
-INSERT INTO dictionary.skill_relation (left_skill_id, right_skill_id, relation_kind) VALUES ('e0065c50-261d-5a66-a053-510f45193282'::uuid, 'e4545bb5-a299-558f-92bd-38f08f4b99ed'::uuid, 'RELATED') ON CONFLICT DO NOTHING;
-INSERT INTO dictionary.skill_relation (left_skill_id, right_skill_id, relation_kind) VALUES ('a514807b-427f-59f2-9b62-009e7ec269b7'::uuid, 'a51ac0a6-96f7-5425-8c3f-67a4258684c8'::uuid, 'RELATED') ON CONFLICT DO NOTHING;
-INSERT INTO dictionary.skill_relation (left_skill_id, right_skill_id, relation_kind) VALUES ('2284e561-369e-54ec-9750-fd27464134b3'::uuid, 'a51ac0a6-96f7-5425-8c3f-67a4258684c8'::uuid, 'RELATED') ON CONFLICT DO NOTHING;
-INSERT INTO dictionary.skill_relation (left_skill_id, right_skill_id, relation_kind) VALUES ('2c37d583-68cc-5540-a4d4-3ad7f126cfc6'::uuid, '644afe50-3aca-5d31-82d7-0ecc8a9372e4'::uuid, 'RELATED') ON CONFLICT DO NOTHING;
-INSERT INTO dictionary.skill_relation (left_skill_id, right_skill_id, relation_kind) VALUES ('2c37d583-68cc-5540-a4d4-3ad7f126cfc6'::uuid, '4637805f-4267-58b1-a68f-d07b939050fe'::uuid, 'RELATED') ON CONFLICT DO NOTHING;
-INSERT INTO dictionary.skill_relation (left_skill_id, right_skill_id, relation_kind) VALUES ('151a3761-08e2-5675-8d91-73d8e468f7a6'::uuid, '2c37d583-68cc-5540-a4d4-3ad7f126cfc6'::uuid, 'RELATED') ON CONFLICT DO NOTHING;
-INSERT INTO dictionary.skill_relation (left_skill_id, right_skill_id, relation_kind) VALUES ('644afe50-3aca-5d31-82d7-0ecc8a9372e4'::uuid, '88d77ace-5a0d-5faa-baaa-614ba48b2c73'::uuid, 'RELATED') ON CONFLICT DO NOTHING;
-INSERT INTO dictionary.skill_relation (left_skill_id, right_skill_id, relation_kind) VALUES ('98aa5804-5ca4-5e76-8864-18011ee66fe0'::uuid, 'd5113ed2-0e26-59c6-8d3c-a465557558d6'::uuid, 'RELATED') ON CONFLICT DO NOTHING;
-INSERT INTO dictionary.skill_relation (left_skill_id, right_skill_id, relation_kind) VALUES ('0625e5f1-68ce-5386-9faf-0441108ff432'::uuid, '5277bd0a-3d64-5e2b-b844-048c68fb4201'::uuid, 'RELATED') ON CONFLICT DO NOTHING;
-INSERT INTO dictionary.skill_relation (left_skill_id, right_skill_id, relation_kind) VALUES ('0625e5f1-68ce-5386-9faf-0441108ff432'::uuid, '2f2fdaa9-6938-5e63-8f5a-ac7cb24f3556'::uuid, 'RELATED') ON CONFLICT DO NOTHING;
-INSERT INTO dictionary.skill_relation (left_skill_id, right_skill_id, relation_kind) VALUES ('4e4db277-a725-5296-a176-a0120f07b612'::uuid, 'caf96ff0-f935-52fc-9f36-31a9dd3e7563'::uuid, 'SAME_GROUP') ON CONFLICT DO NOTHING;
-INSERT INTO dictionary.skill_relation (left_skill_id, right_skill_id, relation_kind) VALUES ('07849fe4-5bca-563f-b26e-7850bb178192'::uuid, '0cf9c7ab-5cef-55da-a4a0-8b44295ec4f1'::uuid, 'RELATED') ON CONFLICT DO NOTHING;
-INSERT INTO dictionary.skill_relation (left_skill_id, right_skill_id, relation_kind) VALUES ('0cf9c7ab-5cef-55da-a4a0-8b44295ec4f1'::uuid, '43542236-6edc-5e3e-9872-94358f3508fa'::uuid, 'RELATED') ON CONFLICT DO NOTHING;
+INSERT INTO dictionary.skill_relation (left_skill_id, right_skill_id, relation_kind)
+SELECT '12a891ce-9936-547a-95c6-baa7c8c21535'::uuid, 'e79a6edf-b6b4-5a4e-85fe-b98d386e2e1e'::uuid, 'RELATED'
+WHERE EXISTS (SELECT 1 FROM dictionary.skill WHERE id = '12a891ce-9936-547a-95c6-baa7c8c21535'::uuid)
+  AND EXISTS (SELECT 1 FROM dictionary.skill WHERE id = 'e79a6edf-b6b4-5a4e-85fe-b98d386e2e1e'::uuid)
+ON CONFLICT DO NOTHING;
+
+INSERT INTO dictionary.skill_relation (left_skill_id, right_skill_id, relation_kind)
+SELECT 'e5d48528-ef6a-545f-a196-629cfa99636e'::uuid, 'ec89e0a5-a0a9-5953-9729-6e2ad3065e0e'::uuid, 'SAME_GROUP'
+WHERE EXISTS (SELECT 1 FROM dictionary.skill WHERE id = 'e5d48528-ef6a-545f-a196-629cfa99636e'::uuid)
+  AND EXISTS (SELECT 1 FROM dictionary.skill WHERE id = 'ec89e0a5-a0a9-5953-9729-6e2ad3065e0e'::uuid)
+ON CONFLICT DO NOTHING;
+
+INSERT INTO dictionary.skill_relation (left_skill_id, right_skill_id, relation_kind)
+SELECT '99f9a910-4c20-551c-8f35-aa42f258829d'::uuid, 'a55a0160-f383-598b-acab-ecc3103b9f44'::uuid, 'SAME_GROUP'
+WHERE EXISTS (SELECT 1 FROM dictionary.skill WHERE id = '99f9a910-4c20-551c-8f35-aa42f258829d'::uuid)
+  AND EXISTS (SELECT 1 FROM dictionary.skill WHERE id = 'a55a0160-f383-598b-acab-ecc3103b9f44'::uuid)
+ON CONFLICT DO NOTHING;
+
+INSERT INTO dictionary.skill_relation (left_skill_id, right_skill_id, relation_kind)
+SELECT '2df9a597-cd55-5eb4-91ec-f95b258343d3'::uuid, '3a6710b1-7b9b-5431-a0e9-b1d68c8b7572'::uuid, 'RELATED'
+WHERE EXISTS (SELECT 1 FROM dictionary.skill WHERE id = '2df9a597-cd55-5eb4-91ec-f95b258343d3'::uuid)
+  AND EXISTS (SELECT 1 FROM dictionary.skill WHERE id = '3a6710b1-7b9b-5431-a0e9-b1d68c8b7572'::uuid)
+ON CONFLICT DO NOTHING;
+
+INSERT INTO dictionary.skill_relation (left_skill_id, right_skill_id, relation_kind)
+SELECT '264e6b4e-ec6f-5742-800b-e066bbc04590'::uuid, '2df9a597-cd55-5eb4-91ec-f95b258343d3'::uuid, 'RELATED'
+WHERE EXISTS (SELECT 1 FROM dictionary.skill WHERE id = '264e6b4e-ec6f-5742-800b-e066bbc04590'::uuid)
+  AND EXISTS (SELECT 1 FROM dictionary.skill WHERE id = '2df9a597-cd55-5eb4-91ec-f95b258343d3'::uuid)
+ON CONFLICT DO NOTHING;
+
+INSERT INTO dictionary.skill_relation (left_skill_id, right_skill_id, relation_kind)
+SELECT '2df9a597-cd55-5eb4-91ec-f95b258343d3'::uuid, '5a7f5090-2f22-5ed2-8e89-00d0cd76695b'::uuid, 'RELATED'
+WHERE EXISTS (SELECT 1 FROM dictionary.skill WHERE id = '2df9a597-cd55-5eb4-91ec-f95b258343d3'::uuid)
+  AND EXISTS (SELECT 1 FROM dictionary.skill WHERE id = '5a7f5090-2f22-5ed2-8e89-00d0cd76695b'::uuid)
+ON CONFLICT DO NOTHING;
+
+INSERT INTO dictionary.skill_relation (left_skill_id, right_skill_id, relation_kind)
+SELECT '2df9a597-cd55-5eb4-91ec-f95b258343d3'::uuid, 'be9001ff-a457-5ea7-888f-0b365f6c33a3'::uuid, 'RELATED'
+WHERE EXISTS (SELECT 1 FROM dictionary.skill WHERE id = '2df9a597-cd55-5eb4-91ec-f95b258343d3'::uuid)
+  AND EXISTS (SELECT 1 FROM dictionary.skill WHERE id = 'be9001ff-a457-5ea7-888f-0b365f6c33a3'::uuid)
+ON CONFLICT DO NOTHING;
+
+INSERT INTO dictionary.skill_relation (left_skill_id, right_skill_id, relation_kind)
+SELECT '2df9a597-cd55-5eb4-91ec-f95b258343d3'::uuid, '34ffdb95-c5b9-599f-ab4a-22092c734abf'::uuid, 'RELATED'
+WHERE EXISTS (SELECT 1 FROM dictionary.skill WHERE id = '2df9a597-cd55-5eb4-91ec-f95b258343d3'::uuid)
+  AND EXISTS (SELECT 1 FROM dictionary.skill WHERE id = '34ffdb95-c5b9-599f-ab4a-22092c734abf'::uuid)
+ON CONFLICT DO NOTHING;
+
+INSERT INTO dictionary.skill_relation (left_skill_id, right_skill_id, relation_kind)
+SELECT '5a7f5090-2f22-5ed2-8e89-00d0cd76695b'::uuid, 'cb130713-9764-5aec-8dc2-8965aa11645c'::uuid, 'SAME_GROUP'
+WHERE EXISTS (SELECT 1 FROM dictionary.skill WHERE id = '5a7f5090-2f22-5ed2-8e89-00d0cd76695b'::uuid)
+  AND EXISTS (SELECT 1 FROM dictionary.skill WHERE id = 'cb130713-9764-5aec-8dc2-8965aa11645c'::uuid)
+ON CONFLICT DO NOTHING;
+
+INSERT INTO dictionary.skill_relation (left_skill_id, right_skill_id, relation_kind)
+SELECT '64087a55-ae1d-567c-a8ba-9db6018ac868'::uuid, '6656725f-186d-5046-9976-ca3d8db47e49'::uuid, 'RELATED'
+WHERE EXISTS (SELECT 1 FROM dictionary.skill WHERE id = '64087a55-ae1d-567c-a8ba-9db6018ac868'::uuid)
+  AND EXISTS (SELECT 1 FROM dictionary.skill WHERE id = '6656725f-186d-5046-9976-ca3d8db47e49'::uuid)
+ON CONFLICT DO NOTHING;
+
+INSERT INTO dictionary.skill_relation (left_skill_id, right_skill_id, relation_kind)
+SELECT '64087a55-ae1d-567c-a8ba-9db6018ac868'::uuid, '7c04a069-c1a5-50fa-bb0e-45d41c17ca45'::uuid, 'RELATED'
+WHERE EXISTS (SELECT 1 FROM dictionary.skill WHERE id = '64087a55-ae1d-567c-a8ba-9db6018ac868'::uuid)
+  AND EXISTS (SELECT 1 FROM dictionary.skill WHERE id = '7c04a069-c1a5-50fa-bb0e-45d41c17ca45'::uuid)
+ON CONFLICT DO NOTHING;
+
+INSERT INTO dictionary.skill_relation (left_skill_id, right_skill_id, relation_kind)
+SELECT '212bc73b-0550-5f74-81aa-fff037c75029'::uuid, '64087a55-ae1d-567c-a8ba-9db6018ac868'::uuid, 'RELATED'
+WHERE EXISTS (SELECT 1 FROM dictionary.skill WHERE id = '212bc73b-0550-5f74-81aa-fff037c75029'::uuid)
+  AND EXISTS (SELECT 1 FROM dictionary.skill WHERE id = '64087a55-ae1d-567c-a8ba-9db6018ac868'::uuid)
+ON CONFLICT DO NOTHING;
+
+INSERT INTO dictionary.skill_relation (left_skill_id, right_skill_id, relation_kind)
+SELECT '64087a55-ae1d-567c-a8ba-9db6018ac868'::uuid, 'b435f340-fe5d-57b2-ba28-f1df5b5220f3'::uuid, 'RELATED'
+WHERE EXISTS (SELECT 1 FROM dictionary.skill WHERE id = '64087a55-ae1d-567c-a8ba-9db6018ac868'::uuid)
+  AND EXISTS (SELECT 1 FROM dictionary.skill WHERE id = 'b435f340-fe5d-57b2-ba28-f1df5b5220f3'::uuid)
+ON CONFLICT DO NOTHING;
+
+INSERT INTO dictionary.skill_relation (left_skill_id, right_skill_id, relation_kind)
+SELECT '64087a55-ae1d-567c-a8ba-9db6018ac868'::uuid, '76457970-eb66-592a-bea8-eea5a006bb74'::uuid, 'RELATED'
+WHERE EXISTS (SELECT 1 FROM dictionary.skill WHERE id = '64087a55-ae1d-567c-a8ba-9db6018ac868'::uuid)
+  AND EXISTS (SELECT 1 FROM dictionary.skill WHERE id = '76457970-eb66-592a-bea8-eea5a006bb74'::uuid)
+ON CONFLICT DO NOTHING;
+
+INSERT INTO dictionary.skill_relation (left_skill_id, right_skill_id, relation_kind)
+SELECT '64087a55-ae1d-567c-a8ba-9db6018ac868'::uuid, '7fbc8fbe-57fe-5e35-8ff1-eda424cc5166'::uuid, 'RELATED'
+WHERE EXISTS (SELECT 1 FROM dictionary.skill WHERE id = '64087a55-ae1d-567c-a8ba-9db6018ac868'::uuid)
+  AND EXISTS (SELECT 1 FROM dictionary.skill WHERE id = '7fbc8fbe-57fe-5e35-8ff1-eda424cc5166'::uuid)
+ON CONFLICT DO NOTHING;
+
+INSERT INTO dictionary.skill_relation (left_skill_id, right_skill_id, relation_kind)
+SELECT '000851ea-05d2-5e92-aba0-3af60591fad8'::uuid, '64087a55-ae1d-567c-a8ba-9db6018ac868'::uuid, 'RELATED'
+WHERE EXISTS (SELECT 1 FROM dictionary.skill WHERE id = '000851ea-05d2-5e92-aba0-3af60591fad8'::uuid)
+  AND EXISTS (SELECT 1 FROM dictionary.skill WHERE id = '64087a55-ae1d-567c-a8ba-9db6018ac868'::uuid)
+ON CONFLICT DO NOTHING;
+
+INSERT INTO dictionary.skill_relation (left_skill_id, right_skill_id, relation_kind)
+SELECT '212bc73b-0550-5f74-81aa-fff037c75029'::uuid, '7c04a069-c1a5-50fa-bb0e-45d41c17ca45'::uuid, 'SAME_GROUP'
+WHERE EXISTS (SELECT 1 FROM dictionary.skill WHERE id = '212bc73b-0550-5f74-81aa-fff037c75029'::uuid)
+  AND EXISTS (SELECT 1 FROM dictionary.skill WHERE id = '7c04a069-c1a5-50fa-bb0e-45d41c17ca45'::uuid)
+ON CONFLICT DO NOTHING;
+
+INSERT INTO dictionary.skill_relation (left_skill_id, right_skill_id, relation_kind)
+SELECT 'a84ad921-249b-50d5-a36f-761fedf0993e'::uuid, 'a93ab924-4e40-53bd-8fd2-f0e349c80506'::uuid, 'SAME_GROUP'
+WHERE EXISTS (SELECT 1 FROM dictionary.skill WHERE id = 'a84ad921-249b-50d5-a36f-761fedf0993e'::uuid)
+  AND EXISTS (SELECT 1 FROM dictionary.skill WHERE id = 'a93ab924-4e40-53bd-8fd2-f0e349c80506'::uuid)
+ON CONFLICT DO NOTHING;
+
+INSERT INTO dictionary.skill_relation (left_skill_id, right_skill_id, relation_kind)
+SELECT '7bdca04e-bb84-5fa7-b99c-297252420434'::uuid, 'fb9181a1-fda4-514b-8dce-d5e5af8a5926'::uuid, 'SAME_GROUP'
+WHERE EXISTS (SELECT 1 FROM dictionary.skill WHERE id = '7bdca04e-bb84-5fa7-b99c-297252420434'::uuid)
+  AND EXISTS (SELECT 1 FROM dictionary.skill WHERE id = 'fb9181a1-fda4-514b-8dce-d5e5af8a5926'::uuid)
+ON CONFLICT DO NOTHING;
+
+INSERT INTO dictionary.skill_relation (left_skill_id, right_skill_id, relation_kind)
+SELECT '7bdca04e-bb84-5fa7-b99c-297252420434'::uuid, 'da9c44d3-e874-59ff-b2d3-3be080675487'::uuid, 'RELATED'
+WHERE EXISTS (SELECT 1 FROM dictionary.skill WHERE id = '7bdca04e-bb84-5fa7-b99c-297252420434'::uuid)
+  AND EXISTS (SELECT 1 FROM dictionary.skill WHERE id = 'da9c44d3-e874-59ff-b2d3-3be080675487'::uuid)
+ON CONFLICT DO NOTHING;
+
+INSERT INTO dictionary.skill_relation (left_skill_id, right_skill_id, relation_kind)
+SELECT '906e8d27-aa29-55b9-b6a6-01fc655ba1cc'::uuid, 'aa5e070d-4623-55dd-a2d6-0ac0b2b94f07'::uuid, 'RELATED'
+WHERE EXISTS (SELECT 1 FROM dictionary.skill WHERE id = '906e8d27-aa29-55b9-b6a6-01fc655ba1cc'::uuid)
+  AND EXISTS (SELECT 1 FROM dictionary.skill WHERE id = 'aa5e070d-4623-55dd-a2d6-0ac0b2b94f07'::uuid)
+ON CONFLICT DO NOTHING;
+
+INSERT INTO dictionary.skill_relation (left_skill_id, right_skill_id, relation_kind)
+SELECT '17dc68a3-f782-5803-9a77-a1a0b60b5751'::uuid, 'aa5e070d-4623-55dd-a2d6-0ac0b2b94f07'::uuid, 'RELATED'
+WHERE EXISTS (SELECT 1 FROM dictionary.skill WHERE id = '17dc68a3-f782-5803-9a77-a1a0b60b5751'::uuid)
+  AND EXISTS (SELECT 1 FROM dictionary.skill WHERE id = 'aa5e070d-4623-55dd-a2d6-0ac0b2b94f07'::uuid)
+ON CONFLICT DO NOTHING;
+
+INSERT INTO dictionary.skill_relation (left_skill_id, right_skill_id, relation_kind)
+SELECT 'aa5e070d-4623-55dd-a2d6-0ac0b2b94f07'::uuid, 'cdf652aa-ce46-5b9b-a911-d6eaff2de027'::uuid, 'RELATED'
+WHERE EXISTS (SELECT 1 FROM dictionary.skill WHERE id = 'aa5e070d-4623-55dd-a2d6-0ac0b2b94f07'::uuid)
+  AND EXISTS (SELECT 1 FROM dictionary.skill WHERE id = 'cdf652aa-ce46-5b9b-a911-d6eaff2de027'::uuid)
+ON CONFLICT DO NOTHING;
+
+INSERT INTO dictionary.skill_relation (left_skill_id, right_skill_id, relation_kind)
+SELECT '2e8c7a42-d49c-59ef-af43-1ca37e0271e8'::uuid, 'aa5e070d-4623-55dd-a2d6-0ac0b2b94f07'::uuid, 'SAME_GROUP'
+WHERE EXISTS (SELECT 1 FROM dictionary.skill WHERE id = '2e8c7a42-d49c-59ef-af43-1ca37e0271e8'::uuid)
+  AND EXISTS (SELECT 1 FROM dictionary.skill WHERE id = 'aa5e070d-4623-55dd-a2d6-0ac0b2b94f07'::uuid)
+ON CONFLICT DO NOTHING;
+
+INSERT INTO dictionary.skill_relation (left_skill_id, right_skill_id, relation_kind)
+SELECT 'c9584917-8ebb-52a4-bc2c-3ab317733ceb'::uuid, 'f6bbece4-20b6-5959-9781-5336998d2591'::uuid, 'RELATED'
+WHERE EXISTS (SELECT 1 FROM dictionary.skill WHERE id = 'c9584917-8ebb-52a4-bc2c-3ab317733ceb'::uuid)
+  AND EXISTS (SELECT 1 FROM dictionary.skill WHERE id = 'f6bbece4-20b6-5959-9781-5336998d2591'::uuid)
+ON CONFLICT DO NOTHING;
+
+INSERT INTO dictionary.skill_relation (left_skill_id, right_skill_id, relation_kind)
+SELECT 'a04a3379-0c64-530b-9f1e-0939125b2138'::uuid, 'ac39ca3f-988c-5aec-b457-a80bf8ca2b92'::uuid, 'RELATED'
+WHERE EXISTS (SELECT 1 FROM dictionary.skill WHERE id = 'a04a3379-0c64-530b-9f1e-0939125b2138'::uuid)
+  AND EXISTS (SELECT 1 FROM dictionary.skill WHERE id = 'ac39ca3f-988c-5aec-b457-a80bf8ca2b92'::uuid)
+ON CONFLICT DO NOTHING;
+
+INSERT INTO dictionary.skill_relation (left_skill_id, right_skill_id, relation_kind)
+SELECT '3350788c-289c-50f2-8b6c-d28ee19c1984'::uuid, '4438ac85-12f7-5ed0-81cc-22d403299353'::uuid, 'RELATED'
+WHERE EXISTS (SELECT 1 FROM dictionary.skill WHERE id = '3350788c-289c-50f2-8b6c-d28ee19c1984'::uuid)
+  AND EXISTS (SELECT 1 FROM dictionary.skill WHERE id = '4438ac85-12f7-5ed0-81cc-22d403299353'::uuid)
+ON CONFLICT DO NOTHING;
+
+INSERT INTO dictionary.skill_relation (left_skill_id, right_skill_id, relation_kind)
+SELECT '5ec71905-8354-504d-8887-d90d453b6be3'::uuid, '8f23fad1-9ab1-5f54-88e6-3c7e349488a2'::uuid, 'SAME_GROUP'
+WHERE EXISTS (SELECT 1 FROM dictionary.skill WHERE id = '5ec71905-8354-504d-8887-d90d453b6be3'::uuid)
+  AND EXISTS (SELECT 1 FROM dictionary.skill WHERE id = '8f23fad1-9ab1-5f54-88e6-3c7e349488a2'::uuid)
+ON CONFLICT DO NOTHING;
+
+INSERT INTO dictionary.skill_relation (left_skill_id, right_skill_id, relation_kind)
+SELECT 'e270fc28-9053-548d-80d4-aa038285b38b'::uuid, 'e4545bb5-a299-558f-92bd-38f08f4b99ed'::uuid, 'RELATED'
+WHERE EXISTS (SELECT 1 FROM dictionary.skill WHERE id = 'e270fc28-9053-548d-80d4-aa038285b38b'::uuid)
+  AND EXISTS (SELECT 1 FROM dictionary.skill WHERE id = 'e4545bb5-a299-558f-92bd-38f08f4b99ed'::uuid)
+ON CONFLICT DO NOTHING;
+
+INSERT INTO dictionary.skill_relation (left_skill_id, right_skill_id, relation_kind)
+SELECT '637a91f0-9faf-5acd-96f7-9ff1b3407710'::uuid, 'e4545bb5-a299-558f-92bd-38f08f4b99ed'::uuid, 'RELATED'
+WHERE EXISTS (SELECT 1 FROM dictionary.skill WHERE id = '637a91f0-9faf-5acd-96f7-9ff1b3407710'::uuid)
+  AND EXISTS (SELECT 1 FROM dictionary.skill WHERE id = 'e4545bb5-a299-558f-92bd-38f08f4b99ed'::uuid)
+ON CONFLICT DO NOTHING;
+
+INSERT INTO dictionary.skill_relation (left_skill_id, right_skill_id, relation_kind)
+SELECT 'e0065c50-261d-5a66-a053-510f45193282'::uuid, 'e4545bb5-a299-558f-92bd-38f08f4b99ed'::uuid, 'RELATED'
+WHERE EXISTS (SELECT 1 FROM dictionary.skill WHERE id = 'e0065c50-261d-5a66-a053-510f45193282'::uuid)
+  AND EXISTS (SELECT 1 FROM dictionary.skill WHERE id = 'e4545bb5-a299-558f-92bd-38f08f4b99ed'::uuid)
+ON CONFLICT DO NOTHING;
+
+INSERT INTO dictionary.skill_relation (left_skill_id, right_skill_id, relation_kind)
+SELECT 'a514807b-427f-59f2-9b62-009e7ec269b7'::uuid, 'a51ac0a6-96f7-5425-8c3f-67a4258684c8'::uuid, 'RELATED'
+WHERE EXISTS (SELECT 1 FROM dictionary.skill WHERE id = 'a514807b-427f-59f2-9b62-009e7ec269b7'::uuid)
+  AND EXISTS (SELECT 1 FROM dictionary.skill WHERE id = 'a51ac0a6-96f7-5425-8c3f-67a4258684c8'::uuid)
+ON CONFLICT DO NOTHING;
+
+INSERT INTO dictionary.skill_relation (left_skill_id, right_skill_id, relation_kind)
+SELECT '2284e561-369e-54ec-9750-fd27464134b3'::uuid, 'a51ac0a6-96f7-5425-8c3f-67a4258684c8'::uuid, 'RELATED'
+WHERE EXISTS (SELECT 1 FROM dictionary.skill WHERE id = '2284e561-369e-54ec-9750-fd27464134b3'::uuid)
+  AND EXISTS (SELECT 1 FROM dictionary.skill WHERE id = 'a51ac0a6-96f7-5425-8c3f-67a4258684c8'::uuid)
+ON CONFLICT DO NOTHING;
+
+INSERT INTO dictionary.skill_relation (left_skill_id, right_skill_id, relation_kind)
+SELECT '2c37d583-68cc-5540-a4d4-3ad7f126cfc6'::uuid, '644afe50-3aca-5d31-82d7-0ecc8a9372e4'::uuid, 'RELATED'
+WHERE EXISTS (SELECT 1 FROM dictionary.skill WHERE id = '2c37d583-68cc-5540-a4d4-3ad7f126cfc6'::uuid)
+  AND EXISTS (SELECT 1 FROM dictionary.skill WHERE id = '644afe50-3aca-5d31-82d7-0ecc8a9372e4'::uuid)
+ON CONFLICT DO NOTHING;
+
+INSERT INTO dictionary.skill_relation (left_skill_id, right_skill_id, relation_kind)
+SELECT '2c37d583-68cc-5540-a4d4-3ad7f126cfc6'::uuid, '4637805f-4267-58b1-a68f-d07b939050fe'::uuid, 'RELATED'
+WHERE EXISTS (SELECT 1 FROM dictionary.skill WHERE id = '2c37d583-68cc-5540-a4d4-3ad7f126cfc6'::uuid)
+  AND EXISTS (SELECT 1 FROM dictionary.skill WHERE id = '4637805f-4267-58b1-a68f-d07b939050fe'::uuid)
+ON CONFLICT DO NOTHING;
+
+INSERT INTO dictionary.skill_relation (left_skill_id, right_skill_id, relation_kind)
+SELECT '151a3761-08e2-5675-8d91-73d8e468f7a6'::uuid, '2c37d583-68cc-5540-a4d4-3ad7f126cfc6'::uuid, 'RELATED'
+WHERE EXISTS (SELECT 1 FROM dictionary.skill WHERE id = '151a3761-08e2-5675-8d91-73d8e468f7a6'::uuid)
+  AND EXISTS (SELECT 1 FROM dictionary.skill WHERE id = '2c37d583-68cc-5540-a4d4-3ad7f126cfc6'::uuid)
+ON CONFLICT DO NOTHING;
+
+INSERT INTO dictionary.skill_relation (left_skill_id, right_skill_id, relation_kind)
+SELECT '644afe50-3aca-5d31-82d7-0ecc8a9372e4'::uuid, '88d77ace-5a0d-5faa-baaa-614ba48b2c73'::uuid, 'RELATED'
+WHERE EXISTS (SELECT 1 FROM dictionary.skill WHERE id = '644afe50-3aca-5d31-82d7-0ecc8a9372e4'::uuid)
+  AND EXISTS (SELECT 1 FROM dictionary.skill WHERE id = '88d77ace-5a0d-5faa-baaa-614ba48b2c73'::uuid)
+ON CONFLICT DO NOTHING;
+
+INSERT INTO dictionary.skill_relation (left_skill_id, right_skill_id, relation_kind)
+SELECT '98aa5804-5ca4-5e76-8864-18011ee66fe0'::uuid, 'd5113ed2-0e26-59c6-8d3c-a465557558d6'::uuid, 'RELATED'
+WHERE EXISTS (SELECT 1 FROM dictionary.skill WHERE id = '98aa5804-5ca4-5e76-8864-18011ee66fe0'::uuid)
+  AND EXISTS (SELECT 1 FROM dictionary.skill WHERE id = 'd5113ed2-0e26-59c6-8d3c-a465557558d6'::uuid)
+ON CONFLICT DO NOTHING;
+
+INSERT INTO dictionary.skill_relation (left_skill_id, right_skill_id, relation_kind)
+SELECT '0625e5f1-68ce-5386-9faf-0441108ff432'::uuid, '5277bd0a-3d64-5e2b-b844-048c68fb4201'::uuid, 'RELATED'
+WHERE EXISTS (SELECT 1 FROM dictionary.skill WHERE id = '0625e5f1-68ce-5386-9faf-0441108ff432'::uuid)
+  AND EXISTS (SELECT 1 FROM dictionary.skill WHERE id = '5277bd0a-3d64-5e2b-b844-048c68fb4201'::uuid)
+ON CONFLICT DO NOTHING;
+
+INSERT INTO dictionary.skill_relation (left_skill_id, right_skill_id, relation_kind)
+SELECT '0625e5f1-68ce-5386-9faf-0441108ff432'::uuid, '2f2fdaa9-6938-5e63-8f5a-ac7cb24f3556'::uuid, 'RELATED'
+WHERE EXISTS (SELECT 1 FROM dictionary.skill WHERE id = '0625e5f1-68ce-5386-9faf-0441108ff432'::uuid)
+  AND EXISTS (SELECT 1 FROM dictionary.skill WHERE id = '2f2fdaa9-6938-5e63-8f5a-ac7cb24f3556'::uuid)
+ON CONFLICT DO NOTHING;
+
+INSERT INTO dictionary.skill_relation (left_skill_id, right_skill_id, relation_kind)
+SELECT '4e4db277-a725-5296-a176-a0120f07b612'::uuid, 'caf96ff0-f935-52fc-9f36-31a9dd3e7563'::uuid, 'SAME_GROUP'
+WHERE EXISTS (SELECT 1 FROM dictionary.skill WHERE id = '4e4db277-a725-5296-a176-a0120f07b612'::uuid)
+  AND EXISTS (SELECT 1 FROM dictionary.skill WHERE id = 'caf96ff0-f935-52fc-9f36-31a9dd3e7563'::uuid)
+ON CONFLICT DO NOTHING;
+
+INSERT INTO dictionary.skill_relation (left_skill_id, right_skill_id, relation_kind)
+SELECT '07849fe4-5bca-563f-b26e-7850bb178192'::uuid, '0cf9c7ab-5cef-55da-a4a0-8b44295ec4f1'::uuid, 'RELATED'
+WHERE EXISTS (SELECT 1 FROM dictionary.skill WHERE id = '07849fe4-5bca-563f-b26e-7850bb178192'::uuid)
+  AND EXISTS (SELECT 1 FROM dictionary.skill WHERE id = '0cf9c7ab-5cef-55da-a4a0-8b44295ec4f1'::uuid)
+ON CONFLICT DO NOTHING;
+
+INSERT INTO dictionary.skill_relation (left_skill_id, right_skill_id, relation_kind)
+SELECT '0cf9c7ab-5cef-55da-a4a0-8b44295ec4f1'::uuid, '43542236-6edc-5e3e-9872-94358f3508fa'::uuid, 'RELATED'
+WHERE EXISTS (SELECT 1 FROM dictionary.skill WHERE id = '0cf9c7ab-5cef-55da-a4a0-8b44295ec4f1'::uuid)
+  AND EXISTS (SELECT 1 FROM dictionary.skill WHERE id = '43542236-6edc-5e3e-9872-94358f3508fa'::uuid)
+ON CONFLICT DO NOTHING;
 
 UPDATE dictionary.dictionary_meta
 SET dictionary_version = dictionary_version + 1,
