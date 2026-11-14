@@ -7,6 +7,7 @@ from dataclasses import dataclass, field
 
 from ..dictionary.client import DictionaryClient, DictionaryUnavailable
 from ..extraction.normalize import candidate_keys
+from .versioning import VersionMatchPolicy, match_skill_names
 
 logger = logging.getLogger(__name__)
 
@@ -15,6 +16,7 @@ logger = logging.getLogger(__name__)
 class SkillIdentity:
     raw_name: str
     skill_id: str | None
+    canonical_name: str = ""
     keys: tuple[str, ...] = field(default_factory=tuple)
     method: str = "NEW"
 
@@ -48,9 +50,11 @@ class SkillResolver:
         client: DictionaryClient | None = None,
         *,
         enabled: bool = True,
+        version_policy: VersionMatchPolicy | None = None,
     ) -> None:
         self._client = client
         self._enabled = enabled and client is not None
+        self._version_policy = version_policy or VersionMatchPolicy()
 
     def resolve(self, names: list[tuple[str, str]]) -> BatchResolution:
         if not names:
@@ -95,15 +99,30 @@ class SkillResolver:
             {raw: _local(raw) for raw in unique},
         )
 
-    @staticmethod
-    def score(left: SkillIdentity | None, right: SkillIdentity | None) -> float:
+    def score(self, left: SkillIdentity | None, right: SkillIdentity | None) -> float:
+        """Сходство навыков: канон, затем версия, затем ничего.
+
+        ``Java`` и ``Java 11/17`` — один навык. Отрезается только version tail;
+        ``Java EE``, ``AngularJS`` и ``Spring Boot`` остаются разными именами.
+        """
+
         if left is None or right is None:
             return 0.0
         if left.skill_id and right.skill_id and left.skill_id == right.skill_id:
             return 1.0
+        if left.canonical_name and right.canonical_name:
+            canonical = match_skill_names(
+                left.canonical_name,
+                right.canonical_name,
+                self._version_policy,
+            )
+            if canonical is not None and canonical.score >= 1.0:
+                return 1.0
         if set(left.keys) & set(right.keys):
             return 1.0
-        return 0.0
+
+        versioned = match_skill_names(left.raw_name, right.raw_name, self._version_policy)
+        return versioned.score if versioned is not None else 0.0
 
 
 def _from_dictionary(item) -> SkillIdentity:
@@ -111,6 +130,7 @@ def _from_dictionary(item) -> SkillIdentity:
     return SkillIdentity(
         raw_name=item.raw_name,
         skill_id=item.skill_id,
+        canonical_name=item.canonical_name,
         keys=tuple(dict.fromkeys(key for key in keys if key)),
         method=item.method,
     )

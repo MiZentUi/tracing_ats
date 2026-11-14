@@ -430,12 +430,47 @@ def test_evaluate_resume_match_statuses_and_explanations() -> None:
     assert response.general_score.score_low < response.general_score.score_high
 
 
+def test_evaluate_resume_match_matches_skill_version_to_base_requirement() -> None:
+    text = "Java 11/17 developer"
+    resume = messages_pb2.ParsedResume(schema_version=3)
+    resume.skills["skill:0"].CopyFrom(
+        skill_pb2.SkillPerResume(
+            name="Java 11/17",
+            normalized_name="java 11/17",
+            evidence=common_pb2.FeatureEvidence(text="Java 11/17 developer"),
+        )
+    )
+    vacancy = messages_pb2.Vacancy(
+        requirements={
+            "java": features_pb2.FeatureRequirement(
+                criticality=common_pb2.FEATURE_CRITICALITY_REQUIRED,
+                skill=skill_pb2.SkillRequirement(name="Java"),
+            )
+        }
+    )
+    request = messages_pb2.EvaluateResumeMatchRequest(
+        resume=resume,
+        unprocessed_resume=messages_pb2.UnprocessedResume(text=text),
+        vacancy=vacancy,
+        reference_date=_reference_date(),
+    )
+
+    with _running(ResumeExtractor(FakeLlm(PAYLOAD))) as stub:
+        response = stub.EvaluateResumeMatch(request, timeout=2)
+
+    match = response.matches["java"]
+    assert match.status == common_pb2.CORRESPONDENCE_FULL
+    assert match.relevance == 1.0
+    assert match.resume_feature_key == "skill:0"
+
+
 def test_evaluate_resume_match_logs_no_resume_text(caplog) -> None:
     with caplog.at_level(logging.INFO), _running(ResumeExtractor(FakeLlm(PAYLOAD))) as stub:
         stub.EvaluateResumeMatch(_evaluate_request(), timeout=2)
 
     assert "Python developer" not in caplog.text
     assert TEXT not in caplog.text
+    assert "matcher=skill-versioned-v1" in caplog.text
     assert "strengths=" in caplog.text
     assert "risks=" in caplog.text
     assert "questions=" in caplog.text

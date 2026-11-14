@@ -15,18 +15,27 @@ Python 3.14, `uv`, gRPC, Pydantic. Онлайн-скоринг: разбор о�
 | `EvaluateResumeMatches` | `ParsedResume`, исходный текст, набор вакансий | результаты по каждой вакансии; ошибка одной не отменяет остальные | нет |
 | `ScoreResume` | текст + вакансия | `GeneralResumeScore` + `FeatureAssessment`; legacy-путь | да |
 
-`ExtractResume` и `ScoreResume` вызывают один и тот же экстрактор. `EvaluateResumeMatch` и `EvaluateResumeMatches` работают по уже разобранному резюме и LLM не вызывают.
+`S^{ij}` считается детерминированно:
 
-## Извлечение признаков
+- для навыков точное совпадение `skill_id` или ключа даёт `1.0`; иначе
+  version-aware matcher в `src/api/scoring/versioning.py` отделяет версию от
+  базового имени и сравнивает базу (`Java 11/17` → `Java`, `C++17` → `C++`);
+- хвост отрезается только если он состоит из версий; `Java EE`, `AngularJS`,
+  `Spring Boot`, `Java developer` и `Java, Python` остаются разными именами;
+- при несовпадении версий `VersionMatchPolicy` по умолчанию возвращает `1.0`;
+  значение можно переопределить в коде, не меняя формулу;
+- для образования сходство направления даёт 70%, соответствие уровня — 30%;
+- для текстовых требований `S` — доля значимых токенов требования, найденных
+  в тексте резюме; близость имён для образования и опыта считает
+  `src/api/scoring/similarity.py`.
 
 Промпт — `src/api/prompts/resume_extraction.py`, версия `resume-extraction.v4`, схема `ParsedResume` `schema_version = 3`.
 
 Извлекаются:
 
-- навыки: `name`, `years`, `quote`;
-- квалификации: `label`, `quote`;
-- образование: `institution`, `field`, `level`, `graduation_year`, `quote`;
-- опыт: `company`, `position`, `category`, `begin_year`, `end_year`, `quote`, `metrics`.
+Значения `S` для нечётких совпадений, `t`, `Wv` и `F` остаются открытыми
+вопросами `docs/rfc/rfc-scoring-model.md`; реализация вынесена в заменяемые
+политики, поэтому их фиксация не требует правок сопоставления и арифметики.
 
 Каждая цитата проверяется как подстрока текста после схлопывания пробелов. Признаки с невалидной цитатой отбрасываются и считаются в `dropped`. Ответ модели валидируется Pydantic; невалидный JSON — один повтор, затем ошибка, а не «0 баллов».
 
@@ -97,11 +106,54 @@ Python 3.14, `uv`, gRPC, Pydantic. Онлайн-скоринг: разбор о�
 
 ## LLM
 
-- Клиент — `src/api/llm/client.py` на официальном SDK `openai`; `base_url` настраивается, подходит OpenRouter и локальные OpenAI-совместимые серверы.
-- Провайдер по умолчанию — `mock` (детерминированный, без сети). Реальный включается `SCORING_SERVICE_LLM_PROVIDER=openai`.
-- Повторы на 429/5xx и сетевые ошибки делает SDK (`max_retries`); один повтор на невалидный JSON/схему — на уровне экстрактора.
-- В LLM уходит только обезличенный текст резюме. Тексты, цитаты и ответы модели не логируются; логируются метаданные: модель, задержка, статус, `request_id`, токены, `finish_reason`.
-- Ошибки: `INVALID_ARGUMENT` — пустой текст, `UNAVAILABLE` — LLM недоступна, `INTERNAL` — ответ не прошёл схему после повтора.
+- Промпт и JSON-схема лежат в `src/api/prompts/resume_extraction.py`, версия
+  промпта — `resume-extraction.v4`.
+- Составные записи навыков разбиваются на отдельные: `Spring
+  (Boot/Data/Security)` → `Spring`, `Spring Boot`, `Spring Data`, `Spring
+  Security`; одна quote может подтверждать несколько навыков.
+- Клиент — `src/api/llm/client.py` на официальном SDK `openai`. `base_url`
+  настраивается, поэтому подходит OpenRouter и локальные OpenAI-совместимые
+  серверы. Повторы на 429/5xx и сетевые ошибки делает SDK (`max_retries`);
+  один повтор на невалидный JSON/схему — на уровне экстрактора, затем ошибка,
+  а не «0 баллов».
+- В LLM уходит только обезличенный текст резюме. Тексты, цитаты и ответы модели
+  не логируются; логируются только метаданные вызова: задержка, статус,
+  `request_id`, токены и `finish_reason`.
+- Ошибки: `INVALID_ARGUMENT` — пустой текст, `UNAVAILABLE` — LLM недоступна,
+  `INTERNAL` — ответ не прошёл схему после повтора.
+
+## Логирование
+
+- gRPC-интерсептор `src/api/interceptors.py` пишет `grpc request start` и
+  `grpc request end` с полным именем метода, статусом и `elapsed_ms`.
+- Тела запросов и ответов не логируются: в них может быть текст резюме.
+  При ошибке пишется класс исключения, но не его сообщение.
+
+## Требования
+
+- Python 3.14
+- uv 0.13+
+
+## Локальный запуск
+
+```bash
+uv sync
+uv run scoring-service
+```
+
+Сервис слушает `0.0.0.0:8082`. Проверка здоровья:
+
+```bash
+uv run scoring-service-healthcheck
+```
+
+## Генерация gRPC
+
+Сгенерированные protobuf/gRPC-модули лежат в `src/scoring_service/` и коммитятся вместе с контрактом. После изменения `.proto`:
+
+```bash
+uv run sh protoc.sh
+```
 
 ## Конфигурация
 
@@ -178,14 +230,7 @@ scoring-service/
 └── tests/
 ```
 
-## Ограничения
-
-- `F = 0`, `𝓜 = 1`; внешних `q`, `λ` и `Refine` нет.
-- `recency` не извлекается; общий `τ_total` не считается.
-- `t` реагирует на цифры; уровень образования сравнивается по ordinal.
-- `score_run` не хранит `resolver_version`/`dictionary_mode`.
-- `ignore_invalid_quotes` не действует в обычном `build_scoring_service`.
-- `ScoreResume` не возвращает `parsed` и не отдаёт объяснения.
-- Нет golden-фикстур для полного примера `Score_l`/`Score_h`.
-
-Подробнее — [`../docs/known-issues.md`](../docs/known-issues.md).
+Вся арифметика живёт в `src/api/scoring/`: `versioning.py` — версии навыков,
+`similarity.py` — сходство, `matcher.py` — `R_i`, `c_i` и статусы,
+`policies.py` — `Wv`, `τ`, `t` и `F`, `calculator.py` — агрегаты и границы,
+`feedback.py` — объяснения. Формулы не дублируются в Java и других сервисах.
