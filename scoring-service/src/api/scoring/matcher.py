@@ -6,6 +6,7 @@
 
 from __future__ import annotations
 
+from collections.abc import Iterable
 from datetime import date
 
 from scoring_service.v1.models import features_pb2, messages_pb2
@@ -143,12 +144,22 @@ class RequirementMatcher:
             recency,
         )
         confidence = self._confidence.confidence(evidence.text)
+        context = self._experience_skill_evidence(
+            (target, spec.name, skill.name, skill.normalized_name),
+            resume,
+            index,
+        )
+        context_confirmed = context is not None and context[0] > confidence
+        if context_confirmed:
+            confidence, evidence = context
         coverage = _clamp01(score * confidence * tau)
         coverage_low = _clamp01(score * confidence * tau_low)
         coverage_high = _clamp01(score * confidence * tau_high)
 
         status, gap_reason = _skill_status(score, years, float(spec.tenure))
         comment = _skill_comment(status, gap_reason, skill.name)
+        if context_confirmed:
+            comment = f"{comment} Дополнительно подтверждено в описании опыта работы."
 
         return RequirementScore(
             requirement_id=requirement_id,
@@ -167,6 +178,38 @@ class RequirementMatcher:
             resume_kind="skill",
             resume_feature=skill,
         )
+
+    def _experience_skill_evidence(
+        self,
+        names: Iterable[str | None],
+        resume: messages_pb2.ParsedResume,
+        index: QuoteIndex,
+    ) -> tuple[float, common_pb2.FeatureEvidence] | None:
+        """Найти навык в описании опыта и вернуть лучшую цитату и её t_i.
+
+        Упоминание навыка в опыте не заменяет проверку навыка, но может
+        повысить убедительность заявления: код сравнивает t_i цитаты навыка
+        и t_i цитаты опыта и выбирает более сильную.
+        """
+        candidates = {name.strip() for name in names if name and name.strip()}
+        if not candidates:
+            return None
+
+        best: tuple[float, common_pb2.FeatureEvidence] | None = None
+        for experience in resume.experience.values():
+            for metric in experience.metrics:
+                evidence = _verified_evidence(index, metric)
+                if evidence is None:
+                    continue
+                if not any(
+                    self._similarity.text_score(name, evidence.text) >= 1.0
+                    for name in candidates
+                ):
+                    continue
+                confidence = self._confidence.confidence(evidence.text)
+                if best is None or confidence > best[0]:
+                    best = (confidence, evidence)
+        return best
 
     def _match_qualification(
         self,

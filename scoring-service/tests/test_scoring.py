@@ -382,6 +382,43 @@ def test_score_resume_returns_general_score_and_features() -> None:
     assert experience.metrics[0].text == "ООО Ромашка, 2020-2023"
 
 
+def test_skill_is_additionally_confirmed_by_experience() -> None:
+    text = (
+        "Python\n"
+        "Built a Python service, reduced latency by 30%\n"
+        "МГУ, 2019\n"
+        "ООО Ромашка, 2020-2023\n"
+        "III группа по электробезопасности"
+    )
+    resume = _parsed_resume()
+    resume.skills["skill:0"].CopyFrom(
+        skill_pb2.SkillPerResume(
+            name="Python",
+            normalized_name="python",
+            tenure=3,
+            evidence=common_pb2.FeatureEvidence(text="Python"),
+        )
+    )
+    experience = resume.experience["experience:0"]
+    experience.ClearField("metrics")
+    experience.metrics.add().CopyFrom(
+        common_pb2.FeatureEvidence(
+            text="Built a Python service, reduced latency by 30%",
+        )
+    )
+
+    with _running(ResumeExtractor(FakeLlm(PAYLOAD))) as stub:
+        response = stub.EvaluateResumeMatch(
+            _evaluate_request(text=text, resume=resume),
+            timeout=2,
+        )
+
+    python = response.matches["python"]
+    assert python.evidence.text == "Built a Python service, reduced latency by 30%"
+    assert python.coverage > 0.5
+    assert "Дополнительно подтверждено" in python.comment
+
+
 def test_score_resume_is_deterministic_for_same_input() -> None:
     with _running(ResumeExtractor(FakeLlm(PAYLOAD))) as stub:
         first = stub.ScoreResume(_score_request(), timeout=2)
