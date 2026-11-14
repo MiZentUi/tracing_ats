@@ -67,12 +67,29 @@ class CriticalityWeightPolicy:
             common_pb2.FEATURE_CRITICALITY_REQUIRED: self.required,
             common_pb2.FEATURE_CRITICALITY_CRITICAL: self.critical,
         }.get(criticality, self.unspecified)
+
         if not self.normalize_by_counts or counts is None:
             return base
         count = counts.get(criticality, 0)
         if count <= 0:
             return base
         return base / count
+
+    @staticmethod
+    def my_weight(c: int, map: Mapping[int, int]) -> float:
+        if c in (
+            common_pb2.FEATURE_CRITICALITY_CRITICAL,
+            common_pb2.FEATURE_CRITICALITY_REQUIRED,
+        ):
+            return 0.7 / map[c]
+        elif c == common_pb2.FEATURE_CRITICALITY_NICE:
+            return 0.2 / map[c]
+        else:
+            return 0.1 / (
+                map[common_pb2.FEATURE_CRITICALITY_OPTIONAL]
+                + map[common_pb2.FEATURE_CRITICALITY_UNSPECIFIED]
+            )
+        pass
 
 
 @dataclass(frozen=True, slots=True)
@@ -84,9 +101,9 @@ class RelationPolicy:
     про формулу.
     """
 
-    same_group: float = 0.5
-    related: float = 0.5
-    parent: float = 0.5
+    same_group: float = 0.7
+    related: float = 0.7
+    parent: float = 0.6
     child: float = 0.5
 
     def score(self, kind: str | None) -> float:
@@ -151,7 +168,9 @@ class TemporalPolicy:
         required: float,
         recency: float | None,
     ) -> tuple[float, float, float]:
-        tenure_point, tenure_low, tenure_high = self._tenure_bounds(years, required)
+        tenure_point, tenure_low, tenure_high = self._tenure_bounds(
+            years, required
+        )
         recency_point, recency_low, recency_high = self._recency_bounds(recency)
         return (
             _clamp01(tenure_point * recency_point),
@@ -212,7 +231,10 @@ class StatusPolicy:
         required: float,
     ) -> tuple[int, int | None]:
         if relevance < self.absent_relevance:
-            return common_pb2.CORRESPONDENCE_ABSENT, common_pb2.GAP_REASON_ABSENT
+            return (
+                common_pb2.CORRESPONDENCE_ABSENT,
+                common_pb2.GAP_REASON_ABSENT,
+            )
         if required > 0 and years is None:
             return common_pb2.CORRESPONDENCE_PARTIAL, None
         if required > 0 and years is not None and years + 0.01 < required:
@@ -221,7 +243,10 @@ class StatusPolicy:
                 common_pb2.GAP_REASON_INSUFFICIENT_TENURE,
             )
         if coverage + 1e-9 < self.skill_full_coverage:
-            return common_pb2.CORRESPONDENCE_PARTIAL, common_pb2.GAP_REASON_PARTIAL
+            return (
+                common_pb2.CORRESPONDENCE_PARTIAL,
+                common_pb2.GAP_REASON_PARTIAL,
+            )
         return common_pb2.CORRESPONDENCE_FULL, None
 
     def experience(
@@ -232,7 +257,10 @@ class StatusPolicy:
         required: float,
     ) -> tuple[int, int | None]:
         if relevance < self.absent_relevance:
-            return common_pb2.CORRESPONDENCE_ABSENT, common_pb2.GAP_REASON_ABSENT
+            return (
+                common_pb2.CORRESPONDENCE_ABSENT,
+                common_pb2.GAP_REASON_ABSENT,
+            )
         if required > 0 and years is None:
             return common_pb2.CORRESPONDENCE_PARTIAL, None
         if required > 0 and years is not None and years + 0.01 < required:
@@ -241,21 +269,30 @@ class StatusPolicy:
                 common_pb2.GAP_REASON_INSUFFICIENT_TENURE,
             )
         if coverage + 1e-9 < self.experience_full_coverage:
-            return common_pb2.CORRESPONDENCE_PARTIAL, common_pb2.GAP_REASON_PARTIAL
+            return (
+                common_pb2.CORRESPONDENCE_PARTIAL,
+                common_pb2.GAP_REASON_PARTIAL,
+            )
         return common_pb2.CORRESPONDENCE_FULL, None
 
     def education(self, coverage: float) -> tuple[int, int | None]:
         if coverage >= self.education_full_coverage:
             return common_pb2.CORRESPONDENCE_FULL, None
         if coverage >= self.education_partial_coverage:
-            return common_pb2.CORRESPONDENCE_PARTIAL, common_pb2.GAP_REASON_PARTIAL
+            return (
+                common_pb2.CORRESPONDENCE_PARTIAL,
+                common_pb2.GAP_REASON_PARTIAL,
+            )
         return common_pb2.CORRESPONDENCE_ABSENT, common_pb2.GAP_REASON_ABSENT
 
     def text(self, coverage: float) -> tuple[int, int | None]:
         if coverage >= self.text_full_coverage:
             return common_pb2.CORRESPONDENCE_FULL, None
         if coverage >= self.text_partial_coverage:
-            return common_pb2.CORRESPONDENCE_PARTIAL, common_pb2.GAP_REASON_PARTIAL
+            return (
+                common_pb2.CORRESPONDENCE_PARTIAL,
+                common_pb2.GAP_REASON_PARTIAL,
+            )
         return common_pb2.CORRESPONDENCE_ABSENT, common_pb2.GAP_REASON_ABSENT
 
 
@@ -284,10 +321,10 @@ class HeuristicClaimConfidence:
         if not text:
             return 0.0
         if self._RESULT.search(text):
-            return 0.8
+            return 1.0
         if self._DUTY.search(text):
-            return 0.5
-        return 0.3
+            return 0.75
+        return 0.5
 
 
 class DomainMatcher(Protocol):
